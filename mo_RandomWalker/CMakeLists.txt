@@ -48,29 +48,66 @@ find_package(Qt6 REQUIRED COMPONENTS
     QuickControls2
 )
 
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/core
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
+qt_add_resources(qml_resources qml.qrc)
 
-file(GLOB_RECURSE CORE_SOURCES CONFIGURE_DEPENDS
-    core/*.cpp
-    core/*.hpp
-)
 set(HEADERS
-    global.hpp
     MetaAnnotations.hpp
+    global.hpp    
+    app/context/AppContext.hpp
+    model/algorithm/RandomWalkerAlgorithm.hpp
+    model/graph/PixelGraph.hpp
+    model/service/SegmentationService.hpp
+    model/utils/ImageUtils.hpp
+    app/enums/QmlEnums.hpp
+    app/qml/qml_names.hpp
+    app/qml/qml_registration.hpp
+    app/data/Rect.hpp
+    viewmodel/SeedsListModel.hpp
+    app/service/BaseImageProvider.hpp
+    viewmodel/ControlPanelViewModel.hpp
+    viewmodel/SettingsPanelViewModel.hpp
+    viewmodel/BaseImageViewModel.hpp
+    viewmodel/ResultOverlayViewModel.hpp
 )
 set(SOURCES
-    main.cpp
-    ${CORE_SOURCES}
-    qml.qrc
+    main.cpp 
+    app/context/AppContext.cpp
+    # model
+    model/algorithm/RandomWalkerAlgorithm.cpp
+    model/graph/PixelGraph.cpp
+    model/service/SegmentationService.cpp
+    viewmodel/SeedsListModel.cpp
+    app/service/BaseImageProvider.cpp
+    viewmodel/ControlPanelViewModel.cpp
+    viewmodel/SeedsOverlayViewModel.cpp
+    viewmodel/SettingsPanelViewModel.cpp
+    viewmodel/BaseImageViewModel.cpp
+    viewmodel/ResultOverlayViewModel.cpp
 )
 
 qt_add_executable(RandomWalker
     ${SOURCES}
     ${HEADERS}
 )
+
+target_include_directories(RandomWalker
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/app
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/context
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/data
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/enums
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/qml
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/service
+        ${CMAKE_CURRENT_SOURCE_DIR}/model
+        ${CMAKE_CURRENT_SOURCE_DIR}/model/algorithm
+        ${CMAKE_CURRENT_SOURCE_DIR}/model/graph
+        ${CMAKE_CURRENT_SOURCE_DIR}/model/service
+        ${CMAKE_CURRENT_SOURCE_DIR}/model/utils
+        ${CMAKE_CURRENT_SOURCE_DIR}/viewmodel
+)
+
+target_sources(RandomWalker PRIVATE ${qml_resources})
 
 target_link_libraries(RandomWalker
     PRIVATE

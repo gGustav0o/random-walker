@@ -1,8 +1,8 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 
-#include "core/app/AppContext.hpp"
-#include "core/qml/qml_registration.hpp"
+#include "app/context/AppContext.hpp"
+#include "app/qml/qml_registration.hpp"
 
 static void setup_high_dpi()
 {
@@ -22,8 +22,8 @@ int main(int argc, char* argv[])
     AppContext ctx;
     ctx.initialize(&engine);
 
-    ctx.engine->load(QUrl(QStringLiteral("qrc:/qt/qml/mo_randomwalker/qml/RandomWalker.qml")));
-    if (ctx.engine->rootObjects().isEmpty())
+    ctx.get_engine()->load(QUrl(QStringLiteral("qrc:/qt/qml/mo_randomwalker/view/views/MainView.qml")));
+    if (ctx.get_engine()->rootObjects().isEmpty())
         return -1;
 
     return app.exec();

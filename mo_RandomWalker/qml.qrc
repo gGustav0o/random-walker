@@ -1,10 +1,10 @@
 <RCC>
     <qresource prefix="/qt/qml/mo_randomwalker">
-        <file>qml/RandomWalker.qml</file>
-        <file>qml/ControlPanel.qml</file>
-        <file>qml/SegmentationView.qml</file>
-        <file>qml/DrawOverlay.qml</file>
-        <file>qml/SeedLayer.qml</file>
-        <file>qml/RectSeedMouseArea.qml</file>
+        <file>view/panels/ControlPanel.qml</file>
+        <file>view/views/MainView.qml</file>
+        <file>view/views/BaseImageView.qml</file>
+        <file>view/views/ResultOverlay.qml</file>
+        <file>view/views/SeedsOverlay.qml</file>
+        <file>view/panels/qmldir</file>
     </qresource>
 </RCC>
