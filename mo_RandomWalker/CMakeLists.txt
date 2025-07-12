@@ -61,13 +61,15 @@ set(HEADERS
     app/enums/QmlEnums.hpp
     app/qml/qml_names.hpp
     app/qml/qml_registration.hpp
-    app/data/Rect.hpp
-    viewmodel/SeedsListModel.hpp
     app/service/BaseImageProvider.hpp
+    app/service/EventBus.hpp
     viewmodel/ControlPanelViewModel.hpp
     viewmodel/SettingsPanelViewModel.hpp
     viewmodel/BaseImageViewModel.hpp
     viewmodel/ResultOverlayViewModel.hpp
+    viewmodel/ModeSelectionPanelViewModel.hpp
+    viewmodel/WithReferenceToolBarViewModel.hpp
+    viewmodel/WithoutReferenceToolBarViewModel.hpp
 )
 set(SOURCES
     main.cpp 
@@ -76,13 +78,15 @@ set(SOURCES
     model/algorithm/RandomWalkerAlgorithm.cpp
     model/graph/PixelGraph.cpp
     model/service/SegmentationService.cpp
-    viewmodel/SeedsListModel.cpp
     app/service/BaseImageProvider.cpp
+    app/service/EventBus.cpp
     viewmodel/ControlPanelViewModel.cpp
-    viewmodel/SeedsOverlayViewModel.cpp
     viewmodel/SettingsPanelViewModel.cpp
     viewmodel/BaseImageViewModel.cpp
     viewmodel/ResultOverlayViewModel.cpp
+    viewmodel/ModeSelectionPanelViewModel.cpp
+    viewmodel/WithReferenceToolBarViewModel.cpp
+    viewmodel/WithoutReferenceToolBarViewModel.cpp
 )
 
 qt_add_executable(RandomWalker

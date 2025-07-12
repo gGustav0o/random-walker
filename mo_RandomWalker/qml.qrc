@@ -4,7 +4,9 @@
         <file>view/views/MainView.qml</file>
         <file>view/views/BaseImageView.qml</file>
         <file>view/views/ResultOverlay.qml</file>
-        <file>view/views/SeedsOverlay.qml</file>
         <file>view/panels/qmldir</file>
+        <file>view/panels/ModeSelectionPanel.qml</file>
+        <file>view/panels/WithoutReferenceToolBar.qml</file>
+        <file>view/panels/WithReferenceToolBar.qml</file>
     </qresource>
 </RCC>

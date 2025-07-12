@@ -19,11 +19,11 @@ public:
 
 public slots:
 	void on_image_opened(const QString& path);
-	void on_image_cleared();
+	void on_clear_base_image_requested();
 
 signals:
 	void image_source_changed();
-	void image_loaded_changed();
+	void image_loaded_changed(bool);
 	void image_version_changed();
 private:
 	BaseImageProvider* provider_ = nullptr;

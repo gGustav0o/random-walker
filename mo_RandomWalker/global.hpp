@@ -181,4 +181,26 @@ namespace cmb
 }
 
 
-
+/*
+private:
+    Q_PROPERTY(bool visible READ visible NOTIFY visible_changed)
+    bool visible_;
+    void set_visible(bool value) {
+        if (visible_ == value) return;
+        visible_ = value;
+        emit visible_changed(visible_);
+    }
+public:
+    bool visible() const { return visible_; }
+signals:
+    void visible_changed(bool);
+public slots:
+    void hide() { set_visible(false); }
+    void show() { set_visible(true); }
+    void on_request_set_visible(bool value) {
+        if (visible_ == value) return;
+        visible_ = value;
+       emit visible_changed(visible_);
+    }
+private:
+*/

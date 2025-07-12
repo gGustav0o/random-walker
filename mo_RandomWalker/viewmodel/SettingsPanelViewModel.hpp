@@ -16,6 +16,7 @@ public:
 
 	bool is_visible() const;
 	void set_visible(bool value);
+
 signals:
 	void sigma_changed();
 	void visible_changed();

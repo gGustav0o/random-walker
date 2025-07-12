@@ -9,4 +9,7 @@ namespace qml_names
     QML_LITERAL(kBaseImageProvider, "BaseImageProvider");
     QML_LITERAL(kBaseImageViewModel, "BaseImageViewModel");
     QML_LITERAL(kControlPanelViewModel, "ControlPanelViewModel");
+    QML_LITERAL(kModeSelectionlPanelViewModel, "ModeSelectionlPanelViewModel");
+    QML_LITERAL(kWithoutReferenceToolBarViewModel, "WithoutReferenceToolBarViewModel");
+    QML_LITERAL(kWithReferenceToolBarViewModel, "WithReferenceToolBarViewModel");
 }

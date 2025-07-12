@@ -24,7 +24,7 @@ void BaseImageViewModel::on_image_opened(const QString& path) {
     if (img.isNull() || !provider_) {
         loaded_ = false;
         emit image_source_changed();
-        emit image_loaded_changed();
+        emit image_loaded_changed(loaded_);
         return;
     }
     QImage gray = to_grayscale(img);
@@ -33,12 +33,12 @@ void BaseImageViewModel::on_image_opened(const QString& path) {
     loaded_ = true;
 	emit image_version_changed();
     emit image_source_changed();
-    emit image_loaded_changed();
+    emit image_loaded_changed(loaded_);
 }
 
-void BaseImageViewModel::on_image_cleared() {
+void BaseImageViewModel::on_clear_base_image_requested() {
     if (provider_) provider_->clear();
     loaded_ = false;
     emit image_source_changed();
-    emit image_loaded_changed();
+    emit image_loaded_changed(loaded_);
 }
