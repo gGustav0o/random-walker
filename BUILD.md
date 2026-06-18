@@ -1,6 +1,6 @@
-# RandomWalker
+# random-walker
 
-**RandomWalker** — это десктопное приложение на C++ с использованием **Qt 6.8.1**, **Eigen** и системой сборки **CMake + Conan**. Проект автоматически подтягивает зависимости и может быть собран на любой машине с минимальной подготовкой.
+**random-walker** — десктопное приложение на C++ с использованием **Qt 6.8.1**, **Eigen** и CMake.
 
 ---
 
@@ -9,25 +9,40 @@
 | Компонент                        | Версия / Уточнение                 |
 | -------------------------------- | ---------------------------------- |
 | [CMake](https://cmake.org/)      | 3.21 или выше                      |
-| [Conan](https://conan.io/)       | 2.0 или выше (`pip install conan`) |
 | [Qt](https://www.qt.io/download) | 6.8.1 (локальная установка)        |
-| Компилятор                       | MSVC 2022 (Visual Studio 17)       |
-| Python                           | 3.8 или выше (требуется для Conan) |
+| [Eigen](https://eigen.tuxfamily.org/) | 3.4                       |
+| Компилятор                       | MSVC с поддержкой C++20            |
+| Генератор                        | Ninja                              |
 
 ---
 
-## Установка зависимостей (однократно)
+## Локальные пути к зависимостям
 
-1. Установите **Conan**:
+Локальные пути к Qt 6 и Eigen задаются в `CMakeUserPresets.json`. Этот файл не входит в git, поскольку пути зависят от рабочей станции.
+
+На текущей машине файл уже настроен на Qt 6.8.1 и Eigen 3.4. При переносе проекта укажите фактические каталоги с `Qt6Config.cmake` и `Eigen3Config.cmake`.
+
+## Visual Studio
+
+1. Откройте корневой каталог репозитория через **Open a local folder**.
+2. Выберите CMake preset `Debug` или `Release`.
+3. Выберите startup item `random-walker.exe`.
+4. Выполните **Build All**, затем запустите приложение.
+
+Сборочный preset выполняет цель `deploy`, поэтому необходимые библиотеки и плагины Qt копируются рядом с исполняемым файлом.
+
+## Командная строка
+
+Команды необходимо выполнять из корня репозитория в **Developer PowerShell for Visual Studio**:
+
+```powershell
+cmake --workflow --preset debug
+.\out\build\debug\bin\random-walker.exe
 ```
-pip install conan
-```
-2. Сгенерируйте профили сборки:
-```
-conan profile detect --name=msvc-debug
-conan profile detect --name=msvc-release
-```
-3. Убедитесь, что переменная среды `CMAKE_PREFIX_PATH` указывает на путь установки Qt:
-```
-set CMAKE_PREFIX_PATH=C:\Qt\6.8.1\msvc2022_64
+
+Release:
+
+```powershell
+cmake --workflow --preset release
+.\out\build\release\bin\random-walker.exe
 ```

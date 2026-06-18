@@ -2,7 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 
-import "qrc:/qt/qml/mo_randomwalker/view/panels" as Panels
+import "qrc:/qt/qml/random-walker/view/panels" as Panels
 
 
 
@@ -11,6 +11,7 @@ ApplicationWindow {
 	width: 1280
     height: 800
     visible: true
+    title: "random-walker"
     color: "#232323"
 
     Panels.ControlPanel {

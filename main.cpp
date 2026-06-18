@@ -22,7 +22,7 @@ int main(int argc, char* argv[])
     AppContext ctx;
     ctx.initialize(&engine);
 
-    ctx.get_engine()->load(QUrl(QStringLiteral("qrc:/qt/qml/mo_randomwalker/view/views/MainView.qml")));
+    ctx.get_engine()->load(QUrl(QStringLiteral("qrc:/qt/qml/random-walker/view/views/MainView.qml")));
     if (ctx.get_engine()->rootObjects().isEmpty())
         return -1;
 

@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/qt/qml/mo_randomwalker">
+    <qresource prefix="/qt/qml/random-walker">
         <file>view/panels/ControlPanel.qml</file>
         <file>view/views/MainView.qml</file>
         <file>view/views/BaseImageView.qml</file>

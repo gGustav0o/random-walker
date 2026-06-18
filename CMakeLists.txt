@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(RandomWalker LANGUAGES CXX)
+project(random-walker LANGUAGES CXX)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -7,39 +7,11 @@ set(CMAKE_AUTOUIC ON)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-find_package(Eigen3 QUIET)
-if (NOT Eigen3_FOUND)
-    message(STATUS "Eigen3 не найден. Подключаем через Conan...")
-
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        set(_conan_profile msvc-release)
-    else()
-        set(_conan_profile msvc-debug)
-    endif()
-
-    if(NOT EXISTS "${CMAKE_BINARY_DIR}/conan_toolchain.cmake")
-        message(STATUS "Выполняем: conan install с профилем ${_conan_profile}")
-        execute_process(
-            COMMAND conan install ${CMAKE_SOURCE_DIR}
-                    --output-folder=${CMAKE_BINARY_DIR}
-                    --build=missing
-                    --profile:build=${_conan_profile}
-            RESULT_VARIABLE result
-        )
-        if(NOT result EQUAL 0)
-            message(FATAL_ERROR "Ошибка при вызове conan install!")
-        endif()
-    endif()
-
-    include(${CMAKE_BINARY_DIR}/conan_toolchain.cmake OPTIONAL RESULT_VARIABLE _toolchain)
-    if(NOT _toolchain)
-        message(FATAL_ERROR "conan_toolchain.cmake не найден. Проверьте Conan.")
-    endif()
-
-    include(${CMAKE_BINARY_DIR}/conan_deps.cmake REQUIRED)
-endif()
-
+find_package(Eigen3 3.4 REQUIRED NO_MODULE)
 find_package(Qt6 REQUIRED COMPONENTS
     Core
     Gui
@@ -52,7 +24,7 @@ qt_add_resources(qml_resources qml.qrc)
 
 set(HEADERS
     MetaAnnotations.hpp
-    global.hpp    
+    global.hpp
     app/context/AppContext.hpp
     model/algorithm/RandomWalkerAlgorithm.hpp
     model/graph/PixelGraph.hpp
@@ -72,7 +44,7 @@ set(HEADERS
     viewmodel/WithoutReferenceToolBarViewModel.hpp
 )
 set(SOURCES
-    main.cpp 
+    main.cpp
     app/context/AppContext.cpp
     # model
     model/algorithm/RandomWalkerAlgorithm.cpp
@@ -89,12 +61,12 @@ set(SOURCES
     viewmodel/WithoutReferenceToolBarViewModel.cpp
 )
 
-qt_add_executable(RandomWalker
+qt_add_executable(${PROJECT_NAME}
     ${SOURCES}
     ${HEADERS}
 )
 
-target_include_directories(RandomWalker
+target_include_directories(${PROJECT_NAME}
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/app
@@ -111,9 +83,9 @@ target_include_directories(RandomWalker
         ${CMAKE_CURRENT_SOURCE_DIR}/viewmodel
 )
 
-target_sources(RandomWalker PRIVATE ${qml_resources})
+target_sources(${PROJECT_NAME} PRIVATE ${qml_resources})
 
-target_link_libraries(RandomWalker
+target_link_libraries(${PROJECT_NAME}
     PRIVATE
         Qt6::Core
         Qt6::Gui
@@ -122,3 +94,14 @@ target_link_libraries(RandomWalker
         Qt6::QuickControls2
         Eigen3::Eigen
 )
+
+if(WIN32)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND Qt6::windeployqt
+            --no-translations
+            --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/view"
+            "$<TARGET_FILE:${PROJECT_NAME}>"
+        COMMENT "Deploying the Qt runtime"
+        VERBATIM
+    )
+endif()
