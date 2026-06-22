@@ -1,40 +1,42 @@
 #include "SeedListModel.hpp"
 
 #include <cstddef>
-#include <utility>
 
-SeedListModel::SeedListModel(QObject* parent)
+SeedListModel::SeedListModel(
+    const std::vector<random_walker::domain::SeedRegion>& regions,
+    QObject* parent)
     : QAbstractListModel(parent)
+    , regions_(regions)
 {
 }
 
 int SeedListModel::rowCount(const QModelIndex& parent) const
 {
-    return parent.isValid() ? 0 : static_cast<int>(rectangles_.size());
+    return parent.isValid() ? 0 : static_cast<int>(regions_.size());
 }
 
 QVariant SeedListModel::data(const QModelIndex& index, int role) const
 {
     if (!index.isValid()
         || index.row() < 0
-        || index.row() >= static_cast<int>(rectangles_.size())) {
+        || index.row() >= static_cast<int>(regions_.size())) {
         return {};
     }
 
-    const Rectangle& rectangle =
-        rectangles_[static_cast<std::size_t>(index.row())];
+    const random_walker::domain::SeedRegion& region =
+        regions_[static_cast<std::size_t>(index.row())];
 
     switch (role) {
     case XRole:
-        return rectangle.x;
+        return region.area.x;
     case YRole:
-        return rectangle.y;
+        return region.area.y;
     case WidthRole:
-        return rectangle.width;
+        return region.area.width;
     case HeightRole:
-        return rectangle.height;
+        return region.area.height;
     case LabelRole:
-        return static_cast<int>(rectangle.label);
+        return static_cast<int>(region.label);
     default:
         return {};
     }
@@ -51,63 +53,9 @@ QHash<int, QByteArray> SeedListModel::roleNames() const
     };
 }
 
-void SeedListModel::append(Rectangle rectangle)
+void SeedListModel::reset(const std::function<void()>& update_regions)
 {
-    const int row = static_cast<int>(rectangles_.size());
-    beginInsertRows(QModelIndex(), row, row);
-    rectangles_.push_back(std::move(rectangle));
-    endInsertRows();
-}
-
-void SeedListModel::clear()
-{
-    if (rectangles_.empty()) {
-        return;
-    }
-
     beginResetModel();
-    rectangles_.clear();
+    update_regions();
     endResetModel();
-}
-
-int SeedListModel::pixel_count(
-    random_walker::domain::SeedLabel label) const noexcept
-{
-    int result = 0;
-    for (const Rectangle& rectangle : rectangles_) {
-        if (rectangle.label == label) {
-            result += rectangle.width * rectangle.height;
-        }
-    }
-    return result;
-}
-
-std::vector<random_walker::domain::Seed>
-SeedListModel::expanded_seeds() const
-{
-    std::size_t seed_count = 0;
-    for (const Rectangle& rectangle : rectangles_) {
-        seed_count += static_cast<std::size_t>(rectangle.width)
-            * static_cast<std::size_t>(rectangle.height);
-    }
-
-    std::vector<random_walker::domain::Seed> result;
-    result.reserve(seed_count);
-
-    for (const Rectangle& rectangle : rectangles_) {
-        for (int row = rectangle.y;
-             row < rectangle.y + rectangle.height;
-             ++row) {
-            for (int column = rectangle.x;
-                 column < rectangle.x + rectangle.width;
-                 ++column) {
-                result.push_back({
-                    .position = { .x = column, .y = row },
-                    .label = rectangle.label
-                });
-            }
-        }
-    }
-
-    return result;
 }

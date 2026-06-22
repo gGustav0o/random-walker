@@ -4,11 +4,11 @@
 #include <QMutex>
 #include <QQuickImageProvider>
 
-#include "app/service/ResultImageSink.hpp"
+#include "app/service/PresentationImageCache.hpp"
 
 class ResultImageProvider final
     : public QQuickImageProvider
-    , public ResultImageSink
+    , public PresentationImageCache
 {
 public:
     ResultImageProvider()
@@ -20,10 +20,10 @@ public:
         const QString& id,
         QSize* size,
         const QSize& requested_size) override;
-    void set_image(const QImage& image) override;
+    void store(const QImage& image) override;
     void clear() override;
 
 private:
-    QImage image_;
+    QImage cached_image_;
     QMutex mutex_;
 };

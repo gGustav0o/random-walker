@@ -7,19 +7,19 @@ QImage BaseImageProvider::requestImage(const QString & id, QSize * size, const Q
     int idx = real_id.indexOf("?");
     if (idx != -1)
         real_id = real_id.left(idx);
-    if (real_id == "processed" && !image_.isNull()) {
-        if (size) *size = image_.size();
-        return image_;
+    if (real_id == "processed" && !cached_image_.isNull()) {
+        if (size) *size = cached_image_.size();
+        return cached_image_;
     }
     return QImage();
 }
 
-void BaseImageProvider::set_image(const QImage& image) {
+void BaseImageProvider::store(const QImage& image) {
     QMutexLocker locker(&mutex_);
-    image_ = image;
+    cached_image_ = image;
 }
 
 void BaseImageProvider::clear() {
     QMutexLocker locker(&mutex_);
-    image_ = QImage();
+    cached_image_ = QImage();
 }

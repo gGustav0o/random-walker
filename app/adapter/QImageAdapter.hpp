@@ -25,8 +25,24 @@ namespace random_walker::qt_adapter
         return domain::GrayImage(std::move(pixels));
     }
 
-    [[nodiscard]] inline QImage to_grayscale(const QImage& image)
+    [[nodiscard]] inline QImage to_qimage(const domain::GrayImage& image)
     {
-        return image.convertToFormat(QImage::Format_Grayscale8);
+        if (image.empty()) {
+            return {};
+        }
+
+        QImage result(
+            image.width(),
+            image.height(),
+            QImage::Format_Grayscale8);
+
+        for (int row = 0; row < image.height(); ++row) {
+            uchar* scan_line = result.scanLine(row);
+            for (int column = 0; column < image.width(); ++column) {
+                scan_line[column] = image.at(row, column);
+            }
+        }
+
+        return result;
     }
 }

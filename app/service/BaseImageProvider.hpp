@@ -4,19 +4,19 @@
 #include <QImage>
 #include <QMutex>
 
-#include "app/service/BaseImageSink.hpp"
+#include "app/service/PresentationImageCache.hpp"
 
 class BaseImageProvider final
     : public QQuickImageProvider
-    , public BaseImageSink
+    , public PresentationImageCache
 {
 public:
 	BaseImageProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
 
 	QImage requestImage(const QString& id, QSize* size, const QSize& requestedSize) override;
-	void set_image(const QImage& image) override;
+	void store(const QImage& image) override;
 	void clear() override;
 private:
-	QImage image_;
+	QImage cached_image_;
 	QMutex mutex_;
 };

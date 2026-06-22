@@ -1,14 +1,14 @@
 #pragma once
 
 #include <optional>
+#include <vector>
 
 #include <QAbstractItemModel>
 #include <QObject>
 #include <QString>
 #include <QtGlobal>
 
-#include "app/service/BaseImageSink.hpp"
-#include "app/service/ResultImageSink.hpp"
+#include "app/service/PresentationImageCache.hpp"
 #include "model/domain/Segmentation.hpp"
 #include "model/service/SegmentationService.hpp"
 #include "viewmodel/SeedListModel.hpp"
@@ -42,8 +42,8 @@ public:
 
     explicit SegmentationViewModel(
         const random_walker::service::SegmentationService& segmentation_service,
-        BaseImageSink& base_image_sink,
-        ResultImageSink& result_image_sink,
+        PresentationImageCache& base_image_cache,
+        PresentationImageCache& result_image_cache,
         QObject* parent = nullptr);
 
     [[nodiscard]] QString image_source() const;
@@ -91,9 +91,10 @@ private:
     void notify_can_run_if_changed(bool previous_value);
 
     const random_walker::service::SegmentationService& segmentation_service_;
-    BaseImageSink& base_image_sink_;
-    ResultImageSink& result_image_sink_;
+    PresentationImageCache& base_image_cache_;
+    PresentationImageCache& result_image_cache_;
     random_walker::domain::GrayImage image_;
+    std::vector<random_walker::domain::SeedRegion> seed_regions_;
     SeedListModel seed_model_;
     std::optional<random_walker::domain::SegmentationResult> result_;
     QString error_message_;

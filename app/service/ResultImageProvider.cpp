@@ -10,19 +10,19 @@ QImage ResultImageProvider::requestImage(
 
     QMutexLocker locker(&mutex_);
     if (size) {
-        *size = image_.size();
+        *size = cached_image_.size();
     }
-    return image_;
+    return cached_image_;
 }
 
-void ResultImageProvider::set_image(const QImage& image)
+void ResultImageProvider::store(const QImage& image)
 {
     QMutexLocker locker(&mutex_);
-    image_ = image;
+    cached_image_ = image;
 }
 
 void ResultImageProvider::clear()
 {
     QMutexLocker locker(&mutex_);
-    image_ = {};
+    cached_image_ = {};
 }

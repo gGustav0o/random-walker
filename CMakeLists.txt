@@ -33,9 +33,8 @@ set(HEADERS
     model/graph/PixelGraph.hpp
     model/service/SegmentationService.hpp
     app/qml/qml_names.hpp
-    app/service/BaseImageSink.hpp
+    app/service/PresentationImageCache.hpp
     app/service/BaseImageProvider.hpp
-    app/service/ResultImageSink.hpp
     app/service/ResultImageProvider.hpp
     viewmodel/SegmentationViewModel.hpp
     viewmodel/SeedListModel.hpp

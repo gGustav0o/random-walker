@@ -43,14 +43,14 @@ namespace
 
 SegmentationViewModel::SegmentationViewModel(
     const random_walker::service::SegmentationService& segmentation_service,
-    BaseImageSink& base_image_sink,
-    ResultImageSink& result_image_sink,
+    PresentationImageCache& base_image_cache,
+    PresentationImageCache& result_image_cache,
     QObject* parent)
     : QObject(parent)
     , segmentation_service_(segmentation_service)
-    , base_image_sink_(base_image_sink)
-    , result_image_sink_(result_image_sink)
-    , seed_model_()
+    , base_image_cache_(base_image_cache)
+    , result_image_cache_(result_image_cache)
+    , seed_model_(seed_regions_)
 {
 }
 
@@ -128,13 +128,15 @@ QString SegmentationViewModel::error_message() const
 
 int SegmentationViewModel::background_seed_count() const noexcept
 {
-    return seed_model_.pixel_count(
+    return random_walker::domain::seed_pixel_count(
+        seed_regions_,
         random_walker::domain::SeedLabel::Background);
 }
 
 int SegmentationViewModel::object_seed_count() const noexcept
 {
-    return seed_model_.pixel_count(
+    return random_walker::domain::seed_pixel_count(
+        seed_regions_,
         random_walker::domain::SeedLabel::Object);
 }
 
@@ -165,14 +167,15 @@ void SegmentationViewModel::open_image(const QString& path)
     const bool previous_can_run = can_run();
     const bool was_loaded = image_loaded();
 
-    const QImage grayscale =
-        random_walker::qt_adapter::to_grayscale(loaded);
-    image_ = random_walker::qt_adapter::to_gray_image(grayscale);
-    seed_model_.clear();
+    image_ = random_walker::qt_adapter::to_gray_image(loaded);
+    seed_model_.reset([this] {
+        seed_regions_.clear();
+    });
     invalidate_result();
     set_error({});
 
-    base_image_sink_.set_image(grayscale);
+    base_image_cache_.store(
+        random_walker::qt_adapter::to_qimage(image_));
     ++image_version_;
 
     emit image_version_changed();
@@ -187,7 +190,7 @@ void SegmentationViewModel::open_image(const QString& path)
 
 void SegmentationViewModel::clear()
 {
-    if (!image_loaded() && seed_model_.rowCount() == 0 && !has_result()
+    if (!image_loaded() && seed_regions_.empty() && !has_result()
         && error_message_.isEmpty()) {
         return;
     }
@@ -196,10 +199,12 @@ void SegmentationViewModel::clear()
     const bool was_loaded = image_loaded();
 
     image_ = {};
-    seed_model_.clear();
+    seed_model_.reset([this] {
+        seed_regions_.clear();
+    });
     invalidate_result();
     set_error({});
-    base_image_sink_.clear();
+    base_image_cache_.clear();
     ++image_version_;
 
     emit image_version_changed();
@@ -214,12 +219,14 @@ void SegmentationViewModel::clear()
 
 void SegmentationViewModel::clear_seeds()
 {
-    if (seed_model_.rowCount() == 0) {
+    if (seed_regions_.empty()) {
         return;
     }
 
     const bool previous_can_run = can_run();
-    seed_model_.clear();
+    seed_model_.reset([this] {
+        seed_regions_.clear();
+    });
     invalidate_result();
     set_error({});
 
@@ -257,12 +264,16 @@ void SegmentationViewModel::add_seed_rectangle(
     const bool previous_can_run = can_run();
     const DomainSeedLabel label = domain_seed_label();
 
-    seed_model_.append({
-        .x = left,
-        .y = top,
-        .width = right - left,
-        .height = bottom - top,
-        .label = label
+    seed_model_.reset([this, left, top, right, bottom, label] {
+        seed_regions_.push_back({
+            .area = {
+                .x = left,
+                .y = top,
+                .width = right - left,
+                .height = bottom - top
+            },
+            .label = label
+        });
     });
 
     invalidate_result();
@@ -281,7 +292,7 @@ void SegmentationViewModel::run_segmentation()
     set_error({});
 
     const std::vector<random_walker::domain::Seed> seeds =
-        seed_model_.expanded_seeds();
+        random_walker::domain::expand_seed_regions(seed_regions_);
     random_walker::domain::SegmentationOutcome outcome =
         segmentation_service_.segment({
             image_,
@@ -291,7 +302,7 @@ void SegmentationViewModel::run_segmentation()
     if (auto* segmentation_result =
             std::get_if<random_walker::domain::SegmentationResult>(&outcome)) {
         result_ = std::move(*segmentation_result);
-        result_image_sink_.set_image(
+        result_image_cache_.store(
             random_walker::qt_adapter::render_binary_mask(result_->mask));
         ++result_version_;
         emit result_changed();
@@ -319,7 +330,7 @@ void SegmentationViewModel::invalidate_result()
     }
 
     result_.reset();
-    result_image_sink_.clear();
+    result_image_cache_.clear();
     ++result_version_;
     emit result_changed();
 }
