@@ -14,7 +14,7 @@ AppContext::AppContext(QQmlApplicationEngine& engine)
     auto result_image_provider = std::make_unique<ResultImageProvider>();
 
     segmentation_view_model_ = std::make_unique<SegmentationViewModel>(
-        segmentation_service_,
+        segmentation_executor_,
         *base_image_provider,
         *result_image_provider);
 
@@ -28,4 +28,12 @@ AppContext::AppContext(QQmlApplicationEngine& engine)
     engine.addImageProvider(
         qml_names::kResultImageProvider,
         result_image_provider.release());
+}
+
+AppContext::~AppContext()
+{
+    // The ViewModel cancels its active request and removes queued deliveries.
+    // The executor is destroyed next and joins its worker thread.
+    // Image providers remain owned by QQmlApplicationEngine.
+    segmentation_view_model_.reset();
 }

@@ -61,8 +61,9 @@ namespace random_walker::graph
             return std::exp(-kBeta * difference * difference);
         }
 
-        [[nodiscard]] Eigen::SparseMatrix<double> compute_laplacian(
-            const domain::GrayImage& image)
+        [[nodiscard]] LaplacianOutcome compute_laplacian(
+            const domain::GrayImage& image,
+            const domain::CancellationToken& cancellation)
         {
             const int height = image.height();
             const int width = image.width();
@@ -78,7 +79,15 @@ namespace random_walker::graph
             Eigen::VectorXd degrees = Eigen::VectorXd::Zero(pixel_count);
 
             for (int row = 0; row < height; ++row) {
+                if (cancellation.stop_requested()) {
+                    return domain::Cancelled {};
+                }
+
                 for (int column = 0; column < width; ++column) {
+                    if ((column & 0x0fff) == 0
+                        && cancellation.stop_requested()) {
+                        return domain::Cancelled {};
+                    }
                     const int source_index = index_at(row, column);
                     const std::uint8_t source_intensity = image.at(row, column);
 
@@ -103,17 +112,32 @@ namespace random_walker::graph
             }
 
             for (int index = 0; index < pixel_count; ++index) {
+                if ((index & 0x0fff) == 0
+                    && cancellation.stop_requested()) {
+                    return domain::Cancelled {};
+                }
                 triplets.emplace_back(index, index, degrees[index]);
+            }
+
+            if (cancellation.stop_requested()) {
+                return domain::Cancelled {};
             }
 
             Eigen::SparseMatrix<double> laplacian(pixel_count, pixel_count);
             laplacian.setFromTriplets(triplets.begin(), triplets.end());
+
+            if (cancellation.stop_requested()) {
+                return domain::Cancelled {};
+            }
+
             return laplacian;
         }
     }
 
-    Eigen::SparseMatrix<double> build_laplacian(const domain::GrayImage& image)
+    LaplacianOutcome build_laplacian(
+        const domain::GrayImage& image,
+        const domain::CancellationToken& cancellation)
     {
-        return compute_laplacian(image);
+        return compute_laplacian(image, cancellation);
     }
 }

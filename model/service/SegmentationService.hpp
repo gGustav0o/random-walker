@@ -10,9 +10,10 @@ namespace random_walker::service
     {
     public:
         [[nodiscard]] domain::SegmentationOutcome segment(
-            const domain::SegmentationInput& input) const;
+            const domain::SegmentationRequest& request,
+            domain::CancellationToken cancellation = {}) const;
 
         [[nodiscard]] static std::optional<domain::SegmentationError> validate(
-            const domain::SegmentationInput& input) noexcept;
+            const domain::SegmentationRequest& request) noexcept;
     };
 }

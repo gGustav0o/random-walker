@@ -39,14 +39,22 @@ namespace random_walker::algorithm::detail
             SparseMatrix<double> unlabeled_to_labeled;
         };
 
-        using SolveOutcome = std::variant<VectorXd, domain::SegmentationError>;
+        template <typename Value>
+        using CancellableOutcome = std::variant<Value, domain::Cancelled>;
+
+        using SolveOutcome = std::variant<
+            VectorXd,
+            domain::SegmentationError,
+            domain::Cancelled>;
 
         [[nodiscard]] constexpr int flatten(int row, int column, int width) noexcept
         {
             return row * width + column;
         }
 
-        [[nodiscard]] LabelData build_labels(const domain::SegmentationInput& input)
+        [[nodiscard]] CancellableOutcome<LabelData> build_labels(
+            const domain::SegmentationInput& input,
+            const domain::CancellationToken& cancellation)
         {
             const int height = input.image.height();
             const int width = input.image.width();
@@ -58,6 +66,9 @@ namespace random_walker::algorithm::detail
 
             const auto apply_seeds = [&](domain::SeedLabel label, int value) {
                 for (const domain::Seed& seed : input.seeds) {
+                    if (cancellation.stop_requested()) {
+                        return false;
+                    }
                     if (seed.label != label) {
                         continue;
                     }
@@ -66,22 +77,31 @@ namespace random_walker::algorithm::detail
                     result.labeled_indices.insert(
                         flatten(seed.position.y, seed.position.x, width));
                 }
+                return true;
             };
 
-            apply_seeds(domain::SeedLabel::Background, 0);
-            apply_seeds(domain::SeedLabel::Object, 1);
+            if (!apply_seeds(domain::SeedLabel::Background, 0)
+                || !apply_seeds(domain::SeedLabel::Object, 1)) {
+                return domain::Cancelled {};
+            }
             return result;
         }
 
-        [[nodiscard]] UnlabeledData extract_unlabeled_indices(
+        [[nodiscard]] CancellableOutcome<UnlabeledData>
+        extract_unlabeled_indices(
             int pixel_count,
-            const std::unordered_set<int>& labeled_indices)
+            const std::unordered_set<int>& labeled_indices,
+            const domain::CancellationToken& cancellation)
         {
             UnlabeledData result;
             result.indices.reserve(
                 static_cast<std::size_t>(pixel_count) - labeled_indices.size());
 
             for (int index = 0; index < pixel_count; ++index) {
+                if ((index & 0x0fff) == 0
+                    && cancellation.stop_requested()) {
+                    return domain::Cancelled {};
+                }
                 if (labeled_indices.contains(index)) {
                     continue;
                 }
@@ -94,23 +114,30 @@ namespace random_walker::algorithm::detail
             return result;
         }
 
-        [[nodiscard]] std::unordered_map<int, int> index_by_pixel(
-            const std::vector<int>& pixel_indices)
+        [[nodiscard]] CancellableOutcome<std::unordered_map<int, int>>
+        index_by_pixel(
+            const std::vector<int>& pixel_indices,
+            const domain::CancellationToken& cancellation)
         {
             std::unordered_map<int, int> result;
             result.reserve(pixel_indices.size());
 
             for (std::size_t index = 0; index < pixel_indices.size(); ++index) {
+                if ((index & 0x0fff) == 0
+                    && cancellation.stop_requested()) {
+                    return domain::Cancelled {};
+                }
                 result.emplace(pixel_indices[index], static_cast<int>(index));
             }
 
             return result;
         }
 
-        [[nodiscard]] LaplacianBlocks split_laplacian(
+        [[nodiscard]] CancellableOutcome<LaplacianBlocks> split_laplacian(
             const SparseMatrix<double>& laplacian,
             const std::unordered_map<int, int>& labeled_index,
-            const std::unordered_map<int, int>& unlabeled_index)
+            const std::unordered_map<int, int>& unlabeled_index,
+            const domain::CancellationToken& cancellation)
         {
             LaplacianBlocks result {
                 .unlabeled_to_unlabeled = SparseMatrix<double>(
@@ -125,6 +152,9 @@ namespace random_walker::algorithm::detail
             std::vector<Eigen::Triplet<double>> labeled_triplets;
 
             for (int outer = 0; outer < laplacian.outerSize(); ++outer) {
+                if (cancellation.stop_requested()) {
+                    return domain::Cancelled {};
+                }
                 for (SparseMatrix<double>::InnerIterator entry(laplacian, outer);
                      entry;
                      ++entry) {
@@ -149,6 +179,10 @@ namespace random_walker::algorithm::detail
                 }
             }
 
+            if (cancellation.stop_requested()) {
+                return domain::Cancelled {};
+            }
+
             result.unlabeled_to_unlabeled.setFromTriplets(
                 unlabeled_triplets.begin(),
                 unlabeled_triplets.end());
@@ -158,14 +192,19 @@ namespace random_walker::algorithm::detail
             return result;
         }
 
-        [[nodiscard]] VectorXd build_boundary_values(
+        [[nodiscard]] CancellableOutcome<VectorXd> build_boundary_values(
             const MatrixXi& labels,
             const std::vector<int>& labeled_pixels,
-            int width)
+            int width,
+            const domain::CancellationToken& cancellation)
         {
             VectorXd values(static_cast<int>(labeled_pixels.size()));
 
             for (std::size_t index = 0; index < labeled_pixels.size(); ++index) {
+                if ((index & 0x0fff) == 0
+                    && cancellation.stop_requested()) {
+                    return domain::Cancelled {};
+                }
                 const int pixel = labeled_pixels[index];
                 values[static_cast<int>(index)] = labels(pixel / width, pixel % width);
             }
@@ -176,11 +215,19 @@ namespace random_walker::algorithm::detail
         [[nodiscard]] SolveOutcome solve_sparse_system(
             const SparseMatrix<double>& unlabeled_to_unlabeled,
             const SparseMatrix<double>& unlabeled_to_labeled,
-            const VectorXd& boundary_values)
+            const VectorXd& boundary_values,
+            const domain::CancellationToken& cancellation)
         {
+            if (cancellation.stop_requested()) {
+                return domain::Cancelled {};
+            }
+
             Eigen::SimplicialLLT<SparseMatrix<double>> solver;
             solver.compute(unlabeled_to_unlabeled);
 
+            if (cancellation.stop_requested()) {
+                return domain::Cancelled {};
+            }
             if (solver.info() != Eigen::Success) {
                 return domain::SegmentationError::LaplacianDecompositionFailed;
             }
@@ -188,6 +235,9 @@ namespace random_walker::algorithm::detail
             VectorXd solution = solver.solve(
                 -unlabeled_to_labeled * boundary_values);
 
+            if (cancellation.stop_requested()) {
+                return domain::Cancelled {};
+            }
             if (solver.info() != Eigen::Success) {
                 return domain::SegmentationError::LinearSystemSolveFailed;
             }
@@ -198,18 +248,24 @@ namespace random_walker::algorithm::detail
             return solution;
         }
 
-        [[nodiscard]] domain::ProbabilityMap assemble_probabilities(
+        [[nodiscard]] CancellableOutcome<domain::ProbabilityMap>
+        assemble_probabilities(
             const MatrixXi& labels,
             const std::unordered_set<int>& labeled_indices,
             const std::unordered_map<int, int>& unlabeled_index,
             const VectorXd& unlabeled_values,
             int width,
-            int height)
+            int height,
+            const domain::CancellationToken& cancellation)
         {
             domain::ProbabilityMap result(height, width);
             const int pixel_count = width * height;
 
             for (int index = 0; index < pixel_count; ++index) {
+                if ((index & 0x0fff) == 0
+                    && cancellation.stop_requested()) {
+                    return domain::Cancelled {};
+                }
                 const int row = index / width;
                 const int column = index % width;
 
@@ -222,63 +278,155 @@ namespace random_walker::algorithm::detail
 
             return result;
         }
+
+        [[nodiscard]] CancellableOutcome<domain::BinaryMask>
+        threshold_probabilities(
+            const domain::ProbabilityMap& probabilities,
+            const domain::CancellationToken& cancellation)
+        {
+            const int height = static_cast<int>(probabilities.rows());
+            const int width = static_cast<int>(probabilities.cols());
+            domain::BinaryMask mask(height, width);
+
+            for (int row = 0; row < height; ++row) {
+                if (cancellation.stop_requested()) {
+                    return domain::Cancelled {};
+                }
+                for (int column = 0; column < width; ++column) {
+                    mask(row, column) =
+                        probabilities(row, column) >= 0.5 ? 1 : 0;
+                }
+            }
+
+            return mask;
+        }
     }
 
     domain::SegmentationOutcome run_validated_random_walker(
-        const domain::SegmentationInput& input)
+        const domain::SegmentationInput& input,
+        const domain::CancellationToken& cancellation)
     {
+        if (cancellation.stop_requested()) {
+            return domain::Cancelled {};
+        }
+
         const int width = input.image.width();
         const int height = input.image.height();
         const int pixel_count = width * height;
 
-        const SparseMatrix<double> laplacian =
-            graph::build_laplacian(input.image);
-        const LabelData label_data = build_labels(input);
-        const UnlabeledData unlabeled_data = extract_unlabeled_indices(
+        graph::LaplacianOutcome laplacian_outcome =
+            graph::build_laplacian(input.image, cancellation);
+        if (std::holds_alternative<domain::Cancelled>(laplacian_outcome)) {
+            return domain::Cancelled {};
+        }
+        SparseMatrix<double> laplacian =
+            std::get<SparseMatrix<double>>(std::move(laplacian_outcome));
+
+        CancellableOutcome<LabelData> label_outcome =
+            build_labels(input, cancellation);
+        if (std::holds_alternative<domain::Cancelled>(label_outcome)) {
+            return domain::Cancelled {};
+        }
+        LabelData label_data =
+            std::get<LabelData>(std::move(label_outcome));
+
+        CancellableOutcome<UnlabeledData> unlabeled_outcome =
+            extract_unlabeled_indices(
             pixel_count,
-            label_data.labeled_indices);
+            label_data.labeled_indices,
+            cancellation);
+        if (std::holds_alternative<domain::Cancelled>(unlabeled_outcome)) {
+            return domain::Cancelled {};
+        }
+        UnlabeledData unlabeled_data =
+            std::get<UnlabeledData>(std::move(unlabeled_outcome));
 
         domain::ProbabilityMap probabilities;
 
         if (unlabeled_data.indices.empty()) {
+            if (cancellation.stop_requested()) {
+                return domain::Cancelled {};
+            }
             probabilities = label_data.labels.cast<double>();
         } else {
             const std::vector<int> labeled_pixels(
                 label_data.labeled_indices.begin(),
                 label_data.labeled_indices.end());
-            const std::unordered_map<int, int> labeled_index =
-                index_by_pixel(labeled_pixels);
-            const LaplacianBlocks blocks = split_laplacian(
+
+            auto labeled_index_outcome =
+                index_by_pixel(labeled_pixels, cancellation);
+            if (std::holds_alternative<domain::Cancelled>(
+                    labeled_index_outcome)) {
+                return domain::Cancelled {};
+            }
+            std::unordered_map<int, int> labeled_index =
+                std::get<std::unordered_map<int, int>>(
+                    std::move(labeled_index_outcome));
+
+            CancellableOutcome<LaplacianBlocks> blocks_outcome =
+                split_laplacian(
                 laplacian,
                 labeled_index,
-                unlabeled_data.index_by_pixel);
-            const VectorXd boundary_values = build_boundary_values(
+                unlabeled_data.index_by_pixel,
+                cancellation);
+            if (std::holds_alternative<domain::Cancelled>(blocks_outcome)) {
+                return domain::Cancelled {};
+            }
+            LaplacianBlocks blocks =
+                std::get<LaplacianBlocks>(std::move(blocks_outcome));
+
+            CancellableOutcome<VectorXd> boundary_outcome =
+                build_boundary_values(
                 label_data.labels,
                 labeled_pixels,
-                width);
+                width,
+                cancellation);
+            if (std::holds_alternative<domain::Cancelled>(boundary_outcome)) {
+                return domain::Cancelled {};
+            }
+            VectorXd boundary_values =
+                std::get<VectorXd>(std::move(boundary_outcome));
+
             SolveOutcome solve_outcome = solve_sparse_system(
                 blocks.unlabeled_to_unlabeled,
                 blocks.unlabeled_to_labeled,
-                boundary_values);
+                boundary_values,
+                cancellation);
 
             if (const auto* error =
                     std::get_if<domain::SegmentationError>(&solve_outcome)) {
                 return *error;
             }
+            if (std::holds_alternative<domain::Cancelled>(solve_outcome)) {
+                return domain::Cancelled {};
+            }
 
             VectorXd unlabeled_values =
                 std::get<VectorXd>(std::move(solve_outcome));
-            probabilities = assemble_probabilities(
+            CancellableOutcome<domain::ProbabilityMap>
+                probabilities_outcome = assemble_probabilities(
                 label_data.labels,
                 label_data.labeled_indices,
                 unlabeled_data.index_by_pixel,
                 unlabeled_values,
                 width,
-                height);
+                height,
+                cancellation);
+            if (std::holds_alternative<domain::Cancelled>(
+                    probabilities_outcome)) {
+                return domain::Cancelled {};
+            }
+            probabilities = std::get<domain::ProbabilityMap>(
+                std::move(probabilities_outcome));
         }
 
+        CancellableOutcome<domain::BinaryMask> mask_outcome =
+            threshold_probabilities(probabilities, cancellation);
+        if (std::holds_alternative<domain::Cancelled>(mask_outcome)) {
+            return domain::Cancelled {};
+        }
         domain::BinaryMask mask =
-            (probabilities.array() >= 0.5).cast<std::uint8_t>();
+            std::get<domain::BinaryMask>(std::move(mask_outcome));
 
         return domain::SegmentationResult {
             .probabilities = std::move(probabilities),

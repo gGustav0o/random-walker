@@ -1,0 +1,29 @@
+#pragma once
+
+#include <functional>
+
+#include "model/domain/Segmentation.hpp"
+
+namespace random_walker::executor
+{
+    struct SegmentationCompletion
+    {
+        domain::SegmentationRequestId request_id;
+        domain::SegmentationOutcome outcome;
+    };
+
+    using SegmentationCompletionHandler =
+        std::function<void(SegmentationCompletion)>;
+
+    class SegmentationExecutor
+    {
+    public:
+        virtual ~SegmentationExecutor() = default;
+
+        // The handler is invoked on the executor's worker thread.
+        virtual void submit(
+            domain::SegmentationRequest request,
+            SegmentationCompletionHandler completion_handler) = 0;
+        virtual void cancel() noexcept = 0;
+    };
+}

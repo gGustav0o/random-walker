@@ -1,12 +1,14 @@
 #include "SegmentationViewModel.hpp"
 
 #include <algorithm>
-#include <span>
+#include <memory>
+#include <mutex>
 #include <utility>
 #include <variant>
-#include <vector>
 
 #include <QImage>
+#include <QMetaObject>
+#include <QThread>
 #include <QUrl>
 
 #include "app/adapter/QImageAdapter.hpp"
@@ -41,17 +43,37 @@ namespace
     }
 }
 
+struct SegmentationViewModel::CompletionDeliveryGate
+{
+    std::mutex mutex;
+    SegmentationViewModel* receiver = nullptr;
+};
+
 SegmentationViewModel::SegmentationViewModel(
-    const random_walker::service::SegmentationService& segmentation_service,
+    random_walker::executor::SegmentationExecutor& segmentation_executor,
     PresentationImageCache& base_image_cache,
     PresentationImageCache& result_image_cache,
     QObject* parent)
     : QObject(parent)
-    , segmentation_service_(segmentation_service)
+    , segmentation_executor_(segmentation_executor)
     , base_image_cache_(base_image_cache)
     , result_image_cache_(result_image_cache)
     , seed_model_(seed_regions_)
+    , completion_delivery_(std::make_shared<CompletionDeliveryGate>())
 {
+    completion_delivery_->receiver = this;
+}
+
+SegmentationViewModel::~SegmentationViewModel()
+{
+    assert_ui_thread();
+
+    {
+        std::lock_guard lock(completion_delivery_->mutex);
+        completion_delivery_->receiver = nullptr;
+    }
+
+    segmentation_executor_.cancel();
 }
 
 QString SegmentationViewModel::image_source() const
@@ -85,8 +107,7 @@ bool SegmentationViewModel::can_run() const noexcept
 {
     return image_loaded()
         && background_seed_count() > 0
-        && object_seed_count() > 0
-        && !busy_;
+        && object_seed_count() > 0;
 }
 
 bool SegmentationViewModel::busy() const noexcept
@@ -142,6 +163,8 @@ int SegmentationViewModel::object_seed_count() const noexcept
 
 void SegmentationViewModel::set_selected_label(int label)
 {
+    assert_ui_thread();
+
     if (label != Background && label != Object) {
         return;
     }
@@ -155,6 +178,8 @@ void SegmentationViewModel::set_selected_label(int label)
 
 void SegmentationViewModel::open_image(const QString& path)
 {
+    assert_ui_thread();
+
     const QUrl url(path);
     const QString local_path = url.isLocalFile() ? url.toLocalFile() : path;
     const QImage loaded(local_path);
@@ -167,6 +192,7 @@ void SegmentationViewModel::open_image(const QString& path)
     const bool previous_can_run = can_run();
     const bool was_loaded = image_loaded();
 
+    cancel_active_request();
     image_ = random_walker::qt_adapter::to_gray_image(loaded);
     seed_model_.reset([this] {
         seed_regions_.clear();
@@ -190,6 +216,8 @@ void SegmentationViewModel::open_image(const QString& path)
 
 void SegmentationViewModel::clear()
 {
+    assert_ui_thread();
+
     if (!image_loaded() && seed_regions_.empty() && !has_result()
         && error_message_.isEmpty()) {
         return;
@@ -198,6 +226,7 @@ void SegmentationViewModel::clear()
     const bool previous_can_run = can_run();
     const bool was_loaded = image_loaded();
 
+    cancel_active_request();
     image_ = {};
     seed_model_.reset([this] {
         seed_regions_.clear();
@@ -219,11 +248,14 @@ void SegmentationViewModel::clear()
 
 void SegmentationViewModel::clear_seeds()
 {
+    assert_ui_thread();
+
     if (seed_regions_.empty()) {
         return;
     }
 
     const bool previous_can_run = can_run();
+    cancel_active_request();
     seed_model_.reset([this] {
         seed_regions_.clear();
     });
@@ -240,6 +272,8 @@ void SegmentationViewModel::add_seed_rectangle(
     int width,
     int height)
 {
+    assert_ui_thread();
+
     if (!image_loaded() || width <= 0 || height <= 0) {
         return;
     }
@@ -264,6 +298,7 @@ void SegmentationViewModel::add_seed_rectangle(
     const bool previous_can_run = can_run();
     const DomainSeedLabel label = domain_seed_label();
 
+    cancel_active_request();
     seed_model_.reset([this, left, top, right, bottom, label] {
         seed_regions_.push_back({
             .area = {
@@ -284,35 +319,33 @@ void SegmentationViewModel::add_seed_rectangle(
 
 void SegmentationViewModel::run_segmentation()
 {
-    if (busy_) {
+    assert_ui_thread();
+
+    if (!can_run()) {
         return;
     }
 
+    const random_walker::domain::SegmentationRequestId request_id =
+        next_request_id_++;
+    random_walker::domain::SegmentationRequest request(
+        request_id,
+        image_,
+        seed_regions_);
+
+    active_request_id_ = request_id;
     set_busy(true);
     set_error({});
 
-    const std::vector<random_walker::domain::Seed> seeds =
-        random_walker::domain::expand_seed_regions(seed_regions_);
-    random_walker::domain::SegmentationOutcome outcome =
-        segmentation_service_.segment({
-            image_,
-            std::span<const random_walker::domain::Seed>(seeds)
+    const std::shared_ptr<CompletionDeliveryGate> delivery_gate =
+        completion_delivery_;
+    segmentation_executor_.submit(
+        std::move(request),
+        [delivery_gate](
+            random_walker::executor::SegmentationCompletion completion) {
+            SegmentationViewModel::dispatch_completion(
+                delivery_gate,
+                std::move(completion));
         });
-
-    if (auto* segmentation_result =
-            std::get_if<random_walker::domain::SegmentationResult>(&outcome)) {
-        result_ = std::move(*segmentation_result);
-        result_image_cache_.store(
-            random_walker::qt_adapter::render_binary_mask(result_->mask));
-        ++result_version_;
-        emit result_changed();
-    } else {
-        invalidate_result();
-        set_error(::error_message(
-            std::get<random_walker::domain::SegmentationError>(outcome)));
-    }
-
-    set_busy(false);
 }
 
 SegmentationViewModel::DomainSeedLabel
@@ -323,8 +356,76 @@ SegmentationViewModel::domain_seed_label() const noexcept
         : DomainSeedLabel::Background;
 }
 
+void SegmentationViewModel::dispatch_completion(
+    const std::shared_ptr<CompletionDeliveryGate>& delivery_gate,
+    random_walker::executor::SegmentationCompletion completion)
+{
+    auto payload =
+        std::make_shared<random_walker::executor::SegmentationCompletion>(
+            std::move(completion));
+
+    std::lock_guard lock(delivery_gate->mutex);
+    SegmentationViewModel* receiver = delivery_gate->receiver;
+    if (!receiver) {
+        return;
+    }
+
+    QMetaObject::invokeMethod(
+        receiver,
+        [receiver, payload] {
+            receiver->handle_completion(std::move(*payload));
+        },
+        Qt::QueuedConnection);
+}
+
+void SegmentationViewModel::handle_completion(
+    random_walker::executor::SegmentationCompletion completion)
+{
+    assert_ui_thread();
+
+    if (!active_request_id_.has_value()
+        || *active_request_id_ != completion.request_id) {
+        return;
+    }
+
+    active_request_id_.reset();
+    set_busy(false);
+
+    if (auto* segmentation_result =
+            std::get_if<random_walker::domain::SegmentationResult>(
+                &completion.outcome)) {
+        result_ = std::move(*segmentation_result);
+        result_image_cache_.store(
+            random_walker::qt_adapter::render_binary_mask(result_->mask));
+        ++result_version_;
+        emit result_changed();
+    } else if (auto* error =
+                   std::get_if<random_walker::domain::SegmentationError>(
+                       &completion.outcome)) {
+        invalidate_result();
+        set_error(::error_message(*error));
+    } else {
+        invalidate_result();
+    }
+}
+
+void SegmentationViewModel::cancel_active_request()
+{
+    assert_ui_thread();
+
+    if (!active_request_id_.has_value()) {
+        return;
+    }
+
+    segmentation_executor_.cancel();
+    active_request_id_.reset();
+    set_busy(false);
+}
+
 void SegmentationViewModel::invalidate_result()
 {
+    assert_ui_thread();
+
     if (!result_.has_value()) {
         return;
     }
@@ -337,6 +438,8 @@ void SegmentationViewModel::invalidate_result()
 
 void SegmentationViewModel::set_busy(bool value)
 {
+    assert_ui_thread();
+
     if (busy_ == value) {
         return;
     }
@@ -349,6 +452,8 @@ void SegmentationViewModel::set_busy(bool value)
 
 void SegmentationViewModel::set_error(QString message)
 {
+    assert_ui_thread();
+
     if (error_message_ == message) {
         return;
     }
@@ -362,4 +467,9 @@ void SegmentationViewModel::notify_can_run_if_changed(bool previous_value)
     if (previous_value != can_run()) {
         emit can_run_changed();
     }
+}
+
+void SegmentationViewModel::assert_ui_thread() const
+{
+    Q_ASSERT(QThread::currentThread() == thread());
 }

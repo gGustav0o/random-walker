@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -10,7 +11,7 @@
 
 #include "app/service/PresentationImageCache.hpp"
 #include "model/domain/Segmentation.hpp"
-#include "model/service/SegmentationService.hpp"
+#include "model/executor/SegmentationExecutor.hpp"
 #include "viewmodel/SeedListModel.hpp"
 
 class SegmentationViewModel final : public QObject
@@ -41,10 +42,11 @@ public:
     Q_ENUM(SeedLabel)
 
     explicit SegmentationViewModel(
-        const random_walker::service::SegmentationService& segmentation_service,
+        random_walker::executor::SegmentationExecutor& segmentation_executor,
         PresentationImageCache& base_image_cache,
         PresentationImageCache& result_image_cache,
         QObject* parent = nullptr);
+    ~SegmentationViewModel() override;
 
     [[nodiscard]] QString image_source() const;
     [[nodiscard]] bool image_loaded() const noexcept;
@@ -83,14 +85,22 @@ signals:
 
 private:
     using DomainSeedLabel = random_walker::domain::SeedLabel;
+    struct CompletionDeliveryGate;
 
     [[nodiscard]] DomainSeedLabel domain_seed_label() const noexcept;
+    static void dispatch_completion(
+        const std::shared_ptr<CompletionDeliveryGate>& delivery_gate,
+        random_walker::executor::SegmentationCompletion completion);
+    void handle_completion(
+        random_walker::executor::SegmentationCompletion completion);
+    void assert_ui_thread() const;
+    void cancel_active_request();
     void invalidate_result();
     void set_busy(bool value);
     void set_error(QString message);
     void notify_can_run_if_changed(bool previous_value);
 
-    const random_walker::service::SegmentationService& segmentation_service_;
+    random_walker::executor::SegmentationExecutor& segmentation_executor_;
     PresentationImageCache& base_image_cache_;
     PresentationImageCache& result_image_cache_;
     random_walker::domain::GrayImage image_;
@@ -100,6 +110,10 @@ private:
     QString error_message_;
     quint64 image_version_ = 0;
     quint64 result_version_ = 0;
+    random_walker::domain::SegmentationRequestId next_request_id_ = 1;
+    std::optional<random_walker::domain::SegmentationRequestId>
+        active_request_id_;
+    std::shared_ptr<CompletionDeliveryGate> completion_delivery_;
     int selected_label_ = Background;
     bool busy_ = false;
 };

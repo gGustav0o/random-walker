@@ -26,10 +26,13 @@ set(HEADERS
     app/context/AppContext.hpp
     app/adapter/QImageAdapter.hpp
     app/adapter/MaskRenderer.hpp
+    model/domain/Cancellation.hpp
     model/domain/GrayImage.hpp
     model/domain/Seed.hpp
     model/domain/Segmentation.hpp
     model/algorithm/RandomWalkerAlgorithm.hpp
+    model/executor/SegmentationExecutor.hpp
+    model/executor/JThreadSegmentationExecutor.hpp
     model/graph/PixelGraph.hpp
     model/service/SegmentationService.hpp
     app/qml/qml_names.hpp
@@ -44,6 +47,7 @@ set(SOURCES
     app/context/AppContext.cpp
     # model
     model/algorithm/RandomWalkerAlgorithm.cpp
+    model/executor/JThreadSegmentationExecutor.cpp
     model/graph/PixelGraph.cpp
     model/service/SegmentationService.cpp
     app/adapter/MaskRenderer.cpp
@@ -69,6 +73,7 @@ target_include_directories(${PROJECT_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/model
         ${CMAKE_CURRENT_SOURCE_DIR}/model/algorithm
         ${CMAKE_CURRENT_SOURCE_DIR}/model/domain
+        ${CMAKE_CURRENT_SOURCE_DIR}/model/executor
         ${CMAKE_CURRENT_SOURCE_DIR}/model/graph
         ${CMAKE_CURRENT_SOURCE_DIR}/model/service
         ${CMAKE_CURRENT_SOURCE_DIR}/viewmodel

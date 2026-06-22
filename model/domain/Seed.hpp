@@ -2,7 +2,10 @@
 
 #include <cstddef>
 #include <span>
+#include <variant>
 #include <vector>
+
+#include "Cancellation.hpp"
 
 namespace random_walker::domain
 {
@@ -55,11 +58,17 @@ namespace random_walker::domain
         return result;
     }
 
-    [[nodiscard]] inline std::vector<Seed> expand_seed_regions(
-        std::span<const SeedRegion> regions)
+    using SeedExpansionOutcome = std::variant<std::vector<Seed>, Cancelled>;
+
+    [[nodiscard]] inline SeedExpansionOutcome expand_seed_regions(
+        std::span<const SeedRegion> regions,
+        const CancellationToken& cancellation)
     {
         std::size_t seed_count = 0;
         for (const SeedRegion& region : regions) {
+            if (cancellation.stop_requested()) {
+                return Cancelled {};
+            }
             seed_count += static_cast<std::size_t>(region.area.width)
                 * static_cast<std::size_t>(region.area.height);
         }
@@ -68,12 +77,22 @@ namespace random_walker::domain
         result.reserve(seed_count);
 
         for (const SeedRegion& region : regions) {
+            if (cancellation.stop_requested()) {
+                return Cancelled {};
+            }
             for (int row = region.area.y;
                  row < region.area.y + region.area.height;
                  ++row) {
+                if (cancellation.stop_requested()) {
+                    return Cancelled {};
+                }
                 for (int column = region.area.x;
                      column < region.area.x + region.area.width;
                      ++column) {
+                    if ((column & 0x0fff) == 0
+                        && cancellation.stop_requested()) {
+                        return Cancelled {};
+                    }
                     result.push_back({
                         .position = { .x = column, .y = row },
                         .label = region.label
