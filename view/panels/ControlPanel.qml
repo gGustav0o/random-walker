@@ -22,58 +22,92 @@ Rectangle {
         }
     }
 
-    RowLayout {
+    ColumnLayout {
         anchors.fill: parent
         anchors.margins: 8
-        spacing: 10
+        spacing: 6
 
-        Button {
-            text: "Open"
-            enabled: !root.vm.busy
-            onClicked: openImageDialog.open()
-        }
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 10
 
-        Button {
-            text: "Clear image"
-            enabled: root.vm.image_loaded && !root.vm.busy
-            onClicked: root.vm.clear()
-        }
+            Button {
+                text: "Open"
+                enabled: !root.vm.busy
+                onClicked: openImageDialog.open()
+            }
 
-        Button {
-            text: "Clear seeds"
-            enabled: (root.vm.background_seed_count > 0
-                      || root.vm.object_seed_count > 0)
-                     && !root.vm.busy
-            onClicked: root.vm.clear_seeds()
-        }
+            Button {
+                text: "Clear image"
+                enabled: root.vm.image_loaded && !root.vm.busy
+                onClicked: root.vm.clear()
+            }
 
-        ComboBox {
-            id: labelSelector
-            enabled: root.vm.image_loaded && !root.vm.busy
-            model: ["Background", "Object"]
-            currentIndex: root.vm.selected_label
-            onActivated: function(index) {
-                root.vm.selected_label = index
+            Button {
+                text: "Clear seeds"
+                enabled: (root.vm.background_seed_count > 0
+                          || root.vm.object_seed_count > 0)
+                         && !root.vm.busy
+                onClicked: root.vm.clear_seeds()
+            }
+
+            ComboBox {
+                id: labelSelector
+                enabled: root.vm.image_loaded && !root.vm.busy
+                model: ["Background", "Object"]
+                currentIndex: root.vm.selected_label
+                onActivated: function(index) {
+                    root.vm.selected_label = index
+                }
+            }
+
+            Button {
+                text: root.vm.busy ? "Running..." : "Run segmentation"
+                enabled: root.vm.can_run
+                onClicked: root.vm.run_segmentation()
+            }
+
+            Label {
+                text: "Background: " + root.vm.background_seed_count
+                    + "  Object: " + root.vm.object_seed_count
+                color: "#ddd"
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: root.vm.error_message
+                color: "#ff7777"
+                elide: Text.ElideRight
             }
         }
 
-        Button {
-            text: root.vm.busy ? "Running..." : "Run segmentation"
-            enabled: root.vm.can_run
-            onClicked: root.vm.run_segmentation()
-        }
-
-        Label {
-            text: "Background: " + root.vm.background_seed_count
-                + "  Object: " + root.vm.object_seed_count
-            color: "#ddd"
-        }
-
-        Label {
+        RowLayout {
             Layout.fillWidth: true
-            text: root.vm.error_message
-            color: "#ff7777"
-            elide: Text.ElideRight
+            visible: root.vm.busy
+            spacing: 10
+
+            Label {
+                Layout.preferredWidth: 220
+                text: root.vm.status_text
+                color: "#ddd"
+                elide: Text.ElideRight
+            }
+
+            ProgressBar {
+                Layout.fillWidth: true
+                from: 0
+                to: 1
+                value: root.vm.progress_fraction
+                indeterminate: root.vm.progress_indeterminate
+            }
+
+            Label {
+                Layout.preferredWidth: 48
+                horizontalAlignment: Text.AlignRight
+                visible: !root.vm.progress_indeterminate
+                text: Math.round(root.vm.progress_fraction * 100) + "%"
+                color: "#ddd"
+            }
         }
     }
 }

@@ -47,24 +47,27 @@ namespace random_walker::service
 
     domain::SegmentationOutcome SegmentationService::segment(
         const domain::SegmentationRequest& request,
-        domain::CancellationToken cancellation) const
+        domain::CancellationToken cancellation,
+        const domain::ProgressReporter& progress) const
     {
         if (cancellation.stop_requested()) {
             return domain::Cancelled {};
         }
 
+        progress.report(domain::SegmentationStage::ValidatingInput, 0.0);
         if (const auto error = validate(request); error.has_value()) {
             return *error;
         }
+        progress.report(domain::SegmentationStage::ValidatingInput, 1.0);
 
         domain::SeedExpansionOutcome expansion =
             domain::expand_seed_regions(
                 request.seed_regions(),
-                cancellation);
+                cancellation,
+                progress);
         if (std::holds_alternative<domain::Cancelled>(expansion)) {
             return domain::Cancelled {};
         }
-
         const std::vector<domain::Seed>& seeds =
             std::get<std::vector<domain::Seed>>(expansion);
         const domain::SegmentationInput input {
@@ -74,6 +77,7 @@ namespace random_walker::service
 
         return algorithm::detail::run_validated_random_walker(
             input,
-            cancellation);
+            cancellation,
+            progress);
     }
 }

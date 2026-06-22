@@ -63,7 +63,8 @@ namespace random_walker::graph
 
         [[nodiscard]] LaplacianOutcome compute_laplacian(
             const domain::GrayImage& image,
-            const domain::CancellationToken& cancellation)
+            const domain::CancellationToken& cancellation,
+            const domain::ProgressReporter& progress)
         {
             const int height = image.height();
             const int width = image.width();
@@ -78,6 +79,7 @@ namespace random_walker::graph
 
             Eigen::VectorXd degrees = Eigen::VectorXd::Zero(pixel_count);
 
+            progress.report(domain::SegmentationStage::BuildingGraph, 0.0);
             for (int row = 0; row < height; ++row) {
                 if (cancellation.stop_requested()) {
                     return domain::Cancelled {};
@@ -109,6 +111,11 @@ namespace random_walker::graph
                         degrees[source_index] += weight;
                     }
                 }
+
+                progress.report(
+                    domain::SegmentationStage::BuildingGraph,
+                    static_cast<double>(row + 1)
+                        / static_cast<double>(height));
             }
 
             for (int index = 0; index < pixel_count; ++index) {
@@ -130,14 +137,16 @@ namespace random_walker::graph
                 return domain::Cancelled {};
             }
 
+            progress.report(domain::SegmentationStage::BuildingGraph, 1.0);
             return laplacian;
         }
     }
 
     LaplacianOutcome build_laplacian(
         const domain::GrayImage& image,
-        const domain::CancellationToken& cancellation)
+        const domain::CancellationToken& cancellation,
+        const domain::ProgressReporter& progress)
     {
-        return compute_laplacian(image, cancellation);
+        return compute_laplacian(image, cancellation, progress);
     }
 }

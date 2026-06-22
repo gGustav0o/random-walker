@@ -41,6 +41,35 @@ namespace
 
         return QStringLiteral("Unknown segmentation error.");
     }
+
+    [[nodiscard]] int progress_stage(
+        random_walker::domain::SegmentationStage stage)
+    {
+        using DomainStage = random_walker::domain::SegmentationStage;
+
+        switch (stage) {
+        case DomainStage::ValidatingInput:
+            return SegmentationViewModel::ValidatingInput;
+        case DomainStage::ExpandingSeeds:
+            return SegmentationViewModel::ExpandingSeeds;
+        case DomainStage::BuildingGraph:
+            return SegmentationViewModel::BuildingGraph;
+        case DomainStage::BuildingLabels:
+            return SegmentationViewModel::BuildingLabels;
+        case DomainStage::PartitioningSystem:
+            return SegmentationViewModel::PartitioningSystem;
+        case DomainStage::Factorizing:
+            return SegmentationViewModel::Factorizing;
+        case DomainStage::Solving:
+            return SegmentationViewModel::Solving;
+        case DomainStage::AssemblingProbabilities:
+            return SegmentationViewModel::AssemblingProbabilities;
+        case DomainStage::Thresholding:
+            return SegmentationViewModel::Thresholding;
+        }
+
+        return SegmentationViewModel::Idle;
+    }
 }
 
 struct SegmentationViewModel::CompletionDeliveryGate
@@ -113,6 +142,49 @@ bool SegmentationViewModel::can_run() const noexcept
 bool SegmentationViewModel::busy() const noexcept
 {
     return busy_;
+}
+
+int SegmentationViewModel::progress_stage() const noexcept
+{
+    return progress_stage_;
+}
+
+double SegmentationViewModel::progress_fraction() const noexcept
+{
+    return progress_fraction_;
+}
+
+bool SegmentationViewModel::progress_indeterminate() const noexcept
+{
+    return progress_indeterminate_;
+}
+
+QString SegmentationViewModel::status_text() const
+{
+    switch (progress_stage_) {
+    case Idle:
+        return {};
+    case ValidatingInput:
+        return QStringLiteral("Validating input");
+    case ExpandingSeeds:
+        return QStringLiteral("Preparing seed regions");
+    case BuildingGraph:
+        return QStringLiteral("Building pixel graph");
+    case BuildingLabels:
+        return QStringLiteral("Building label constraints");
+    case PartitioningSystem:
+        return QStringLiteral("Building linear system");
+    case Factorizing:
+        return QStringLiteral("Factorizing Laplacian");
+    case Solving:
+        return QStringLiteral("Solving Random Walker system");
+    case AssemblingProbabilities:
+        return QStringLiteral("Assembling probability map");
+    case Thresholding:
+        return QStringLiteral("Building segmentation mask");
+    }
+
+    return {};
 }
 
 bool SegmentationViewModel::has_result() const noexcept
@@ -333,6 +405,7 @@ void SegmentationViewModel::run_segmentation()
         seed_regions_);
 
     active_request_id_ = request_id;
+    reset_progress();
     set_busy(true);
     set_error({});
 
@@ -340,6 +413,11 @@ void SegmentationViewModel::run_segmentation()
         completion_delivery_;
     segmentation_executor_.submit(
         std::move(request),
+        [delivery_gate](random_walker::domain::SegmentationProgress progress) {
+            SegmentationViewModel::dispatch_progress(
+                delivery_gate,
+                std::move(progress));
+        },
         [delivery_gate](
             random_walker::executor::SegmentationCompletion completion) {
             SegmentationViewModel::dispatch_completion(
@@ -378,6 +456,28 @@ void SegmentationViewModel::dispatch_completion(
         Qt::QueuedConnection);
 }
 
+void SegmentationViewModel::dispatch_progress(
+    const std::shared_ptr<CompletionDeliveryGate>& delivery_gate,
+    random_walker::domain::SegmentationProgress progress)
+{
+    auto payload =
+        std::make_shared<random_walker::domain::SegmentationProgress>(
+            std::move(progress));
+
+    std::lock_guard lock(delivery_gate->mutex);
+    SegmentationViewModel* receiver = delivery_gate->receiver;
+    if (!receiver) {
+        return;
+    }
+
+    QMetaObject::invokeMethod(
+        receiver,
+        [receiver, payload] {
+            receiver->handle_progress(std::move(*payload));
+        },
+        Qt::QueuedConnection);
+}
+
 void SegmentationViewModel::handle_completion(
     random_walker::executor::SegmentationCompletion completion)
 {
@@ -407,6 +507,34 @@ void SegmentationViewModel::handle_completion(
     } else {
         invalidate_result();
     }
+
+    reset_progress();
+}
+
+void SegmentationViewModel::handle_progress(
+    random_walker::domain::SegmentationProgress progress)
+{
+    assert_ui_thread();
+
+    if (!active_request_id_.has_value()
+        || *active_request_id_ != progress.request_id) {
+        return;
+    }
+
+    const int stage = ::progress_stage(progress.stage);
+    const bool indeterminate = !progress.fraction.has_value();
+    const double fraction = progress.fraction.value_or(0.0);
+
+    if (progress_stage_ == stage
+        && progress_indeterminate_ == indeterminate
+        && qFuzzyCompare(progress_fraction_, fraction)) {
+        return;
+    }
+
+    progress_stage_ = stage;
+    progress_indeterminate_ = indeterminate;
+    progress_fraction_ = fraction;
+    emit progress_changed();
 }
 
 void SegmentationViewModel::cancel_active_request()
@@ -420,6 +548,23 @@ void SegmentationViewModel::cancel_active_request()
     segmentation_executor_.cancel();
     active_request_id_.reset();
     set_busy(false);
+    reset_progress();
+}
+
+void SegmentationViewModel::reset_progress()
+{
+    assert_ui_thread();
+
+    if (progress_stage_ == Idle
+        && qFuzzyIsNull(progress_fraction_)
+        && !progress_indeterminate_) {
+        return;
+    }
+
+    progress_stage_ = Idle;
+    progress_fraction_ = 0.0;
+    progress_indeterminate_ = false;
+    emit progress_changed();
 }
 
 void SegmentationViewModel::invalidate_result()

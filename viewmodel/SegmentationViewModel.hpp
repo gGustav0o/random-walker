@@ -24,6 +24,12 @@ class SegmentationViewModel final : public QObject
     Q_PROPERTY(quint64 image_version READ image_version NOTIFY image_version_changed)
     Q_PROPERTY(bool can_run READ can_run NOTIFY can_run_changed)
     Q_PROPERTY(bool busy READ busy NOTIFY busy_changed)
+    Q_PROPERTY(int progress_stage READ progress_stage NOTIFY progress_changed)
+    Q_PROPERTY(double progress_fraction READ progress_fraction
+        NOTIFY progress_changed)
+    Q_PROPERTY(bool progress_indeterminate READ progress_indeterminate
+        NOTIFY progress_changed)
+    Q_PROPERTY(QString status_text READ status_text NOTIFY progress_changed)
     Q_PROPERTY(bool has_result READ has_result NOTIFY result_changed)
     Q_PROPERTY(QString result_source READ result_source NOTIFY result_changed)
     Q_PROPERTY(quint64 result_version READ result_version NOTIFY result_changed)
@@ -41,6 +47,21 @@ public:
     };
     Q_ENUM(SeedLabel)
 
+    enum ProgressStage
+    {
+        Idle,
+        ValidatingInput,
+        ExpandingSeeds,
+        BuildingGraph,
+        BuildingLabels,
+        PartitioningSystem,
+        Factorizing,
+        Solving,
+        AssemblingProbabilities,
+        Thresholding
+    };
+    Q_ENUM(ProgressStage)
+
     explicit SegmentationViewModel(
         random_walker::executor::SegmentationExecutor& segmentation_executor,
         PresentationImageCache& base_image_cache,
@@ -55,6 +76,10 @@ public:
     [[nodiscard]] quint64 image_version() const noexcept;
     [[nodiscard]] bool can_run() const noexcept;
     [[nodiscard]] bool busy() const noexcept;
+    [[nodiscard]] int progress_stage() const noexcept;
+    [[nodiscard]] double progress_fraction() const noexcept;
+    [[nodiscard]] bool progress_indeterminate() const noexcept;
+    [[nodiscard]] QString status_text() const;
     [[nodiscard]] bool has_result() const noexcept;
     [[nodiscard]] QString result_source() const;
     [[nodiscard]] quint64 result_version() const noexcept;
@@ -78,6 +103,7 @@ signals:
     void image_version_changed();
     void can_run_changed();
     void busy_changed();
+    void progress_changed();
     void result_changed();
     void selected_label_changed();
     void error_message_changed();
@@ -91,10 +117,16 @@ private:
     static void dispatch_completion(
         const std::shared_ptr<CompletionDeliveryGate>& delivery_gate,
         random_walker::executor::SegmentationCompletion completion);
+    static void dispatch_progress(
+        const std::shared_ptr<CompletionDeliveryGate>& delivery_gate,
+        random_walker::domain::SegmentationProgress progress);
     void handle_completion(
         random_walker::executor::SegmentationCompletion completion);
+    void handle_progress(
+        random_walker::domain::SegmentationProgress progress);
     void assert_ui_thread() const;
     void cancel_active_request();
+    void reset_progress();
     void invalidate_result();
     void set_busy(bool value);
     void set_error(QString message);
@@ -115,5 +147,8 @@ private:
         active_request_id_;
     std::shared_ptr<CompletionDeliveryGate> completion_delivery_;
     int selected_label_ = Background;
+    int progress_stage_ = Idle;
+    double progress_fraction_ = 0.0;
+    bool progress_indeterminate_ = false;
     bool busy_ = false;
 };

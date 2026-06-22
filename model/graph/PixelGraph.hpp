@@ -6,6 +6,7 @@
 
 #include "model/domain/Cancellation.hpp"
 #include "model/domain/GrayImage.hpp"
+#include "model/domain/ProgressReporter.hpp"
 
 namespace random_walker::graph
 {
@@ -14,5 +15,6 @@ namespace random_walker::graph
 
     [[nodiscard]] LaplacianOutcome build_laplacian(
         const domain::GrayImage& image,
-        const domain::CancellationToken& cancellation);
+        const domain::CancellationToken& cancellation,
+        const domain::ProgressReporter& progress);
 }

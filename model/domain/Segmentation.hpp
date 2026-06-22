@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <span>
 #include <utility>
 #include <variant>
@@ -10,14 +9,13 @@
 
 #include "Cancellation.hpp"
 #include "GrayImage.hpp"
+#include "ProgressReporter.hpp"
 #include "Seed.hpp"
 
 namespace random_walker::domain
 {
     using ProbabilityMap = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>;
     using BinaryMask = Eigen::Matrix<std::uint8_t, Eigen::Dynamic, Eigen::Dynamic>;
-    using SegmentationRequestId = std::uint64_t;
-
     class SegmentationRequest final
     {
     public:

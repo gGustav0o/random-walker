@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "Cancellation.hpp"
+#include "ProgressReporter.hpp"
 
 namespace random_walker::domain
 {
@@ -62,7 +63,8 @@ namespace random_walker::domain
 
     [[nodiscard]] inline SeedExpansionOutcome expand_seed_regions(
         std::span<const SeedRegion> regions,
-        const CancellationToken& cancellation)
+        const CancellationToken& cancellation,
+        const ProgressReporter& progress)
     {
         std::size_t seed_count = 0;
         for (const SeedRegion& region : regions) {
@@ -75,6 +77,8 @@ namespace random_walker::domain
 
         std::vector<Seed> result;
         result.reserve(seed_count);
+        std::size_t expanded_count = 0;
+        progress.report(SegmentationStage::ExpandingSeeds, 0.0);
 
         for (const SeedRegion& region : regions) {
             if (cancellation.stop_requested()) {
@@ -97,10 +101,19 @@ namespace random_walker::domain
                         .position = { .x = column, .y = row },
                         .label = region.label
                     });
+                    ++expanded_count;
                 }
+
+                progress.report(
+                    SegmentationStage::ExpandingSeeds,
+                    seed_count == 0
+                        ? 1.0
+                        : static_cast<double>(expanded_count)
+                            / static_cast<double>(seed_count));
             }
         }
 
+        progress.report(SegmentationStage::ExpandingSeeds, 1.0);
         return result;
     }
 }

@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "model/executor/SegmentationExecutor.hpp"
+#include "model/domain/ProgressReporter.hpp"
 #include "model/service/SegmentationService.hpp"
 
 namespace random_walker::executor
@@ -24,6 +25,7 @@ namespace random_walker::executor
 
         void submit(
             domain::SegmentationRequest request,
+            SegmentationProgressHandler progress_handler,
             SegmentationCompletionHandler completion_handler) override;
         void cancel() noexcept override;
 
@@ -31,6 +33,7 @@ namespace random_walker::executor
         struct Task
         {
             domain::SegmentationRequest request;
+            SegmentationProgressHandler progress_handler;
             SegmentationCompletionHandler completion_handler;
         };
 

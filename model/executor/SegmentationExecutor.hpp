@@ -14,6 +14,8 @@ namespace random_walker::executor
 
     using SegmentationCompletionHandler =
         std::function<void(SegmentationCompletion)>;
+    using SegmentationProgressHandler =
+        std::function<void(domain::SegmentationProgress)>;
 
     class SegmentationExecutor
     {
@@ -23,6 +25,7 @@ namespace random_walker::executor
         // The handler is invoked on the executor's worker thread.
         virtual void submit(
             domain::SegmentationRequest request,
+            SegmentationProgressHandler progress_handler,
             SegmentationCompletionHandler completion_handler) = 0;
         virtual void cancel() noexcept = 0;
     };

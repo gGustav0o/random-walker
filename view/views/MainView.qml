@@ -16,7 +16,7 @@ ApplicationWindow {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: 64
+        height: 96
     }
 
     BaseImageView {

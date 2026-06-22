@@ -28,6 +28,7 @@ set(HEADERS
     app/adapter/MaskRenderer.hpp
     model/domain/Cancellation.hpp
     model/domain/GrayImage.hpp
+    model/domain/ProgressReporter.hpp
     model/domain/Seed.hpp
     model/domain/Segmentation.hpp
     model/algorithm/RandomWalkerAlgorithm.hpp
