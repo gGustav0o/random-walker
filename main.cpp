@@ -2,7 +2,6 @@
 #include <QQmlApplicationEngine>
 
 #include "app/context/AppContext.hpp"
-#include "app/qml/qml_registration.hpp"
 
 static void setup_high_dpi()
 {
@@ -16,14 +15,11 @@ int main(int argc, char* argv[])
     setup_high_dpi();
     QGuiApplication app(argc, argv);
     QQmlApplicationEngine engine;
+    AppContext context(engine);
 
-    register_qml_types();
-
-    AppContext ctx;
-    ctx.initialize(&engine);
-
-    ctx.get_engine()->load(QUrl(QStringLiteral("qrc:/qt/qml/random-walker/view/views/MainView.qml")));
-    if (ctx.get_engine()->rootObjects().isEmpty())
+    engine.load(QUrl(QStringLiteral(
+        "qrc:/qt/qml/random-walker/view/views/MainView.qml")));
+    if (engine.rootObjects().isEmpty())
         return -1;
 
     return app.exec();

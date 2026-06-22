@@ -4,13 +4,18 @@
 #include <QImage>
 #include <QMutex>
 
-class BaseImageProvider : public QQuickImageProvider {
+#include "app/service/BaseImageSink.hpp"
+
+class BaseImageProvider final
+    : public QQuickImageProvider
+    , public BaseImageSink
+{
 public:
 	BaseImageProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
 
 	QImage requestImage(const QString& id, QSize* size, const QSize& requestedSize) override;
-	void set_image(const QImage& image);
-	void clear();
+	void set_image(const QImage& image) override;
+	void clear() override;
 private:
 	QImage image_;
 	QMutex mutex_;

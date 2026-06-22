@@ -1,38 +1,79 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
-import QtQuick.Dialogs 
+import QtQuick.Dialogs
 import QtQuick.Layouts 1.15
 
-import App.Enums 1.0
-
 Rectangle {
-    width: 300; height: 100; color: "#222"
-    property var vm: ControlPanelViewModel
+    id: root
+    color: "#222"
 
-    RowLayout  {
-        anchors.margins: 8
-        spacing: 10   
-        anchors.fill: parent
+    property var vm: SegmentationViewModel
 
-        FileDialog {
-            id: openImageDialog
-            title: "Open Image"
-            nameFilters: ["Image files (*.png *.jpg *.bmp *.tiff)", "All files (*)"]
-            onAccepted: {
+    FileDialog {
+        id: openImageDialog
+        title: "Open Image"
+        nameFilters: [
+            "Image files (*.png *.jpg *.jpeg *.bmp *.tiff)",
+            "All files (*)"
+        ]
+        onAccepted: {
             if (selectedFile)
-                vm.open_image(selectedFile)
-            }
+                root.vm.open_image(selectedFile)
         }
+    }
+
+    RowLayout {
+        anchors.fill: parent
+        anchors.margins: 8
+        spacing: 10
+
         Button {
             text: "Open"
+            enabled: !root.vm.busy
             onClicked: openImageDialog.open()
-            enabled: !vm.image_loaded
         }
+
         Button {
-            text: "Clear"
-            onClicked: vm.clear()
-            enabled: vm.image_loaded
+            text: "Clear image"
+            enabled: root.vm.image_loaded && !root.vm.busy
+            onClicked: root.vm.clear()
         }
-        Item { Layout.fillWidth: true }
+
+        Button {
+            text: "Clear seeds"
+            enabled: (root.vm.background_seed_count > 0
+                      || root.vm.object_seed_count > 0)
+                     && !root.vm.busy
+            onClicked: root.vm.clear_seeds()
+        }
+
+        ComboBox {
+            id: labelSelector
+            enabled: root.vm.image_loaded && !root.vm.busy
+            model: ["Background", "Object"]
+            currentIndex: root.vm.selected_label
+            onActivated: function(index) {
+                root.vm.selected_label = index
+            }
+        }
+
+        Button {
+            text: root.vm.busy ? "Running..." : "Run segmentation"
+            enabled: root.vm.can_run
+            onClicked: root.vm.run_segmentation()
+        }
+
+        Label {
+            text: "Background: " + root.vm.background_seed_count
+                + "  Object: " + root.vm.object_seed_count
+            color: "#ddd"
+        }
+
+        Label {
+            Layout.fillWidth: true
+            text: root.vm.error_message
+            color: "#ff7777"
+            elide: Text.ElideRight
+        }
     }
 }

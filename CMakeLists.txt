@@ -23,25 +23,22 @@ find_package(Qt6 REQUIRED COMPONENTS
 qt_add_resources(qml_resources qml.qrc)
 
 set(HEADERS
-    MetaAnnotations.hpp
-    global.hpp
     app/context/AppContext.hpp
+    app/adapter/QImageAdapter.hpp
+    app/adapter/MaskRenderer.hpp
+    model/domain/GrayImage.hpp
+    model/domain/Seed.hpp
+    model/domain/Segmentation.hpp
     model/algorithm/RandomWalkerAlgorithm.hpp
     model/graph/PixelGraph.hpp
     model/service/SegmentationService.hpp
-    model/utils/ImageUtils.hpp
-    app/enums/QmlEnums.hpp
     app/qml/qml_names.hpp
-    app/qml/qml_registration.hpp
+    app/service/BaseImageSink.hpp
     app/service/BaseImageProvider.hpp
-    app/service/EventBus.hpp
-    viewmodel/ControlPanelViewModel.hpp
-    viewmodel/SettingsPanelViewModel.hpp
-    viewmodel/BaseImageViewModel.hpp
-    viewmodel/ResultOverlayViewModel.hpp
-    viewmodel/ModeSelectionPanelViewModel.hpp
-    viewmodel/WithReferenceToolBarViewModel.hpp
-    viewmodel/WithoutReferenceToolBarViewModel.hpp
+    app/service/ResultImageSink.hpp
+    app/service/ResultImageProvider.hpp
+    viewmodel/SegmentationViewModel.hpp
+    viewmodel/SeedListModel.hpp
 )
 set(SOURCES
     main.cpp
@@ -50,15 +47,11 @@ set(SOURCES
     model/algorithm/RandomWalkerAlgorithm.cpp
     model/graph/PixelGraph.cpp
     model/service/SegmentationService.cpp
+    app/adapter/MaskRenderer.cpp
     app/service/BaseImageProvider.cpp
-    app/service/EventBus.cpp
-    viewmodel/ControlPanelViewModel.cpp
-    viewmodel/SettingsPanelViewModel.cpp
-    viewmodel/BaseImageViewModel.cpp
-    viewmodel/ResultOverlayViewModel.cpp
-    viewmodel/ModeSelectionPanelViewModel.cpp
-    viewmodel/WithReferenceToolBarViewModel.cpp
-    viewmodel/WithoutReferenceToolBarViewModel.cpp
+    app/service/ResultImageProvider.cpp
+    viewmodel/SegmentationViewModel.cpp
+    viewmodel/SeedListModel.cpp
 )
 
 qt_add_executable(${PROJECT_NAME}
@@ -70,16 +63,15 @@ target_include_directories(${PROJECT_NAME}
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/app
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/adapter
         ${CMAKE_CURRENT_SOURCE_DIR}/app/context
-        ${CMAKE_CURRENT_SOURCE_DIR}/app/data
-        ${CMAKE_CURRENT_SOURCE_DIR}/app/enums
         ${CMAKE_CURRENT_SOURCE_DIR}/app/qml
         ${CMAKE_CURRENT_SOURCE_DIR}/app/service
         ${CMAKE_CURRENT_SOURCE_DIR}/model
         ${CMAKE_CURRENT_SOURCE_DIR}/model/algorithm
+        ${CMAKE_CURRENT_SOURCE_DIR}/model/domain
         ${CMAKE_CURRENT_SOURCE_DIR}/model/graph
         ${CMAKE_CURRENT_SOURCE_DIR}/model/service
-        ${CMAKE_CURRENT_SOURCE_DIR}/model/utils
         ${CMAKE_CURRENT_SOURCE_DIR}/viewmodel
 )
 
