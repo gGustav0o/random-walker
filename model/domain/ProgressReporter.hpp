@@ -13,7 +13,7 @@ namespace random_walker::domain {
         ValidatingInput
         , ExpandingSeeds
         , BuildingGraph
-        , BuildingLabels
+        , BuildingBoundaryConditions
         , PartitioningSystem
         , Factorizing
         , Solving

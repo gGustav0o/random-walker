@@ -44,6 +44,7 @@ set(HEADERS
     model/algorithm/PartitionedLaplacian.hpp
     model/algorithm/ProbabilityField.hpp
     model/algorithm/RandomWalkerAlgorithm.hpp
+    model/algorithm/SeedExpansion.hpp
     model/executor/SegmentationExecutor.hpp
     model/executor/JThreadSegmentationExecutor.hpp
     model/graph/GridLaplacian.hpp
@@ -56,8 +57,13 @@ set(HEADERS
     presentation/image/PresentationImageCache.hpp
     presentation/image/ResultImageProvider.hpp
     presentation/qml/qml_names.hpp
-    viewmodel/SegmentationViewModel.hpp
+    viewmodel/ErrorState.hpp
+    viewmodel/ImageState.hpp
+    viewmodel/ProgressState.hpp
+    viewmodel/ResultState.hpp
     viewmodel/SeedListModel.hpp
+    viewmodel/SeedRegionState.hpp
+    viewmodel/SegmentationViewModel.hpp
 )
 set(SOURCES
     main.cpp
@@ -71,6 +77,7 @@ set(SOURCES
     model/algorithm/PartitionedLaplacian.cpp
     model/algorithm/ProbabilityField.cpp
     model/algorithm/RandomWalkerAlgorithm.cpp
+    model/algorithm/SeedExpansion.cpp
     model/executor/JThreadSegmentationExecutor.cpp
     model/graph/GridLaplacian.cpp
     model/service/SegmentationService.cpp
@@ -79,8 +86,13 @@ set(SOURCES
     presentation/error/ErrorPresenter.cpp
     presentation/image/BaseImageProvider.cpp
     presentation/image/ResultImageProvider.cpp
-    viewmodel/SegmentationViewModel.cpp
+    viewmodel/ErrorState.cpp
+    viewmodel/ImageState.cpp
+    viewmodel/ProgressState.cpp
+    viewmodel/ResultState.cpp
     viewmodel/SeedListModel.cpp
+    viewmodel/SeedRegionState.cpp
+    viewmodel/SegmentationViewModel.cpp
 )
 
 qt_add_executable(${PROJECT_NAME}

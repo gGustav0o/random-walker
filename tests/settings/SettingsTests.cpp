@@ -15,9 +15,12 @@ namespace {
     class InMemorySettingsRepository final
         : public random_walker::application::SettingsRepository {
     public:
-        [[nodiscard]] random_walker::application::ApplicationSettings
+        [[nodiscard]] random_walker::application::SettingsRepositoryLoadResult
             load() const override {
-            return stored;
+            return {
+                .settings = stored
+                , .repair_required = repair_required
+            };
         }
 
         [[nodiscard]] bool save(
@@ -30,6 +33,7 @@ namespace {
 
         mutable random_walker::application::ApplicationSettings stored;
         bool save_succeeds = true;
+        bool repair_required = false;
         int save_count = 0;
     };
 
@@ -66,13 +70,15 @@ void SettingsTests::loads_default_values() {
     InMemorySettingsRepository repository;
     random_walker::application::SettingsService service(repository);
 
-    const auto settings = service.load();
+    const auto load_result = service.load();
+    const auto settings = load_result.settings;
 
     QCOMPARE(
         settings.random_walker.beta
         , random_walker::domain::kDefaultRandomWalkerBeta
     );
     QVERIFY(repository.stored == settings);
+    QVERIFY(!load_result.repair_required);
     QCOMPARE(repository.save_count, 0);
 }
 
@@ -89,17 +95,31 @@ void SettingsTests::repairs_corrupted_values() {
     );
     random_walker::application::SettingsService service(repository);
 
-    const auto settings = service.load();
+    const auto load_result = service.load();
+    const auto settings = load_result.settings;
 
     QCOMPARE(
         settings.random_walker.beta
         , random_walker::domain::kDefaultRandomWalkerBeta
     );
+    QVERIFY(load_result.repair_required);
 
-    QSettings persisted(path, QSettings::IniFormat);
-    persisted.beginGroup(kSettingsGroup);
+    {
+        QSettings persisted(path, QSettings::IniFormat);
+        persisted.beginGroup(kSettingsGroup);
+        QCOMPARE(
+            persisted.value(kRandomWalkerBetaKey).toString()
+            , QStringLiteral("invalid")
+        );
+    }
+
+    const auto repair_outcome = service.save(settings);
+    QVERIFY(!repair_outcome.has_value());
+
+    QSettings repaired(path, QSettings::IniFormat);
+    repaired.beginGroup(kSettingsGroup);
     QCOMPARE(
-        persisted.value(kRandomWalkerBetaKey).toDouble()
+        repaired.value(kRandomWalkerBetaKey).toDouble()
         , random_walker::domain::kDefaultRandomWalkerBeta
     );
 }
@@ -116,12 +136,14 @@ void SettingsTests::ignores_unknown_newer_schema() {
         , QSettings::IniFormat
     );
 
-    const auto settings = repository.load();
+    const auto load_result = repository.load();
+    const auto settings = load_result.settings;
 
     QCOMPARE(
         settings.random_walker.beta
         , random_walker::domain::kDefaultRandomWalkerBeta
     );
+    QVERIFY(!load_result.repair_required);
 
     QSettings persisted(path, QSettings::IniFormat);
     persisted.beginGroup(kSettingsGroup);
@@ -144,21 +166,36 @@ void SettingsTests::migrates_legacy_schema() {
         , QSettings::IniFormat
     );
 
-    const auto settings = repository.load();
+    const auto load_result = repository.load();
+    const auto settings = load_result.settings;
 
     QCOMPARE(settings.random_walker.beta, legacy_beta);
+    QVERIFY(load_result.repair_required);
 
-    QSettings persisted(path, QSettings::IniFormat);
-    persisted.beginGroup(kSettingsGroup);
+    {
+        QSettings persisted(path, QSettings::IniFormat);
+        persisted.beginGroup(kSettingsGroup);
+        QCOMPARE(
+            persisted.value(kSchemaVersionKey).toInt()
+            , 0
+        );
+        QVERIFY(!persisted.contains(kRandomWalkerBetaKey));
+        QVERIFY(persisted.contains(kLegacyBetaKey));
+    }
+
+    QVERIFY(repository.save(settings));
+
+    QSettings migrated(path, QSettings::IniFormat);
+    migrated.beginGroup(kSettingsGroup);
     QCOMPARE(
-        persisted.value(kSchemaVersionKey).toInt()
+        migrated.value(kSchemaVersionKey).toInt()
         , kCurrentSchemaVersion
     );
     QCOMPARE(
-        persisted.value(kRandomWalkerBetaKey).toDouble()
+        migrated.value(kRandomWalkerBetaKey).toDouble()
         , legacy_beta
     );
-    QVERIFY(!persisted.contains(kLegacyBetaKey));
+    QVERIFY(!migrated.contains(kLegacyBetaKey));
 }
 
 void SettingsTests::rejects_invalid_settings_on_save() {
@@ -172,7 +209,9 @@ void SettingsTests::rejects_invalid_settings_on_save() {
     const auto outcome = service.save(settings);
 
     QVERIFY(outcome.has_value());
-    QVERIFY(*outcome == random_walker::application::SettingsError::InvalidSettings);
+    QVERIFY(
+        *outcome == random_walker::application::SettingsError::InvalidSettings
+    );
     QCOMPARE(repository.save_count, 0);
 }
 
@@ -186,7 +225,9 @@ void SettingsTests::reports_settings_save_failure() {
     const auto outcome = service.save(settings);
 
     QVERIFY(outcome.has_value());
-    QVERIFY(*outcome == random_walker::application::SettingsError::SaveFailed);
+    QVERIFY(
+        *outcome == random_walker::application::SettingsError::SaveFailed
+    );
     QCOMPARE(repository.save_count, 1);
 }
 

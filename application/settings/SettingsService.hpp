@@ -7,13 +7,18 @@
 #include "SettingsRepository.hpp"
 
 namespace random_walker::application {
+    struct SettingsLoadResult {
+        ApplicationSettings settings;
+        bool repair_required = false;
+    };
+
     using SettingsSaveOutcome = std::optional<SettingsError>;
 
     class SettingsService final {
     public:
         explicit SettingsService(SettingsRepository& repository);
 
-        [[nodiscard]] ApplicationSettings load();
+        [[nodiscard]] SettingsLoadResult load() const;
         [[nodiscard]] SettingsSaveOutcome save(
             const ApplicationSettings& settings);
 

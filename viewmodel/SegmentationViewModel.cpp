@@ -11,11 +11,7 @@
 #include <QMetaObject>
 #include <QThread>
 
-#include "presentation/adapter/MaskRenderer.hpp"
-#include "presentation/adapter/QImageAdapter.hpp"
-#include "presentation/error/ErrorPresenter.hpp"
 #include "presentation/image/ImageLoader.hpp"
-#include "presentation/qml/qml_names.hpp"
 
 namespace {
     const double kMinimumBetaExponent =
@@ -37,33 +33,6 @@ namespace {
             UnexpectedInternalFailure;
     }
 
-    [[nodiscard]] int progress_stage(
-        random_walker::domain::SegmentationStage stage) {
-        using DomainStage = random_walker::domain::SegmentationStage;
-
-        switch (stage) {
-        case DomainStage::ValidatingInput:
-            return SegmentationViewModel::ValidatingInput;
-        case DomainStage::ExpandingSeeds:
-            return SegmentationViewModel::ExpandingSeeds;
-        case DomainStage::BuildingGraph:
-            return SegmentationViewModel::BuildingGraph;
-        case DomainStage::BuildingLabels:
-            return SegmentationViewModel::BuildingLabels;
-        case DomainStage::PartitioningSystem:
-            return SegmentationViewModel::PartitioningSystem;
-        case DomainStage::Factorizing:
-            return SegmentationViewModel::Factorizing;
-        case DomainStage::Solving:
-            return SegmentationViewModel::Solving;
-        case DomainStage::AssemblingProbabilities:
-            return SegmentationViewModel::AssemblingProbabilities;
-        case DomainStage::Thresholding:
-            return SegmentationViewModel::Thresholding;
-        }
-
-        return SegmentationViewModel::Idle;
-    }
 }
 
 struct SegmentationViewModel::CompletionDeliveryGate {
@@ -81,11 +50,19 @@ SegmentationViewModel::SegmentationViewModel(
     : QObject(parent)
     , segmentation_executor_(segmentation_executor)
     , settings_service_(settings_service)
-    , base_image_cache_(base_image_cache)
-    , result_image_cache_(result_image_cache)
-    , seed_model_(seed_regions_)
-    , completion_delivery_(std::make_shared<CompletionDeliveryGate>())
-    , application_settings_(settings_service_.load()) {
+    , image_state_(base_image_cache)
+    , result_state_(result_image_cache)
+    , seed_model_(seed_state_.mutable_regions())
+    , completion_delivery_(std::make_shared<CompletionDeliveryGate>()) {
+    const auto loaded_settings = settings_service_.load();
+    application_settings_ = loaded_settings.settings;
+    if (loaded_settings.repair_required) {
+        if (const auto error = settings_service_.save(application_settings_);
+            error.has_value()) {
+            error_state_.set(*error);
+        }
+    }
+
     completion_delivery_->receiver = this;
 }
 
@@ -101,25 +78,23 @@ SegmentationViewModel::~SegmentationViewModel() {
 }
 
 QString SegmentationViewModel::image_source() const {
-    return image_loaded()
-        ? QStringLiteral("image://%1/processed").arg(qml_names::kBaseImageProvider)
-        : QString();
+    return image_state_.source();
 }
 
 bool SegmentationViewModel::image_loaded() const noexcept {
-    return !image_.empty();
+    return image_state_.loaded();
 }
 
 int SegmentationViewModel::image_width() const noexcept {
-    return image_.width();
+    return image_state_.width();
 }
 
 int SegmentationViewModel::image_height() const noexcept {
-    return image_.height();
+    return image_state_.height();
 }
 
 quint64 SegmentationViewModel::image_version() const noexcept {
-    return image_version_;
+    return image_state_.version();
 }
 
 bool SegmentationViewModel::can_run() const noexcept {
@@ -133,42 +108,19 @@ bool SegmentationViewModel::busy() const noexcept {
 }
 
 int SegmentationViewModel::progress_stage() const noexcept {
-    return progress_stage_;
+    return progress_state_.stage();
 }
 
 double SegmentationViewModel::progress_fraction() const noexcept {
-    return progress_fraction_;
+    return progress_state_.fraction();
 }
 
 bool SegmentationViewModel::progress_indeterminate() const noexcept {
-    return progress_indeterminate_;
+    return progress_state_.indeterminate();
 }
 
 QString SegmentationViewModel::status_text() const {
-    switch (progress_stage_) {
-    case Idle:
-        return {};
-    case ValidatingInput:
-        return QStringLiteral("Validating input");
-    case ExpandingSeeds:
-        return QStringLiteral("Preparing seed regions");
-    case BuildingGraph:
-        return QStringLiteral("Building pixel graph");
-    case BuildingLabels:
-        return QStringLiteral("Building label constraints");
-    case PartitioningSystem:
-        return QStringLiteral("Building linear system");
-    case Factorizing:
-        return QStringLiteral("Factorizing Laplacian");
-    case Solving:
-        return QStringLiteral("Solving Random Walker system");
-    case AssemblingProbabilities:
-        return QStringLiteral("Assembling probability map");
-    case Thresholding:
-        return QStringLiteral("Building segmentation mask");
-    }
-
-    return {};
+    return progress_state_.status_text();
 }
 
 double SegmentationViewModel::beta() const noexcept {
@@ -187,17 +139,15 @@ double SegmentationViewModel::beta_slider_position() const noexcept {
 }
 
 bool SegmentationViewModel::has_result() const noexcept {
-    return result_.has_value();
+    return result_state_.has_result();
 }
 
 QString SegmentationViewModel::result_source() const {
-    return has_result()
-        ? QStringLiteral("image://%1/mask").arg(qml_names::kResultImageProvider)
-        : QString();
+    return result_state_.source();
 }
 
 quint64 SegmentationViewModel::result_version() const noexcept {
-    return result_version_;
+    return result_state_.version();
 }
 
 QAbstractItemModel* SegmentationViewModel::seed_model() noexcept {
@@ -209,22 +159,18 @@ int SegmentationViewModel::selected_label() const noexcept {
 }
 
 QString SegmentationViewModel::error_message() const {
-    return error_.has_value()
-        ? random_walker::presentation::error_message(*error_)
-        : QString();
+    return error_state_.message();
 }
 
 int SegmentationViewModel::background_seed_count() const noexcept {
-    return random_walker::domain::seed_pixel_count(
-        seed_regions_
-        , random_walker::domain::SeedLabel::Background
+    return seed_state_.pixel_count(
+        random_walker::domain::SeedLabel::Background
     );
 }
 
 int SegmentationViewModel::object_seed_count() const noexcept {
-    return random_walker::domain::seed_pixel_count(
-        seed_regions_
-        , random_walker::domain::SeedLabel::Object
+    return seed_state_.pixel_count(
+        random_walker::domain::SeedLabel::Object
     );
 }
 
@@ -283,16 +229,10 @@ void SegmentationViewModel::open_image(const QString& path) {
     const bool was_loaded = image_loaded();
 
     cancel_active_request();
-    image_ = random_walker::qt_adapter::to_gray_image(loaded);
-    seed_model_.reset([this] {
-        seed_regions_.clear();
-    });
+    image_state_.set(loaded);
+    clear_seed_regions();
     invalidate_result();
     clear_error();
-
-    base_image_cache_.store(
-        random_walker::qt_adapter::to_qimage(image_));
-    ++image_version_;
 
     emit image_version_changed();
     emit image_source_changed();
@@ -307,8 +247,8 @@ void SegmentationViewModel::open_image(const QString& path) {
 void SegmentationViewModel::clear() {
     assert_ui_thread();
 
-    if (!image_loaded() && seed_regions_.empty() && !has_result()
-        && !error_.has_value()) {
+    if (!image_loaded() && seed_state_.empty() && !has_result()
+        && !error_state_.has_error()) {
         return;
     }
 
@@ -316,14 +256,10 @@ void SegmentationViewModel::clear() {
     const bool was_loaded = image_loaded();
 
     cancel_active_request();
-    image_ = {};
-    seed_model_.reset([this] {
-        seed_regions_.clear();
-    });
+    image_state_.clear();
+    clear_seed_regions();
     invalidate_result();
     clear_error();
-    base_image_cache_.clear();
-    ++image_version_;
 
     emit image_version_changed();
     emit image_source_changed();
@@ -338,15 +274,13 @@ void SegmentationViewModel::clear() {
 void SegmentationViewModel::clear_seeds() {
     assert_ui_thread();
 
-    if (seed_regions_.empty()) {
+    if (seed_state_.empty()) {
         return;
     }
 
     const bool previous_can_run = can_run();
     cancel_active_request();
-    seed_model_.reset([this] {
-        seed_regions_.clear();
-    });
+    clear_seed_regions();
     invalidate_result();
     clear_error();
 
@@ -366,19 +300,19 @@ void SegmentationViewModel::add_seed_rectangle(
         return;
     }
 
-    const int left = std::clamp(x, 0, image_.width());
-    const int top = std::clamp(y, 0, image_.height());
+    const int left = std::clamp(x, 0, image_state_.width());
+    const int top = std::clamp(y, 0, image_state_.height());
     const auto right_edge = static_cast<long long>(x) + width;
     const auto bottom_edge = static_cast<long long>(y) + height;
     const int right = static_cast<int>(std::clamp(
         right_edge
         , 0LL
-        , static_cast<long long>(image_.width()))
+        , static_cast<long long>(image_state_.width()))
     );
     const int bottom = static_cast<int>(std::clamp(
         bottom_edge
         , 0LL
-        , static_cast<long long>(image_.height()))
+        , static_cast<long long>(image_state_.height()))
     );
 
     if (left >= right || top >= bottom) {
@@ -389,16 +323,14 @@ void SegmentationViewModel::add_seed_rectangle(
     const DomainSeedLabel label = domain_seed_label();
 
     cancel_active_request();
-    seed_model_.reset([this, left, top, right, bottom, label] {
-        seed_regions_.push_back({
-            .area = {
-                .x = left
-                , .y = top
-                , .width = right - left
-                , .height = bottom - top
-            }
-            , .label = label
-        });
+    add_seed_region({
+        .area = {
+            .x = left
+            , .y = top
+            , .width = right - left
+            , .height = bottom - top
+        }
+        , .label = label
     });
 
     invalidate_result();
@@ -418,8 +350,8 @@ void SegmentationViewModel::run_segmentation() {
         next_request_id_++;
     random_walker::domain::SegmentationRequest request(
         request_id
-        , image_
-        , seed_regions_
+        , image_state_.image()
+        , seed_state_.regions()
         , application_settings_.random_walker
     );
 
@@ -562,10 +494,7 @@ void SegmentationViewModel::handle_completion(
     if (auto* segmentation_result =
             std::get_if<random_walker::domain::SegmentationResult>(
                 segmentation_outcome)) {
-        result_ = std::move(*segmentation_result);
-        result_image_cache_.store(
-            random_walker::qt_adapter::render_binary_mask(result_->mask));
-        ++result_version_;
+        result_state_.set(std::move(*segmentation_result));
         emit result_changed();
     } else if (auto* error =
                    std::get_if<random_walker::domain::SegmentationError>(
@@ -588,20 +517,26 @@ void SegmentationViewModel::handle_progress(
         return;
     }
 
-    const int stage = ::progress_stage(progress.stage);
-    const bool indeterminate = !progress.fraction.has_value();
-    const double fraction = progress.fraction.value_or(0.0);
-
-    if (progress_stage_ == stage
-        && progress_indeterminate_ == indeterminate
-        && qFuzzyCompare(progress_fraction_, fraction)) {
-        return;
+    if (progress_state_.apply(progress)) {
+        emit progress_changed();
     }
+}
 
-    progress_stage_ = stage;
-    progress_indeterminate_ = indeterminate;
-    progress_fraction_ = fraction;
-    emit progress_changed();
+void SegmentationViewModel::clear_seed_regions() {
+    assert_ui_thread();
+
+    seed_model_.reset([this] {
+        seed_state_.clear();
+    });
+}
+
+void SegmentationViewModel::add_seed_region(
+    random_walker::domain::SeedRegion region) {
+    assert_ui_thread();
+
+    seed_model_.reset([this, region = std::move(region)] mutable {
+        seed_state_.add(std::move(region));
+    });
 }
 
 void SegmentationViewModel::cancel_active_request() {
@@ -620,29 +555,17 @@ void SegmentationViewModel::cancel_active_request() {
 void SegmentationViewModel::reset_progress() {
     assert_ui_thread();
 
-    if (progress_stage_ == Idle
-        && qFuzzyIsNull(progress_fraction_)
-        && !progress_indeterminate_) {
-        return;
+    if (progress_state_.reset()) {
+        emit progress_changed();
     }
-
-    progress_stage_ = Idle;
-    progress_fraction_ = 0.0;
-    progress_indeterminate_ = false;
-    emit progress_changed();
 }
 
 void SegmentationViewModel::invalidate_result() {
     assert_ui_thread();
 
-    if (!result_.has_value()) {
-        return;
+    if (result_state_.clear()) {
+        emit result_changed();
     }
-
-    result_.reset();
-    result_image_cache_.clear();
-    ++result_version_;
-    emit result_changed();
 }
 
 void SegmentationViewModel::set_busy(bool value) {
@@ -662,23 +585,17 @@ void SegmentationViewModel::set_error(
     random_walker::application::UserError error) {
     assert_ui_thread();
 
-    if (error_.has_value() && *error_ == error) {
-        return;
+    if (error_state_.set(std::move(error))) {
+        emit error_message_changed();
     }
-
-    error_ = std::move(error);
-    emit error_message_changed();
 }
 
 void SegmentationViewModel::clear_error() {
     assert_ui_thread();
 
-    if (!error_.has_value()) {
-        return;
+    if (error_state_.clear()) {
+        emit error_message_changed();
     }
-
-    error_.reset();
-    emit error_message_changed();
 }
 
 void SegmentationViewModel::notify_can_run_if_changed(bool previous_value) {

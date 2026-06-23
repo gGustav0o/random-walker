@@ -2,23 +2,37 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 
 #include "model/algorithm/RandomWalkerAlgorithm.hpp"
+#include "model/algorithm/SeedExpansion.hpp"
 
 namespace random_walker::service {
     namespace {
         enum class BoundaryMarker : std::uint8_t {
-            Empty
-            , Background
+            Background
             , Object
         };
 
         struct SeedPixelIndex {
             int value = 0;
+
+            bool operator==(const SeedPixelIndex&) const = default;
         };
+
+        struct SeedPixelIndexHash {
+            [[nodiscard]] std::size_t operator()(
+                SeedPixelIndex index) const noexcept {
+                return std::hash<int> {}(index.value);
+            }
+        };
+
+        using BoundaryMarkerMap =
+            std::unordered_map<SeedPixelIndex, BoundaryMarker, SeedPixelIndexHash>;
 
         [[nodiscard]] constexpr BoundaryMarker marker_for(
             domain::SeedLabel label) noexcept {
@@ -49,7 +63,7 @@ namespace random_walker::service {
 
         [[nodiscard]] std::optional<domain::SegmentationError>
         mark_seed_region(
-            std::vector<BoundaryMarker>& markers
+            BoundaryMarkerMap& markers
             , const domain::SeedRegion& region
             , int image_width) {
             const BoundaryMarker marker = marker_for(region.label);
@@ -59,13 +73,11 @@ namespace random_walker::service {
                 for (int column = area.x; column < area.x + area.width; ++column) {
                     const SeedPixelIndex pixel_index =
                         flatten(row, column, image_width);
-                    BoundaryMarker& current =
-                        markers[static_cast<std::size_t>(pixel_index.value)];
-                    if (current != BoundaryMarker::Empty
-                        && current != marker) {
+                    const auto [position, inserted] =
+                        markers.emplace(pixel_index, marker);
+                    if (!inserted && position->second != marker) {
                         return domain::SegmentationError::ConflictingSeedLabels;
                     }
-                    current = marker;
                 }
             }
 
@@ -85,11 +97,15 @@ namespace random_walker::service {
 
         bool has_background_seed = false;
         bool has_object_seed = false;
-        std::vector<BoundaryMarker> markers(
-            static_cast<std::size_t>(request.image().width())
-                * static_cast<std::size_t>(request.image().height())
-            , BoundaryMarker::Empty
-        );
+        BoundaryMarkerMap markers;
+        std::size_t seed_pixel_count = 0;
+        for (const domain::SeedRegion& region : request.seed_regions()) {
+            if (region.area.width > 0 && region.area.height > 0) {
+                seed_pixel_count += static_cast<std::size_t>(region.area.width)
+                    * static_cast<std::size_t>(region.area.height);
+            }
+        }
+        markers.reserve(seed_pixel_count);
 
         for (const domain::SeedRegion& region : request.seed_regions()) {
             const domain::PixelRectangle& area = region.area;
@@ -137,8 +153,8 @@ namespace random_walker::service {
         }
         progress.report(domain::SegmentationStage::ValidatingInput, 1.0);
 
-        domain::SeedExpansionOutcome expansion =
-            domain::expand_seed_regions(
+        algorithm::SeedExpansionOutcome expansion =
+            algorithm::expand_seed_regions(
                 request.seed_regions()
                 , cancellation
                 , progress
@@ -153,7 +169,7 @@ namespace random_walker::service {
             , seeds
         };
 
-        return algorithm::detail::run_validated_random_walker(
+        return algorithm::run_random_walker(
             input
             , request.parameters().beta
             , cancellation

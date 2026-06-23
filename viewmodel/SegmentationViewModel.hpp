@@ -2,19 +2,22 @@
 
 #include <memory>
 #include <optional>
-#include <vector>
 
 #include <QAbstractItemModel>
 #include <QObject>
 #include <QString>
 #include <QtGlobal>
 
-#include "application/error/UserError.hpp"
 #include "application/settings/SettingsService.hpp"
 #include "presentation/image/PresentationImageCache.hpp"
 #include "model/domain/Segmentation.hpp"
 #include "model/executor/SegmentationExecutor.hpp"
+#include "viewmodel/ErrorState.hpp"
+#include "viewmodel/ImageState.hpp"
+#include "viewmodel/ProgressState.hpp"
+#include "viewmodel/ResultState.hpp"
 #include "viewmodel/SeedListModel.hpp"
+#include "viewmodel/SeedRegionState.hpp"
 
 class SegmentationViewModel final : public QObject {
     Q_OBJECT
@@ -51,16 +54,16 @@ public:
     Q_ENUM(SeedLabel)
 
     enum ProgressStage {
-        Idle
-        , ValidatingInput
-        , ExpandingSeeds
-        , BuildingGraph
-        , BuildingLabels
-        , PartitioningSystem
-        , Factorizing
-        , Solving
-        , AssemblingProbabilities
-        , Thresholding
+        Idle = ProgressState::Idle
+        , ValidatingInput = ProgressState::ValidatingInput
+        , ExpandingSeeds = ProgressState::ExpandingSeeds
+        , BuildingGraph = ProgressState::BuildingGraph
+        , BuildingBoundaryConditions = ProgressState::BuildingBoundaryConditions
+        , PartitioningSystem = ProgressState::PartitioningSystem
+        , Factorizing = ProgressState::Factorizing
+        , Solving = ProgressState::Solving
+        , AssemblingProbabilities = ProgressState::AssemblingProbabilities
+        , Thresholding = ProgressState::Thresholding
     };
     Q_ENUM(ProgressStage)
 
@@ -139,6 +142,8 @@ private:
         random_walker::domain::SegmentationProgress progress);
     void assert_ui_thread() const;
     void cancel_active_request();
+    void clear_seed_regions();
+    void add_seed_region(random_walker::domain::SeedRegion region);
     void reset_progress();
     void invalidate_result();
     void set_busy(bool value);
@@ -148,23 +153,17 @@ private:
 
     random_walker::executor::SegmentationExecutor& segmentation_executor_;
     random_walker::application::SettingsService& settings_service_;
-    PresentationImageCache& base_image_cache_;
-    PresentationImageCache& result_image_cache_;
-    random_walker::domain::GrayImage image_;
-    std::vector<random_walker::domain::SeedRegion> seed_regions_;
+    ImageState image_state_;
+    ResultState result_state_;
+    SeedRegionState seed_state_;
     SeedListModel seed_model_;
-    std::optional<random_walker::domain::SegmentationResult> result_;
-    std::optional<random_walker::application::UserError> error_;
-    quint64 image_version_ = 0;
-    quint64 result_version_ = 0;
+    ErrorState error_state_;
+    ProgressState progress_state_;
     random_walker::domain::SegmentationRequestId next_request_id_ = 1;
     std::optional<random_walker::domain::SegmentationRequestId>
         active_request_id_;
     std::shared_ptr<CompletionDeliveryGate> completion_delivery_;
     int selected_label_ = Background;
-    int progress_stage_ = Idle;
-    double progress_fraction_ = 0.0;
     random_walker::application::ApplicationSettings application_settings_;
-    bool progress_indeterminate_ = false;
     bool busy_ = false;
 };

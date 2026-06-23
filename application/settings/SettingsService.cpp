@@ -5,15 +5,15 @@ namespace random_walker::application {
         : repository_(repository) {
     }
 
-    ApplicationSettings SettingsService::load() {
-        const ApplicationSettings stored = repository_.load();
-        const ApplicationSettings normalized = normalize(stored);
+    SettingsLoadResult SettingsService::load() const {
+        const SettingsRepositoryLoadResult stored = repository_.load();
+        const ApplicationSettings normalized = normalize(stored.settings);
 
-        if (normalized != stored) {
-            (void)repository_.save(normalized);
-        }
-
-        return normalized;
+        return {
+            .settings = normalized
+            , .repair_required = stored.repair_required
+                || normalized != stored.settings
+        };
     }
 
     SettingsSaveOutcome SettingsService::save(

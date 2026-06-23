@@ -45,30 +45,26 @@ namespace random_walker::infrastructure {
         : settings_(std::move(file_name), format) {
     }
 
-    application::ApplicationSettings QSettingsRepository::load() const {
+    application::SettingsRepositoryLoadResult QSettingsRepository::load()
+        const {
         settings_.beginGroup(kSettingsGroup);
 
         bool converted = false;
         const int schema_version =
             settings_.value(kSchemaVersionKey).toInt(&converted);
 
-        application::ApplicationSettings result;
-        bool migrated = false;
+        application::SettingsRepositoryLoadResult result;
         if (converted && schema_version == kCurrentSchemaVersion) {
-            result = load_current_schema();
+            result.settings = load_current_schema();
         } else if (!converted || schema_version < kCurrentSchemaVersion) {
-            result = migrate_from(converted ? schema_version : 0);
-            write_current_schema(result);
-            migrated = true;
+            result.settings = migrate_from(converted ? schema_version : 0);
+            result.repair_required = true;
         } else {
             // A newer schema must not be interpreted by an older binary.
-            result = {};
+            result.settings = {};
         }
 
         settings_.endGroup();
-        if (migrated) {
-            settings_.sync();
-        }
         return result;
     }
 

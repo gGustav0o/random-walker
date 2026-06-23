@@ -52,7 +52,7 @@ namespace random_walker::algorithm {
                 ++completed;
                 if ((completed & 0x0fff) == 0) {
                     progress.report(
-                        domain::SegmentationStage::BuildingLabels
+                        domain::SegmentationStage::BuildingBoundaryConditions
                         , total == 0
                             ? 1.0
                             : static_cast<double>(completed)
@@ -71,7 +71,7 @@ namespace random_walker::algorithm {
         }
 
         progress.report(
-            domain::SegmentationStage::BuildingLabels
+            domain::SegmentationStage::BuildingBoundaryConditions
             , 1.0
         );
         return result;

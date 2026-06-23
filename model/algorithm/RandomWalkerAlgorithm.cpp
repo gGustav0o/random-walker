@@ -12,7 +12,7 @@
 #include "ProbabilityField.hpp"
 #include "model/graph/GridLaplacian.hpp"
 
-namespace random_walker::algorithm::detail {
+namespace random_walker::algorithm {
     namespace {
         [[nodiscard]] bool is_cancelled(
             const auto& outcome) {
@@ -156,7 +156,7 @@ namespace random_walker::algorithm::detail {
         }
     }
 
-    domain::SegmentationOutcome run_validated_random_walker(
+    domain::SegmentationOutcome run_random_walker(
         const domain::SegmentationInput& input
         , double beta
         , const domain::CancellationToken& cancellation
@@ -183,7 +183,7 @@ namespace random_walker::algorithm::detail {
         Eigen::SparseMatrix<double> laplacian =
             std::get<Eigen::SparseMatrix<double>>(std::move(laplacian_outcome));
 
-        progress.report(domain::SegmentationStage::BuildingLabels, 0.0);
+        progress.report(domain::SegmentationStage::BuildingBoundaryConditions, 0.0);
         BoundaryConditionsOutcome boundary_outcome =
             build_boundary_conditions(
                 input

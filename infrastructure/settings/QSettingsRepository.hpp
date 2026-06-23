@@ -18,7 +18,8 @@ namespace random_walker::infrastructure {
             , QSettings::Format format
         );
 
-        [[nodiscard]] application::ApplicationSettings load() const override;
+        [[nodiscard]] application::SettingsRepositoryLoadResult load()
+            const override;
         [[nodiscard]] bool save(
             const application::ApplicationSettings& settings) override;
 
