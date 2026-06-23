@@ -12,9 +12,9 @@
 #include <QThread>
 #include <QUrl>
 
-#include "app/adapter/QImageAdapter.hpp"
-#include "app/adapter/MaskRenderer.hpp"
-#include "app/qml/qml_names.hpp"
+#include "presentation/adapter/MaskRenderer.hpp"
+#include "presentation/adapter/QImageAdapter.hpp"
+#include "presentation/qml/qml_names.hpp"
 
 namespace
 {

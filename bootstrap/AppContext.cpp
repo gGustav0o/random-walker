@@ -4,9 +4,9 @@
 
 #include <QQmlContext>
 
-#include "app/qml/qml_names.hpp"
-#include "app/service/BaseImageProvider.hpp"
-#include "app/service/ResultImageProvider.hpp"
+#include "presentation/image/BaseImageProvider.hpp"
+#include "presentation/image/ResultImageProvider.hpp"
+#include "presentation/qml/qml_names.hpp"
 
 AppContext::AppContext(QQmlApplicationEngine& engine)
     : settings_repository_(

@@ -10,7 +10,7 @@
 #include <QtGlobal>
 
 #include "application/settings/SettingsService.hpp"
-#include "app/service/PresentationImageCache.hpp"
+#include "presentation/image/PresentationImageCache.hpp"
 #include "model/domain/Segmentation.hpp"
 #include "model/executor/SegmentationExecutor.hpp"
 #include "viewmodel/SeedListModel.hpp"

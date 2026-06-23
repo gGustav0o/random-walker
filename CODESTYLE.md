@@ -26,21 +26,27 @@ This style guide defines conventions used in this repository for C++20 developme
 | Regular Variables  | `snake_case`                             | `label_matrix`, `input_image`  |
 | Namespaces         | `snake_case`                             | `math_utils`, `label_ops`      |
 | Template Types     | `PascalCase`                             | `Transformer`, `Mapper`        |
-| Files              | Based on main class or namespace in file | `global.hpp`, `segmenter.cpp`  |
+| Files              | Based on main class or namespace in file | `GrayImage.hpp`, `segmenter.cpp` |
 | Class Members      | `snake_case`, suffix `_` if mutable      | `buffer_`, `width`             |
 
 ---
 
 ## 3. Functions
 
-- Functions must be **pure** by default.
-- Use the `_pure_` macro::
+- Prefer pure functions where they make dependencies and transformations
+  explicit.
+- Express each function property independently with standard C++ syntax:
   ```cpp
-  _pure_(int add(int a, int b)) { return a + b; }
+  [[nodiscard]] constexpr int add(int a, int b) noexcept
+  {
+      return a + b;
+  }
   ```
-- Functional objects and lambdas are encouraged. Use the `Pure<>` wrapper for stateless lambdas:
+- Apply `constexpr`, `noexcept`, `static`, and `[[nodiscard]]` only when each
+  property is semantically correct for the function.
+- Functional objects and stateless lambdas are encouraged:
   ```cpp
-  const Pure<int(int)> square = [](int x) { return x * x; };
+  constexpr auto square = [](int x) noexcept { return x * x; };
   ```
 
 - Use `concepts` to constrain templates:
@@ -114,25 +120,39 @@ std::ranges::for_each(std::views::iota(0, vec.size()), [&](int i) {
 
 ---
 
-## 9. Meta Annotations
+## 9. Function and Type Annotations
 
-Use custom attributes for purity and intention:
+Use standard C++ keywords and attributes directly:
 
 ```cpp
-#define _pure_(decl)       [[nodiscard]] static constexpr decl noexcept
-#define _impure_(decl)     [[nodiscard]] static decl noexcept
-#define _no_copy_(Type)    Type(const Type&) = delete
-#define _dbg_(msg)         do { std::cerr << "[DBG] " << msg << '\n'; } while (0)
-// ...
+class Worker
+{
+public:
+    Worker(const Worker&) = delete;
+    Worker& operator=(const Worker&) = delete;
+};
+
+[[nodiscard]] constexpr int answer() noexcept
+{
+    return 42;
+}
 ```
+
+Do not introduce macros that combine unrelated properties such as linkage,
+constant evaluation, exception guarantees, or optimization hints.
 
 ---
 
 ## 10. Directory Structure
 
-- `global.hpp` – general-purpose definitions and utilities.
-- `MetaAnnotations.hpp` – portability macros and attribute aliases.
-- Domain-specific files should reflect their core purpose.
+- `model/` contains the mathematical domain, algorithms, and execution ports.
+- `application/` contains application use cases and services.
+- `infrastructure/` contains implementations of external persistence and
+  platform ports.
+- `presentation/` contains Qt adapters, image providers, and QML integration.
+- `viewmodel/` contains MVVM presentation state and commands.
+- `bootstrap/` contains the composition root and dependency wiring.
+- Dependencies must point toward domain and application abstractions.
 
 ---
 
@@ -181,11 +201,12 @@ enum class Mode {
 
 ## 12. Precision and Output
 
-- Use `std::ostringstream` with `std::fixed` and `std::setprecision(PRECISION)` for all numeric formatting.
-- Default precision is defined as:
+- Use `std::ostringstream` with `std::fixed` and `std::setprecision` when
+  stream-based numeric formatting is appropriate.
+- Keep formatting policy local to the responsible component:
 
 ```cpp
-constexpr auto PRECISION = 4;
+inline constexpr int kDefaultPrecision = 4;
 ```
 
 ---
@@ -193,7 +214,11 @@ constexpr auto PRECISION = 4;
 ## Example
 
 ```cpp
-_pure_(std::string toString(const Eigen::MatrixBase<T>& obj, int precision = PRECISION)) {
+template <typename T>
+[[nodiscard]] std::string toString(
+    const Eigen::MatrixBase<T>& obj,
+    int precision = kDefaultPrecision)
+{
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(precision);
     oss << obj;
@@ -202,4 +227,3 @@ _pure_(std::string toString(const Eigen::MatrixBase<T>& obj, int precision = PRE
 ```
 
 ---
-

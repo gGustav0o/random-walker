@@ -3,7 +3,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 
-#include "app/context/AppContext.hpp"
+#include "bootstrap/AppContext.hpp"
 
 static void setup_high_dpi()
 {

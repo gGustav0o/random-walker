@@ -171,7 +171,6 @@ compute_weight_gradient(...)
 | `RandomWalkerAlgorithm.hpp/cpp`     | Построение графа, веса, решение СЛАУ  |
 | `PixelGraph.hpp/cpp`                | Представление изображения как графа   |
 | `SceneManager.hpp/cpp`              | Связь между QML и C++ логикой         |
-| `global.hpp`, `MetaAnnotations.hpp` | Концепты, типы, аннотации             |
 | `ImageToEigen.hpp`                  | Преобразование QImage → Eigen матрицы |
 
 ---

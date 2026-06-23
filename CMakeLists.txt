@@ -28,9 +28,7 @@ set(HEADERS
     application/settings/ApplicationSettings.hpp
     application/settings/SettingsRepository.hpp
     application/settings/SettingsService.hpp
-    app/context/AppContext.hpp
-    app/adapter/QImageAdapter.hpp
-    app/adapter/MaskRenderer.hpp
+    bootstrap/AppContext.hpp
     infrastructure/settings/QSettingsRepository.hpp
     model/domain/Cancellation.hpp
     model/domain/GrayImage.hpp
@@ -43,16 +41,18 @@ set(HEADERS
     model/executor/JThreadSegmentationExecutor.hpp
     model/graph/PixelGraph.hpp
     model/service/SegmentationService.hpp
-    app/qml/qml_names.hpp
-    app/service/PresentationImageCache.hpp
-    app/service/BaseImageProvider.hpp
-    app/service/ResultImageProvider.hpp
+    presentation/adapter/MaskRenderer.hpp
+    presentation/adapter/QImageAdapter.hpp
+    presentation/image/BaseImageProvider.hpp
+    presentation/image/PresentationImageCache.hpp
+    presentation/image/ResultImageProvider.hpp
+    presentation/qml/qml_names.hpp
     viewmodel/SegmentationViewModel.hpp
     viewmodel/SeedListModel.hpp
 )
 set(SOURCES
     main.cpp
-    app/context/AppContext.cpp
+    bootstrap/AppContext.cpp
     application/settings/SettingsService.cpp
     infrastructure/settings/QSettingsRepository.cpp
     # model
@@ -60,9 +60,9 @@ set(SOURCES
     model/executor/JThreadSegmentationExecutor.cpp
     model/graph/PixelGraph.cpp
     model/service/SegmentationService.cpp
-    app/adapter/MaskRenderer.cpp
-    app/service/BaseImageProvider.cpp
-    app/service/ResultImageProvider.cpp
+    presentation/adapter/MaskRenderer.cpp
+    presentation/image/BaseImageProvider.cpp
+    presentation/image/ResultImageProvider.cpp
     viewmodel/SegmentationViewModel.cpp
     viewmodel/SeedListModel.cpp
 )
@@ -75,22 +75,6 @@ qt_add_executable(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME}
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/application
-        ${CMAKE_CURRENT_SOURCE_DIR}/application/settings
-        ${CMAKE_CURRENT_SOURCE_DIR}/app
-        ${CMAKE_CURRENT_SOURCE_DIR}/app/adapter
-        ${CMAKE_CURRENT_SOURCE_DIR}/app/context
-        ${CMAKE_CURRENT_SOURCE_DIR}/app/qml
-        ${CMAKE_CURRENT_SOURCE_DIR}/app/service
-        ${CMAKE_CURRENT_SOURCE_DIR}/infrastructure
-        ${CMAKE_CURRENT_SOURCE_DIR}/infrastructure/settings
-        ${CMAKE_CURRENT_SOURCE_DIR}/model
-        ${CMAKE_CURRENT_SOURCE_DIR}/model/algorithm
-        ${CMAKE_CURRENT_SOURCE_DIR}/model/domain
-        ${CMAKE_CURRENT_SOURCE_DIR}/model/executor
-        ${CMAKE_CURRENT_SOURCE_DIR}/model/graph
-        ${CMAKE_CURRENT_SOURCE_DIR}/model/service
-        ${CMAKE_CURRENT_SOURCE_DIR}/viewmodel
 )
 
 target_sources(${PROJECT_NAME} PRIVATE ${qml_resources})

@@ -4,7 +4,7 @@
 #include <QImage>
 #include <QMutex>
 
-#include "app/service/PresentationImageCache.hpp"
+#include "presentation/image/PresentationImageCache.hpp"
 
 class BaseImageProvider final
     : public QQuickImageProvider
