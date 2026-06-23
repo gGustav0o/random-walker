@@ -9,6 +9,7 @@
 #include <QString>
 #include <QtGlobal>
 
+#include "application/settings/SettingsService.hpp"
 #include "app/service/PresentationImageCache.hpp"
 #include "model/domain/Segmentation.hpp"
 #include "model/executor/SegmentationExecutor.hpp"
@@ -67,6 +68,7 @@ public:
 
     explicit SegmentationViewModel(
         random_walker::executor::SegmentationExecutor& segmentation_executor,
+        random_walker::application::SettingsService& settings_service,
         PresentationImageCache& base_image_cache,
         PresentationImageCache& result_image_cache,
         QObject* parent = nullptr);
@@ -122,6 +124,8 @@ private:
     struct CompletionDeliveryGate;
 
     [[nodiscard]] DomainSeedLabel domain_seed_label() const noexcept;
+    void update_random_walker_parameters(
+        random_walker::domain::RandomWalkerParameters parameters);
     static void dispatch_completion(
         const std::shared_ptr<CompletionDeliveryGate>& delivery_gate,
         random_walker::executor::SegmentationCompletion completion);
@@ -141,6 +145,7 @@ private:
     void notify_can_run_if_changed(bool previous_value);
 
     random_walker::executor::SegmentationExecutor& segmentation_executor_;
+    random_walker::application::SettingsService& settings_service_;
     PresentationImageCache& base_image_cache_;
     PresentationImageCache& result_image_cache_;
     random_walker::domain::GrayImage image_;
@@ -157,8 +162,7 @@ private:
     int selected_label_ = Background;
     int progress_stage_ = Idle;
     double progress_fraction_ = 0.0;
-    double beta_ =
-        random_walker::domain::kDefaultRandomWalkerBeta;
+    random_walker::application::ApplicationSettings application_settings_;
     bool progress_indeterminate_ = false;
     bool busy_ = false;
 };

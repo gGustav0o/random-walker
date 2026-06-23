@@ -4,6 +4,8 @@
 
 #include <QQmlApplicationEngine>
 
+#include "application/settings/SettingsService.hpp"
+#include "infrastructure/settings/QSettingsRepository.hpp"
 #include "model/executor/JThreadSegmentationExecutor.hpp"
 #include "viewmodel/SegmentationViewModel.hpp"
 
@@ -14,9 +16,13 @@ public:
     ~AppContext() = default;
 
 private:
-    // Member order is intentional: destruction happens in reverse order,
-    // so the ViewModel stops using the executor before the executor joins.
+    // Dependencies are declared before their consumers. Reverse destruction
+    // therefore guarantees:
+    // ViewModel -> SettingsService -> SettingsRepository.
     random_walker::executor::JThreadSegmentationExecutor
         segmentation_executor_;
+    random_walker::infrastructure::QSettingsRepository
+        settings_repository_;
+    random_walker::application::SettingsService settings_service_;
     std::unique_ptr<SegmentationViewModel> segmentation_view_model_;
 };

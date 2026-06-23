@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.21)
 project(random-walker LANGUAGES CXX)
 
+include(CTest)
+
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
@@ -23,9 +25,13 @@ find_package(Qt6 REQUIRED COMPONENTS
 qt_add_resources(qml_resources qml.qrc)
 
 set(HEADERS
+    application/settings/ApplicationSettings.hpp
+    application/settings/SettingsRepository.hpp
+    application/settings/SettingsService.hpp
     app/context/AppContext.hpp
     app/adapter/QImageAdapter.hpp
     app/adapter/MaskRenderer.hpp
+    infrastructure/settings/QSettingsRepository.hpp
     model/domain/Cancellation.hpp
     model/domain/GrayImage.hpp
     model/domain/ProgressReporter.hpp
@@ -47,6 +53,8 @@ set(HEADERS
 set(SOURCES
     main.cpp
     app/context/AppContext.cpp
+    application/settings/SettingsService.cpp
+    infrastructure/settings/QSettingsRepository.cpp
     # model
     model/algorithm/RandomWalkerAlgorithm.cpp
     model/executor/JThreadSegmentationExecutor.cpp
@@ -67,11 +75,15 @@ qt_add_executable(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME}
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/application
+        ${CMAKE_CURRENT_SOURCE_DIR}/application/settings
         ${CMAKE_CURRENT_SOURCE_DIR}/app
         ${CMAKE_CURRENT_SOURCE_DIR}/app/adapter
         ${CMAKE_CURRENT_SOURCE_DIR}/app/context
         ${CMAKE_CURRENT_SOURCE_DIR}/app/qml
         ${CMAKE_CURRENT_SOURCE_DIR}/app/service
+        ${CMAKE_CURRENT_SOURCE_DIR}/infrastructure
+        ${CMAKE_CURRENT_SOURCE_DIR}/infrastructure/settings
         ${CMAKE_CURRENT_SOURCE_DIR}/model
         ${CMAKE_CURRENT_SOURCE_DIR}/model/algorithm
         ${CMAKE_CURRENT_SOURCE_DIR}/model/domain
@@ -102,4 +114,9 @@ if(WIN32)
         COMMENT "Deploying the Qt runtime"
         VERBATIM
     )
+endif()
+
+if(BUILD_TESTING)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    add_subdirectory(tests)
 endif()

@@ -18,10 +18,10 @@
 
 namespace
 {
-    constexpr double kMinimumBeta = 1e-6;
-    constexpr double kMaximumBeta = 1e-1;
-    constexpr double kMinimumBetaExponent = -6.0;
-    constexpr double kMaximumBetaExponent = -1.0;
+    const double kMinimumBetaExponent =
+        std::log10(random_walker::domain::kMinimumRandomWalkerBeta);
+    const double kMaximumBetaExponent =
+        std::log10(random_walker::domain::kMaximumRandomWalkerBeta);
 
     [[nodiscard]] QString error_message(
         random_walker::domain::SegmentationError error)
@@ -33,7 +33,7 @@ namespace
             return QStringLiteral("No image is loaded.");
         case Error::InvalidBeta:
             return QStringLiteral(
-                "Beta must be finite and greater than zero.");
+                "Beta is outside the supported range.");
         case Error::MissingBackgroundSeeds:
             return QStringLiteral("At least one background seed is required.");
         case Error::MissingObjectSeeds:
@@ -89,15 +89,18 @@ struct SegmentationViewModel::CompletionDeliveryGate
 
 SegmentationViewModel::SegmentationViewModel(
     random_walker::executor::SegmentationExecutor& segmentation_executor,
+    random_walker::application::SettingsService& settings_service,
     PresentationImageCache& base_image_cache,
     PresentationImageCache& result_image_cache,
     QObject* parent)
     : QObject(parent)
     , segmentation_executor_(segmentation_executor)
+    , settings_service_(settings_service)
     , base_image_cache_(base_image_cache)
     , result_image_cache_(result_image_cache)
     , seed_model_(seed_regions_)
     , completion_delivery_(std::make_shared<CompletionDeliveryGate>())
+    , application_settings_(settings_service_.load())
 {
     completion_delivery_->receiver = this;
 }
@@ -198,12 +201,13 @@ QString SegmentationViewModel::status_text() const
 
 double SegmentationViewModel::beta() const noexcept
 {
-    return beta_;
+    return application_settings_.random_walker.beta;
 }
 
 double SegmentationViewModel::beta_slider_position() const noexcept
 {
-    const double exponent = std::log10(beta_);
+    const double exponent =
+        std::log10(application_settings_.random_walker.beta);
     return std::clamp(
         (exponent - kMinimumBetaExponent)
             / (kMaximumBetaExponent - kMinimumBetaExponent),
@@ -276,19 +280,9 @@ void SegmentationViewModel::set_beta(double value)
 {
     assert_ui_thread();
 
-    if (!std::isfinite(value)
-        || value < kMinimumBeta
-        || value > kMaximumBeta
-        || qFuzzyCompare(beta_, value)) {
-        return;
-    }
-
-    cancel_active_request();
-    invalidate_result();
-    set_error({});
-
-    beta_ = value;
-    emit beta_changed();
+    auto updated_parameters = application_settings_.random_walker;
+    updated_parameters.beta = value;
+    update_random_walker_parameters(updated_parameters);
 }
 
 void SegmentationViewModel::set_beta_slider_position(double position)
@@ -463,9 +457,7 @@ void SegmentationViewModel::run_segmentation()
         request_id,
         image_,
         seed_regions_,
-        random_walker::domain::RandomWalkerParameters {
-            .beta = beta_
-        });
+        application_settings_.random_walker);
 
     active_request_id_ = request_id;
     reset_progress();
@@ -495,6 +487,29 @@ SegmentationViewModel::domain_seed_label() const noexcept
     return selected_label_ == Object
         ? DomainSeedLabel::Object
         : DomainSeedLabel::Background;
+}
+
+void SegmentationViewModel::update_random_walker_parameters(
+    random_walker::domain::RandomWalkerParameters parameters)
+{
+    assert_ui_thread();
+
+    if (parameters == application_settings_.random_walker) {
+        return;
+    }
+
+    auto updated_settings = application_settings_;
+    updated_settings.random_walker = parameters;
+    if (!settings_service_.try_save(updated_settings)) {
+        return;
+    }
+
+    cancel_active_request();
+    invalidate_result();
+    set_error({});
+
+    application_settings_ = std::move(updated_settings);
+    emit beta_changed();
 }
 
 void SegmentationViewModel::dispatch_completion(

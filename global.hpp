@@ -5,7 +5,7 @@
 #include <iostream>
 #include <numeric>
 #include <iomanip>
-#include <cmath> 
+#include <cmath>
 
 #include <Eigen/Dense>
 

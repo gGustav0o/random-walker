@@ -9,12 +9,17 @@
 #include "app/service/ResultImageProvider.hpp"
 
 AppContext::AppContext(QQmlApplicationEngine& engine)
+    : settings_repository_(
+        QStringLiteral("random-walker"),
+        QStringLiteral("random-walker"))
+    , settings_service_(settings_repository_)
 {
     auto base_image_provider = std::make_unique<BaseImageProvider>();
     auto result_image_provider = std::make_unique<ResultImageProvider>();
 
     segmentation_view_model_ = std::make_unique<SegmentationViewModel>(
         segmentation_executor_,
+        settings_service_,
         *base_image_provider,
         *result_image_provider);
 
