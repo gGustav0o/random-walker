@@ -9,10 +9,10 @@
 #include "model/domain/ProgressReporter.hpp"
 
 namespace random_walker::graph {
-    using LaplacianOutcome =
+    using GridLaplacianOutcome =
         std::variant<Eigen::SparseMatrix<double>, domain::Cancelled>;
 
-    [[nodiscard]] LaplacianOutcome build_laplacian(
+    [[nodiscard]] GridLaplacianOutcome build_grid_laplacian(
         const domain::GrayImage& image
         , double beta
         , const domain::CancellationToken& cancellation

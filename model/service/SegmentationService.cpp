@@ -1,12 +1,80 @@
 #include "SegmentationService.hpp"
 
+#include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <variant>
+#include <vector>
 
 #include "model/algorithm/RandomWalkerAlgorithm.hpp"
 
 namespace random_walker::service {
+    namespace {
+        enum class BoundaryMarker : std::uint8_t {
+            Empty
+            , Background
+            , Object
+        };
+
+        struct SeedPixelIndex {
+            int value = 0;
+        };
+
+        [[nodiscard]] constexpr BoundaryMarker marker_for(
+            domain::SeedLabel label) noexcept {
+            return label == domain::SeedLabel::Object
+                ? BoundaryMarker::Object
+                : BoundaryMarker::Background;
+        }
+
+        [[nodiscard]] constexpr SeedPixelIndex flatten(
+            int row
+            , int column
+            , int width) noexcept {
+            return SeedPixelIndex {
+                .value = row * width + column
+            };
+        }
+
+        [[nodiscard]] bool is_out_of_bounds(
+            const domain::PixelRectangle& area
+            , const domain::GrayImage& image) noexcept {
+            return area.width <= 0
+                || area.height <= 0
+                || area.x < 0
+                || area.y < 0
+                || area.x > image.width() - area.width
+                || area.y > image.height() - area.height;
+        }
+
+        [[nodiscard]] std::optional<domain::SegmentationError>
+        mark_seed_region(
+            std::vector<BoundaryMarker>& markers
+            , const domain::SeedRegion& region
+            , int image_width) {
+            const BoundaryMarker marker = marker_for(region.label);
+            const domain::PixelRectangle& area = region.area;
+
+            for (int row = area.y; row < area.y + area.height; ++row) {
+                for (int column = area.x; column < area.x + area.width; ++column) {
+                    const SeedPixelIndex pixel_index =
+                        flatten(row, column, image_width);
+                    BoundaryMarker& current =
+                        markers[static_cast<std::size_t>(pixel_index.value)];
+                    if (current != BoundaryMarker::Empty
+                        && current != marker) {
+                        return domain::SegmentationError::ConflictingSeedLabels;
+                    }
+                    current = marker;
+                }
+            }
+
+            return std::nullopt;
+        }
+    }
+
     std::optional<domain::SegmentationError> SegmentationService::validate(
-        const domain::SegmentationRequest& request) noexcept {
+        const domain::SegmentationRequest& request) {
         if (request.image().empty()) {
             return domain::SegmentationError::EmptyImage;
         }
@@ -17,16 +85,24 @@ namespace random_walker::service {
 
         bool has_background_seed = false;
         bool has_object_seed = false;
+        std::vector<BoundaryMarker> markers(
+            static_cast<std::size_t>(request.image().width())
+                * static_cast<std::size_t>(request.image().height())
+            , BoundaryMarker::Empty
+        );
 
         for (const domain::SeedRegion& region : request.seed_regions()) {
             const domain::PixelRectangle& area = region.area;
-            if (area.width <= 0
-                || area.height <= 0
-                || area.x < 0
-                || area.y < 0
-                || area.x > request.image().width() - area.width
-                || area.y > request.image().height() - area.height) {
+            if (is_out_of_bounds(area, request.image())) {
                 return domain::SegmentationError::SeedOutOfBounds;
+            }
+
+            if (const auto error = mark_seed_region(
+                    markers
+                    , region
+                    , request.image().width()
+                ); error.has_value()) {
+                return *error;
             }
 
             has_background_seed =

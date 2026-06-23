@@ -15,6 +15,6 @@ namespace random_walker::service {
         ) const;
 
         [[nodiscard]] static std::optional<domain::SegmentationError> validate(
-            const domain::SegmentationRequest& request) noexcept;
+            const domain::SegmentationRequest& request);
     };
 }

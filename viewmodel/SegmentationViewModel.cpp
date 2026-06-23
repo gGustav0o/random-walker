@@ -38,6 +38,9 @@ namespace {
             return QStringLiteral("At least one object seed is required.");
         case Error::SeedOutOfBounds:
             return QStringLiteral("A seed lies outside the image.");
+        case Error::ConflictingSeedLabels:
+            return QStringLiteral(
+                "Background and object seeds must not overlap.");
         case Error::LaplacianDecompositionFailed:
             return QStringLiteral("Failed to decompose the graph Laplacian.");
         case Error::LinearSystemSolveFailed:

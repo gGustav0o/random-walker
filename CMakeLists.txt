@@ -36,10 +36,16 @@ set(HEADERS
     model/domain/RandomWalkerParameters.hpp
     model/domain/Seed.hpp
     model/domain/Segmentation.hpp
+    model/algorithm/BoundaryConditions.hpp
+    model/algorithm/HarmonicSolver.hpp
+    model/algorithm/IndexTypes.hpp
+    model/algorithm/NodePartition.hpp
+    model/algorithm/PartitionedLaplacian.hpp
+    model/algorithm/ProbabilityField.hpp
     model/algorithm/RandomWalkerAlgorithm.hpp
     model/executor/SegmentationExecutor.hpp
     model/executor/JThreadSegmentationExecutor.hpp
-    model/graph/PixelGraph.hpp
+    model/graph/GridLaplacian.hpp
     model/service/SegmentationService.hpp
     presentation/adapter/MaskRenderer.hpp
     presentation/adapter/QImageAdapter.hpp
@@ -56,9 +62,14 @@ set(SOURCES
     application/settings/SettingsService.cpp
     infrastructure/settings/QSettingsRepository.cpp
     # model
+    model/algorithm/BoundaryConditions.cpp
+    model/algorithm/HarmonicSolver.cpp
+    model/algorithm/NodePartition.cpp
+    model/algorithm/PartitionedLaplacian.cpp
+    model/algorithm/ProbabilityField.cpp
     model/algorithm/RandomWalkerAlgorithm.cpp
     model/executor/JThreadSegmentationExecutor.cpp
-    model/graph/PixelGraph.cpp
+    model/graph/GridLaplacian.cpp
     model/service/SegmentationService.cpp
     presentation/adapter/MaskRenderer.cpp
     presentation/image/BaseImageProvider.cpp

@@ -100,7 +100,7 @@ $$
 Фиксированное значение $\beta$ задается в:
 
 ```
-core/graph/PixelGraph.cpp
+model/graph/GridLaplacian.cpp
 ```
 
 ```cpp
@@ -168,8 +168,8 @@ compute_weight_gradient(...)
 
 | Модуль                              | Назначение                            |
 | ----------------------------------- | ------------------------------------- |
-| `RandomWalkerAlgorithm.hpp/cpp`     | Построение графа, веса, решение СЛАУ  |
-| `PixelGraph.hpp/cpp`                | Представление изображения как графа   |
+| `RandomWalkerAlgorithm.hpp/cpp`     | Оркестрация этапов Random Walker      |
+| `GridLaplacian.hpp/cpp`             | Взвешенный лапласиан grid-графа       |
 | `SceneManager.hpp/cpp`              | Связь между QML и C++ логикой         |
 | `ImageToEigen.hpp`                  | Преобразование QImage → Eigen матрицы |
 

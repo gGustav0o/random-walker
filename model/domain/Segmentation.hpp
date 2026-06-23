@@ -74,6 +74,7 @@ namespace random_walker::domain {
         , MissingBackgroundSeeds
         , MissingObjectSeeds
         , SeedOutOfBounds
+        , ConflictingSeedLabels
         , LaplacianDecompositionFailed
         , LinearSystemSolveFailed
         , NonFiniteSolution
