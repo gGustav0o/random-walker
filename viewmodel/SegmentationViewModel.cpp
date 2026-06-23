@@ -1,6 +1,7 @@
 #include "SegmentationViewModel.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <mutex>
 #include <utility>
@@ -17,6 +18,11 @@
 
 namespace
 {
+    constexpr double kMinimumBeta = 1e-6;
+    constexpr double kMaximumBeta = 1e-1;
+    constexpr double kMinimumBetaExponent = -6.0;
+    constexpr double kMaximumBetaExponent = -1.0;
+
     [[nodiscard]] QString error_message(
         random_walker::domain::SegmentationError error)
     {
@@ -25,6 +31,9 @@ namespace
         switch (error) {
         case Error::EmptyImage:
             return QStringLiteral("No image is loaded.");
+        case Error::InvalidBeta:
+            return QStringLiteral(
+                "Beta must be finite and greater than zero.");
         case Error::MissingBackgroundSeeds:
             return QStringLiteral("At least one background seed is required.");
         case Error::MissingObjectSeeds:
@@ -187,6 +196,21 @@ QString SegmentationViewModel::status_text() const
     return {};
 }
 
+double SegmentationViewModel::beta() const noexcept
+{
+    return beta_;
+}
+
+double SegmentationViewModel::beta_slider_position() const noexcept
+{
+    const double exponent = std::log10(beta_);
+    return std::clamp(
+        (exponent - kMinimumBetaExponent)
+            / (kMaximumBetaExponent - kMinimumBetaExponent),
+        0.0,
+        1.0);
+}
+
 bool SegmentationViewModel::has_result() const noexcept
 {
     return result_.has_value();
@@ -246,6 +270,42 @@ void SegmentationViewModel::set_selected_label(int label)
 
     selected_label_ = label;
     emit selected_label_changed();
+}
+
+void SegmentationViewModel::set_beta(double value)
+{
+    assert_ui_thread();
+
+    if (!std::isfinite(value)
+        || value < kMinimumBeta
+        || value > kMaximumBeta
+        || qFuzzyCompare(beta_, value)) {
+        return;
+    }
+
+    cancel_active_request();
+    invalidate_result();
+    set_error({});
+
+    beta_ = value;
+    emit beta_changed();
+}
+
+void SegmentationViewModel::set_beta_slider_position(double position)
+{
+    assert_ui_thread();
+
+    if (!std::isfinite(position)) {
+        return;
+    }
+
+    const double normalized_position =
+        std::clamp(position, 0.0, 1.0);
+    const double exponent =
+        kMinimumBetaExponent
+        + normalized_position
+            * (kMaximumBetaExponent - kMinimumBetaExponent);
+    set_beta(std::pow(10.0, exponent));
 }
 
 void SegmentationViewModel::open_image(const QString& path)
@@ -402,7 +462,10 @@ void SegmentationViewModel::run_segmentation()
     random_walker::domain::SegmentationRequest request(
         request_id,
         image_,
-        seed_regions_);
+        seed_regions_,
+        random_walker::domain::RandomWalkerParameters {
+            .beta = beta_
+        });
 
     active_request_id_ = request_id;
     reset_progress();

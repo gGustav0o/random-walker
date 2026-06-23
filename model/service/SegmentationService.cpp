@@ -1,5 +1,6 @@
 #include "SegmentationService.hpp"
 
+#include <cmath>
 #include <variant>
 
 #include "model/algorithm/RandomWalkerAlgorithm.hpp"
@@ -11,6 +12,11 @@ namespace random_walker::service
     {
         if (request.image().empty()) {
             return domain::SegmentationError::EmptyImage;
+        }
+
+        const double beta = request.parameters().beta;
+        if (!std::isfinite(beta) || beta <= 0.0) {
+            return domain::SegmentationError::InvalidBeta;
         }
 
         bool has_background_seed = false;
@@ -77,6 +83,7 @@ namespace random_walker::service
 
         return algorithm::detail::run_validated_random_walker(
             input,
+            request.parameters().beta,
             cancellation,
             progress);
     }

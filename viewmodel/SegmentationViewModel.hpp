@@ -30,6 +30,9 @@ class SegmentationViewModel final : public QObject
     Q_PROPERTY(bool progress_indeterminate READ progress_indeterminate
         NOTIFY progress_changed)
     Q_PROPERTY(QString status_text READ status_text NOTIFY progress_changed)
+    Q_PROPERTY(double beta READ beta WRITE set_beta NOTIFY beta_changed)
+    Q_PROPERTY(double beta_slider_position READ beta_slider_position
+        WRITE set_beta_slider_position NOTIFY beta_changed)
     Q_PROPERTY(bool has_result READ has_result NOTIFY result_changed)
     Q_PROPERTY(QString result_source READ result_source NOTIFY result_changed)
     Q_PROPERTY(quint64 result_version READ result_version NOTIFY result_changed)
@@ -80,6 +83,8 @@ public:
     [[nodiscard]] double progress_fraction() const noexcept;
     [[nodiscard]] bool progress_indeterminate() const noexcept;
     [[nodiscard]] QString status_text() const;
+    [[nodiscard]] double beta() const noexcept;
+    [[nodiscard]] double beta_slider_position() const noexcept;
     [[nodiscard]] bool has_result() const noexcept;
     [[nodiscard]] QString result_source() const;
     [[nodiscard]] quint64 result_version() const noexcept;
@@ -89,6 +94,8 @@ public:
     [[nodiscard]] int background_seed_count() const noexcept;
     [[nodiscard]] int object_seed_count() const noexcept;
     void set_selected_label(int label);
+    void set_beta(double value);
+    void set_beta_slider_position(double position);
 
     Q_INVOKABLE void open_image(const QString& path);
     Q_INVOKABLE void clear();
@@ -104,6 +111,7 @@ signals:
     void can_run_changed();
     void busy_changed();
     void progress_changed();
+    void beta_changed();
     void result_changed();
     void selected_label_changed();
     void error_message_changed();
@@ -149,6 +157,8 @@ private:
     int selected_label_ = Background;
     int progress_stage_ = Idle;
     double progress_fraction_ = 0.0;
+    double beta_ =
+        random_walker::domain::kDefaultRandomWalkerBeta;
     bool progress_indeterminate_ = false;
     bool busy_ = false;
 };

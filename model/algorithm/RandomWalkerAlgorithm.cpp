@@ -393,6 +393,7 @@ namespace random_walker::algorithm::detail
 
     domain::SegmentationOutcome run_validated_random_walker(
         const domain::SegmentationInput& input,
+        double beta,
         const domain::CancellationToken& cancellation,
         const domain::ProgressReporter& progress)
     {
@@ -405,7 +406,11 @@ namespace random_walker::algorithm::detail
         const int pixel_count = width * height;
 
         graph::LaplacianOutcome laplacian_outcome =
-            graph::build_laplacian(input.image, cancellation, progress);
+            graph::build_laplacian(
+                input.image,
+                beta,
+                cancellation,
+                progress);
         if (std::holds_alternative<domain::Cancelled>(laplacian_outcome)) {
             return domain::Cancelled {};
         }

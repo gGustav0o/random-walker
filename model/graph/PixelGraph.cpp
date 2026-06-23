@@ -10,8 +10,6 @@ namespace random_walker::graph
 {
     namespace
     {
-        constexpr double kBeta = 0.001;
-
         enum class Direction
         {
             Right,
@@ -54,15 +52,17 @@ namespace random_walker::graph
 
         [[nodiscard]] double compute_weight(
             std::uint8_t first_intensity,
-            std::uint8_t second_intensity) noexcept
+            std::uint8_t second_intensity,
+            double beta) noexcept
         {
             const double difference =
                 static_cast<double>(first_intensity) - static_cast<double>(second_intensity);
-            return std::exp(-kBeta * difference * difference);
+            return std::exp(-beta * difference * difference);
         }
 
         [[nodiscard]] LaplacianOutcome compute_laplacian(
             const domain::GrayImage& image,
+            double beta,
             const domain::CancellationToken& cancellation,
             const domain::ProgressReporter& progress)
         {
@@ -105,7 +105,8 @@ namespace random_walker::graph
                         const int target_index = index_at(neighbor_row, neighbor_column);
                         const double weight = compute_weight(
                             source_intensity,
-                            image.at(neighbor_row, neighbor_column));
+                            image.at(neighbor_row, neighbor_column),
+                            beta);
 
                         triplets.emplace_back(source_index, target_index, -weight);
                         degrees[source_index] += weight;
@@ -144,9 +145,14 @@ namespace random_walker::graph
 
     LaplacianOutcome build_laplacian(
         const domain::GrayImage& image,
+        double beta,
         const domain::CancellationToken& cancellation,
         const domain::ProgressReporter& progress)
     {
-        return compute_laplacian(image, cancellation, progress);
+        return compute_laplacian(
+            image,
+            beta,
+            cancellation,
+            progress);
     }
 }

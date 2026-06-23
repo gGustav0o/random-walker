@@ -15,6 +15,7 @@ namespace random_walker::graph
 
     [[nodiscard]] LaplacianOutcome build_laplacian(
         const domain::GrayImage& image,
+        double beta,
         const domain::CancellationToken& cancellation,
         const domain::ProgressReporter& progress);
 }

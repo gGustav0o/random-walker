@@ -7,17 +7,17 @@
 #define _always_inline_    [[gnu::always_inline]] inline
 #define _likely_(x)        __builtin_expect(!!(x), 1)
 #define _unlikely_(x)      __builtin_expect(!!(x), 0)
-#elif defined(_MSC_VER)    
+#elif defined(_MSC_VER)
 #define _pure_(decl)       [[nodiscard]] static constexpr decl noexcept
-#define _cold_             
-#define _flatten_          
+#define _cold_
+#define _flatten_
 #define _always_inline_    __forceinline
 #define _likely_(x)        (x)
 #define _unlikely_(x)      (x)
-#else                      
+#else
 #define _pure_(decl)       [[nodiscard]] inline static constexpr decl noexcept
-#define _cold_             
-#define _flatten_          
+#define _cold_
+#define _flatten_
 #define _always_inline_    inline
 #define _likely_(x)        (x)
 #define _unlikely_(x)      (x)

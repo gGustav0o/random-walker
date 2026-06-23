@@ -10,6 +10,7 @@
 #include "Cancellation.hpp"
 #include "GrayImage.hpp"
 #include "ProgressReporter.hpp"
+#include "RandomWalkerParameters.hpp"
 #include "Seed.hpp"
 
 namespace random_walker::domain
@@ -22,10 +23,12 @@ namespace random_walker::domain
         SegmentationRequest(
             SegmentationRequestId request_id,
             GrayImage image,
-            std::vector<SeedRegion> seed_regions)
+            std::vector<SeedRegion> seed_regions,
+            RandomWalkerParameters parameters)
             : request_id_(request_id)
             , image_(std::move(image))
             , seed_regions_(std::move(seed_regions))
+            , parameters_(parameters)
         {
         }
 
@@ -49,10 +52,16 @@ namespace random_walker::domain
             return seed_regions_;
         }
 
+        [[nodiscard]] const RandomWalkerParameters& parameters() const noexcept
+        {
+            return parameters_;
+        }
+
     private:
         SegmentationRequestId request_id_;
         GrayImage image_;
         std::vector<SeedRegion> seed_regions_;
+        RandomWalkerParameters parameters_;
     };
 
     struct SegmentationInput
@@ -70,6 +79,7 @@ namespace random_walker::domain
     enum class SegmentationError
     {
         EmptyImage,
+        InvalidBeta,
         MissingBackgroundSeeds,
         MissingObjectSeeds,
         SeedOutOfBounds,
