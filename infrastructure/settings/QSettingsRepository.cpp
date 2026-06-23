@@ -5,8 +5,7 @@
 
 #include <QVariant>
 
-namespace
-{
+namespace {
     constexpr int kCurrentSchemaVersion = 1;
 
     constexpr auto kSettingsGroup = "applicationSettings";
@@ -15,9 +14,9 @@ namespace
     constexpr auto kLegacyBetaKey = "beta";
 
     [[nodiscard]] double stored_double(
-        const QSettings& settings,
-        const char* key)
-    {
+        const QSettings& settings
+        , const char* key
+    ) {
         bool converted = false;
         const double value = settings.value(key).toDouble(&converted);
         return converted
@@ -26,28 +25,27 @@ namespace
     }
 }
 
-namespace random_walker::infrastructure
-{
+namespace random_walker::infrastructure {
     QSettingsRepository::QSettingsRepository(
-        QString organization_name,
-        QString application_name)
+        QString organization_name
+        , QString application_name
+    )
         : settings_(
-            QSettings::NativeFormat,
-            QSettings::UserScope,
-            std::move(organization_name),
-            std::move(application_name))
-    {
+            QSettings::NativeFormat
+            , QSettings::UserScope
+            , std::move(organization_name)
+            , std::move(application_name)
+        ) {
     }
 
     QSettingsRepository::QSettingsRepository(
-        QString file_name,
-        QSettings::Format format)
-        : settings_(std::move(file_name), format)
-    {
+        QString file_name
+        , QSettings::Format format
+    )
+        : settings_(std::move(file_name), format) {
     }
 
-    application::ApplicationSettings QSettingsRepository::load() const
-    {
+    application::ApplicationSettings QSettingsRepository::load() const {
         settings_.beginGroup(kSettingsGroup);
 
         bool converted = false;
@@ -75,8 +73,7 @@ namespace random_walker::infrastructure
     }
 
     void QSettingsRepository::save(
-        const application::ApplicationSettings& application_settings)
-    {
+        const application::ApplicationSettings& application_settings) {
         settings_.beginGroup(kSettingsGroup);
         write_current_schema(application_settings);
         settings_.endGroup();
@@ -84,18 +81,17 @@ namespace random_walker::infrastructure
     }
 
     application::ApplicationSettings
-    QSettingsRepository::load_current_schema() const
-    {
+    QSettingsRepository::load_current_schema() const {
         application::ApplicationSettings result;
         result.random_walker.beta = stored_double(
-            settings_,
-            kRandomWalkerBetaKey);
+            settings_
+            , kRandomWalkerBetaKey
+        );
         return result;
     }
 
     application::ApplicationSettings
-    QSettingsRepository::migrate_from(int schema_version) const
-    {
+    QSettingsRepository::migrate_from(int schema_version) const {
         application::ApplicationSettings result;
 
         switch (schema_version) {
@@ -109,12 +105,12 @@ namespace random_walker::infrastructure
     }
 
     void QSettingsRepository::write_current_schema(
-        const application::ApplicationSettings& application_settings) const
-    {
+        const application::ApplicationSettings& application_settings) const {
         settings_.remove(QString{});
         settings_.setValue(
-            kRandomWalkerBetaKey,
-            application_settings.random_walker.beta);
+            kRandomWalkerBetaKey
+            , application_settings.random_walker.beta
+        );
         settings_.setValue(kSchemaVersionKey, kCurrentSchemaVersion);
     }
 }

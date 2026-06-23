@@ -3,20 +3,18 @@
 #include <cstddef>
 
 SeedListModel::SeedListModel(
-    const std::vector<random_walker::domain::SeedRegion>& regions,
-    QObject* parent)
+    const std::vector<random_walker::domain::SeedRegion>& regions
+    , QObject* parent
+)
     : QAbstractListModel(parent)
-    , regions_(regions)
-{
+    , regions_(regions) {
 }
 
-int SeedListModel::rowCount(const QModelIndex& parent) const
-{
+int SeedListModel::rowCount(const QModelIndex& parent) const {
     return parent.isValid() ? 0 : static_cast<int>(regions_.size());
 }
 
-QVariant SeedListModel::data(const QModelIndex& index, int role) const
-{
+QVariant SeedListModel::data(const QModelIndex& index, int role) const {
     if (!index.isValid()
         || index.row() < 0
         || index.row() >= static_cast<int>(regions_.size())) {
@@ -42,19 +40,17 @@ QVariant SeedListModel::data(const QModelIndex& index, int role) const
     }
 }
 
-QHash<int, QByteArray> SeedListModel::roleNames() const
-{
+QHash<int, QByteArray> SeedListModel::roleNames() const {
     return {
-        { XRole, "seedX" },
-        { YRole, "seedY" },
-        { WidthRole, "seedWidth" },
-        { HeightRole, "seedHeight" },
-        { LabelRole, "seedLabel" }
+        { XRole, "seedX" }
+        , { YRole, "seedY" }
+        , { WidthRole, "seedWidth" }
+        , { HeightRole, "seedHeight" }
+        , { LabelRole, "seedLabel" }
     };
 }
 
-void SeedListModel::reset(const std::function<void()>& update_regions)
-{
+void SeedListModel::reset(const std::function<void()>& update_regions) {
     beginResetModel();
     update_regions();
     endResetModel();

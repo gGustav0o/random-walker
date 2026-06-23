@@ -16,16 +16,14 @@
 #include "presentation/adapter/QImageAdapter.hpp"
 #include "presentation/qml/qml_names.hpp"
 
-namespace
-{
+namespace {
     const double kMinimumBetaExponent =
         std::log10(random_walker::domain::kMinimumRandomWalkerBeta);
     const double kMaximumBetaExponent =
         std::log10(random_walker::domain::kMaximumRandomWalkerBeta);
 
     [[nodiscard]] QString error_message(
-        random_walker::domain::SegmentationError error)
-    {
+        random_walker::domain::SegmentationError error) {
         using Error = random_walker::domain::SegmentationError;
 
         switch (error) {
@@ -52,8 +50,7 @@ namespace
     }
 
     [[nodiscard]] int progress_stage(
-        random_walker::domain::SegmentationStage stage)
-    {
+        random_walker::domain::SegmentationStage stage) {
         using DomainStage = random_walker::domain::SegmentationStage;
 
         switch (stage) {
@@ -81,18 +78,18 @@ namespace
     }
 }
 
-struct SegmentationViewModel::CompletionDeliveryGate
-{
+struct SegmentationViewModel::CompletionDeliveryGate {
     std::mutex mutex;
     SegmentationViewModel* receiver = nullptr;
 };
 
 SegmentationViewModel::SegmentationViewModel(
-    random_walker::executor::SegmentationExecutor& segmentation_executor,
-    random_walker::application::SettingsService& settings_service,
-    PresentationImageCache& base_image_cache,
-    PresentationImageCache& result_image_cache,
-    QObject* parent)
+    random_walker::executor::SegmentationExecutor& segmentation_executor
+    , random_walker::application::SettingsService& settings_service
+    , PresentationImageCache& base_image_cache
+    , PresentationImageCache& result_image_cache
+    , QObject* parent
+)
     : QObject(parent)
     , segmentation_executor_(segmentation_executor)
     , settings_service_(settings_service)
@@ -100,13 +97,11 @@ SegmentationViewModel::SegmentationViewModel(
     , result_image_cache_(result_image_cache)
     , seed_model_(seed_regions_)
     , completion_delivery_(std::make_shared<CompletionDeliveryGate>())
-    , application_settings_(settings_service_.load())
-{
+    , application_settings_(settings_service_.load()) {
     completion_delivery_->receiver = this;
 }
 
-SegmentationViewModel::~SegmentationViewModel()
-{
+SegmentationViewModel::~SegmentationViewModel() {
     assert_ui_thread();
 
     {
@@ -117,62 +112,51 @@ SegmentationViewModel::~SegmentationViewModel()
     segmentation_executor_.cancel();
 }
 
-QString SegmentationViewModel::image_source() const
-{
+QString SegmentationViewModel::image_source() const {
     return image_loaded()
         ? QStringLiteral("image://%1/processed").arg(qml_names::kBaseImageProvider)
         : QString();
 }
 
-bool SegmentationViewModel::image_loaded() const noexcept
-{
+bool SegmentationViewModel::image_loaded() const noexcept {
     return !image_.empty();
 }
 
-int SegmentationViewModel::image_width() const noexcept
-{
+int SegmentationViewModel::image_width() const noexcept {
     return image_.width();
 }
 
-int SegmentationViewModel::image_height() const noexcept
-{
+int SegmentationViewModel::image_height() const noexcept {
     return image_.height();
 }
 
-quint64 SegmentationViewModel::image_version() const noexcept
-{
+quint64 SegmentationViewModel::image_version() const noexcept {
     return image_version_;
 }
 
-bool SegmentationViewModel::can_run() const noexcept
-{
+bool SegmentationViewModel::can_run() const noexcept {
     return image_loaded()
         && background_seed_count() > 0
         && object_seed_count() > 0;
 }
 
-bool SegmentationViewModel::busy() const noexcept
-{
+bool SegmentationViewModel::busy() const noexcept {
     return busy_;
 }
 
-int SegmentationViewModel::progress_stage() const noexcept
-{
+int SegmentationViewModel::progress_stage() const noexcept {
     return progress_stage_;
 }
 
-double SegmentationViewModel::progress_fraction() const noexcept
-{
+double SegmentationViewModel::progress_fraction() const noexcept {
     return progress_fraction_;
 }
 
-bool SegmentationViewModel::progress_indeterminate() const noexcept
-{
+bool SegmentationViewModel::progress_indeterminate() const noexcept {
     return progress_indeterminate_;
 }
 
-QString SegmentationViewModel::status_text() const
-{
+QString SegmentationViewModel::status_text() const {
     switch (progress_stage_) {
     case Idle:
         return {};
@@ -199,70 +183,62 @@ QString SegmentationViewModel::status_text() const
     return {};
 }
 
-double SegmentationViewModel::beta() const noexcept
-{
+double SegmentationViewModel::beta() const noexcept {
     return application_settings_.random_walker.beta;
 }
 
-double SegmentationViewModel::beta_slider_position() const noexcept
-{
+double SegmentationViewModel::beta_slider_position() const noexcept {
     const double exponent =
         std::log10(application_settings_.random_walker.beta);
     return std::clamp(
         (exponent - kMinimumBetaExponent)
-            / (kMaximumBetaExponent - kMinimumBetaExponent),
-        0.0,
-        1.0);
+            / (kMaximumBetaExponent - kMinimumBetaExponent)
+        , 0.0
+        , 1.0
+    );
 }
 
-bool SegmentationViewModel::has_result() const noexcept
-{
+bool SegmentationViewModel::has_result() const noexcept {
     return result_.has_value();
 }
 
-QString SegmentationViewModel::result_source() const
-{
+QString SegmentationViewModel::result_source() const {
     return has_result()
         ? QStringLiteral("image://%1/mask").arg(qml_names::kResultImageProvider)
         : QString();
 }
 
-quint64 SegmentationViewModel::result_version() const noexcept
-{
+quint64 SegmentationViewModel::result_version() const noexcept {
     return result_version_;
 }
 
-QAbstractItemModel* SegmentationViewModel::seed_model() noexcept
-{
+QAbstractItemModel* SegmentationViewModel::seed_model() noexcept {
     return &seed_model_;
 }
 
-int SegmentationViewModel::selected_label() const noexcept
-{
+int SegmentationViewModel::selected_label() const noexcept {
     return selected_label_;
 }
 
-QString SegmentationViewModel::error_message() const
-{
+QString SegmentationViewModel::error_message() const {
     return error_message_;
 }
 
-int SegmentationViewModel::background_seed_count() const noexcept
-{
+int SegmentationViewModel::background_seed_count() const noexcept {
     return random_walker::domain::seed_pixel_count(
-        seed_regions_,
-        random_walker::domain::SeedLabel::Background);
+        seed_regions_
+        , random_walker::domain::SeedLabel::Background
+    );
 }
 
-int SegmentationViewModel::object_seed_count() const noexcept
-{
+int SegmentationViewModel::object_seed_count() const noexcept {
     return random_walker::domain::seed_pixel_count(
-        seed_regions_,
-        random_walker::domain::SeedLabel::Object);
+        seed_regions_
+        , random_walker::domain::SeedLabel::Object
+    );
 }
 
-void SegmentationViewModel::set_selected_label(int label)
-{
+void SegmentationViewModel::set_selected_label(int label) {
     assert_ui_thread();
 
     if (label != Background && label != Object) {
@@ -276,8 +252,7 @@ void SegmentationViewModel::set_selected_label(int label)
     emit selected_label_changed();
 }
 
-void SegmentationViewModel::set_beta(double value)
-{
+void SegmentationViewModel::set_beta(double value) {
     assert_ui_thread();
 
     auto updated_parameters = application_settings_.random_walker;
@@ -285,8 +260,7 @@ void SegmentationViewModel::set_beta(double value)
     update_random_walker_parameters(updated_parameters);
 }
 
-void SegmentationViewModel::set_beta_slider_position(double position)
-{
+void SegmentationViewModel::set_beta_slider_position(double position) {
     assert_ui_thread();
 
     if (!std::isfinite(position)) {
@@ -302,8 +276,7 @@ void SegmentationViewModel::set_beta_slider_position(double position)
     set_beta(std::pow(10.0, exponent));
 }
 
-void SegmentationViewModel::open_image(const QString& path)
-{
+void SegmentationViewModel::open_image(const QString& path) {
     assert_ui_thread();
 
     const QUrl url(path);
@@ -340,8 +313,7 @@ void SegmentationViewModel::open_image(const QString& path)
     notify_can_run_if_changed(previous_can_run);
 }
 
-void SegmentationViewModel::clear()
-{
+void SegmentationViewModel::clear() {
     assert_ui_thread();
 
     if (!image_loaded() && seed_regions_.empty() && !has_result()
@@ -372,8 +344,7 @@ void SegmentationViewModel::clear()
     notify_can_run_if_changed(previous_can_run);
 }
 
-void SegmentationViewModel::clear_seeds()
-{
+void SegmentationViewModel::clear_seeds() {
     assert_ui_thread();
 
     if (seed_regions_.empty()) {
@@ -393,11 +364,11 @@ void SegmentationViewModel::clear_seeds()
 }
 
 void SegmentationViewModel::add_seed_rectangle(
-    int x,
-    int y,
-    int width,
-    int height)
-{
+    int x
+    , int y
+    , int width
+    , int height
+) {
     assert_ui_thread();
 
     if (!image_loaded() || width <= 0 || height <= 0) {
@@ -409,13 +380,15 @@ void SegmentationViewModel::add_seed_rectangle(
     const auto right_edge = static_cast<long long>(x) + width;
     const auto bottom_edge = static_cast<long long>(y) + height;
     const int right = static_cast<int>(std::clamp(
-        right_edge,
-        0LL,
-        static_cast<long long>(image_.width())));
+        right_edge
+        , 0LL
+        , static_cast<long long>(image_.width()))
+    );
     const int bottom = static_cast<int>(std::clamp(
-        bottom_edge,
-        0LL,
-        static_cast<long long>(image_.height())));
+        bottom_edge
+        , 0LL
+        , static_cast<long long>(image_.height()))
+    );
 
     if (left >= right || top >= bottom) {
         return;
@@ -428,12 +401,12 @@ void SegmentationViewModel::add_seed_rectangle(
     seed_model_.reset([this, left, top, right, bottom, label] {
         seed_regions_.push_back({
             .area = {
-                .x = left,
-                .y = top,
-                .width = right - left,
-                .height = bottom - top
-            },
-            .label = label
+                .x = left
+                , .y = top
+                , .width = right - left
+                , .height = bottom - top
+            }
+            , .label = label
         });
     });
 
@@ -443,8 +416,7 @@ void SegmentationViewModel::add_seed_rectangle(
     notify_can_run_if_changed(previous_can_run);
 }
 
-void SegmentationViewModel::run_segmentation()
-{
+void SegmentationViewModel::run_segmentation() {
     assert_ui_thread();
 
     if (!can_run()) {
@@ -454,10 +426,11 @@ void SegmentationViewModel::run_segmentation()
     const random_walker::domain::SegmentationRequestId request_id =
         next_request_id_++;
     random_walker::domain::SegmentationRequest request(
-        request_id,
-        image_,
-        seed_regions_,
-        application_settings_.random_walker);
+        request_id
+        , image_
+        , seed_regions_
+        , application_settings_.random_walker
+    );
 
     active_request_id_ = request_id;
     reset_progress();
@@ -467,31 +440,32 @@ void SegmentationViewModel::run_segmentation()
     const std::shared_ptr<CompletionDeliveryGate> delivery_gate =
         completion_delivery_;
     segmentation_executor_.submit(
-        std::move(request),
-        [delivery_gate](random_walker::domain::SegmentationProgress progress) {
+        std::move(request)
+        , [delivery_gate](random_walker::domain::SegmentationProgress progress
+    ) {
             SegmentationViewModel::dispatch_progress(
-                delivery_gate,
-                std::move(progress));
-        },
-        [delivery_gate](
+                delivery_gate
+                , std::move(progress)
+            );
+        }
+        , [delivery_gate](
             random_walker::executor::SegmentationCompletion completion) {
             SegmentationViewModel::dispatch_completion(
-                delivery_gate,
-                std::move(completion));
+                delivery_gate
+                , std::move(completion)
+            );
         });
 }
 
 SegmentationViewModel::DomainSeedLabel
-SegmentationViewModel::domain_seed_label() const noexcept
-{
+SegmentationViewModel::domain_seed_label() const noexcept {
     return selected_label_ == Object
         ? DomainSeedLabel::Object
         : DomainSeedLabel::Background;
 }
 
 void SegmentationViewModel::update_random_walker_parameters(
-    random_walker::domain::RandomWalkerParameters parameters)
-{
+    random_walker::domain::RandomWalkerParameters parameters) {
     assert_ui_thread();
 
     if (parameters == application_settings_.random_walker) {
@@ -513,9 +487,9 @@ void SegmentationViewModel::update_random_walker_parameters(
 }
 
 void SegmentationViewModel::dispatch_completion(
-    const std::shared_ptr<CompletionDeliveryGate>& delivery_gate,
-    random_walker::executor::SegmentationCompletion completion)
-{
+    const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
+    , random_walker::executor::SegmentationCompletion completion
+) {
     auto payload =
         std::make_shared<random_walker::executor::SegmentationCompletion>(
             std::move(completion));
@@ -527,17 +501,18 @@ void SegmentationViewModel::dispatch_completion(
     }
 
     QMetaObject::invokeMethod(
-        receiver,
-        [receiver, payload] {
+        receiver
+        , [receiver, payload] {
             receiver->handle_completion(std::move(*payload));
-        },
-        Qt::QueuedConnection);
+        }
+        , Qt::QueuedConnection
+    );
 }
 
 void SegmentationViewModel::dispatch_progress(
-    const std::shared_ptr<CompletionDeliveryGate>& delivery_gate,
-    random_walker::domain::SegmentationProgress progress)
-{
+    const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
+    , random_walker::domain::SegmentationProgress progress
+) {
     auto payload =
         std::make_shared<random_walker::domain::SegmentationProgress>(
             std::move(progress));
@@ -549,16 +524,16 @@ void SegmentationViewModel::dispatch_progress(
     }
 
     QMetaObject::invokeMethod(
-        receiver,
-        [receiver, payload] {
+        receiver
+        , [receiver, payload] {
             receiver->handle_progress(std::move(*payload));
-        },
-        Qt::QueuedConnection);
+        }
+        , Qt::QueuedConnection
+    );
 }
 
 void SegmentationViewModel::handle_completion(
-    random_walker::executor::SegmentationCompletion completion)
-{
+    random_walker::executor::SegmentationCompletion completion) {
     assert_ui_thread();
 
     if (!active_request_id_.has_value()
@@ -590,8 +565,7 @@ void SegmentationViewModel::handle_completion(
 }
 
 void SegmentationViewModel::handle_progress(
-    random_walker::domain::SegmentationProgress progress)
-{
+    random_walker::domain::SegmentationProgress progress) {
     assert_ui_thread();
 
     if (!active_request_id_.has_value()
@@ -615,8 +589,7 @@ void SegmentationViewModel::handle_progress(
     emit progress_changed();
 }
 
-void SegmentationViewModel::cancel_active_request()
-{
+void SegmentationViewModel::cancel_active_request() {
     assert_ui_thread();
 
     if (!active_request_id_.has_value()) {
@@ -629,8 +602,7 @@ void SegmentationViewModel::cancel_active_request()
     reset_progress();
 }
 
-void SegmentationViewModel::reset_progress()
-{
+void SegmentationViewModel::reset_progress() {
     assert_ui_thread();
 
     if (progress_stage_ == Idle
@@ -645,8 +617,7 @@ void SegmentationViewModel::reset_progress()
     emit progress_changed();
 }
 
-void SegmentationViewModel::invalidate_result()
-{
+void SegmentationViewModel::invalidate_result() {
     assert_ui_thread();
 
     if (!result_.has_value()) {
@@ -659,8 +630,7 @@ void SegmentationViewModel::invalidate_result()
     emit result_changed();
 }
 
-void SegmentationViewModel::set_busy(bool value)
-{
+void SegmentationViewModel::set_busy(bool value) {
     assert_ui_thread();
 
     if (busy_ == value) {
@@ -673,8 +643,7 @@ void SegmentationViewModel::set_busy(bool value)
     notify_can_run_if_changed(previous_can_run);
 }
 
-void SegmentationViewModel::set_error(QString message)
-{
+void SegmentationViewModel::set_error(QString message) {
     assert_ui_thread();
 
     if (error_message_ == message) {
@@ -685,14 +654,12 @@ void SegmentationViewModel::set_error(QString message)
     emit error_message_changed();
 }
 
-void SegmentationViewModel::notify_can_run_if_changed(bool previous_value)
-{
+void SegmentationViewModel::notify_can_run_if_changed(bool previous_value) {
     if (previous_value != can_run()) {
         emit can_run_changed();
     }
 }
 
-void SegmentationViewModel::assert_ui_thread() const
-{
+void SegmentationViewModel::assert_ui_thread() const {
     Q_ASSERT(QThread::currentThread() == thread());
 }

@@ -9,8 +9,7 @@
 #include "model/executor/JThreadSegmentationExecutor.hpp"
 #include "viewmodel/SegmentationViewModel.hpp"
 
-class AppContext final
-{
+class AppContext final {
 public:
     explicit AppContext(QQmlApplicationEngine& engine);
     ~AppContext() = default;

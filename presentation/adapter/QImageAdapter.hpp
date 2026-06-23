@@ -6,10 +6,8 @@
 
 #include "model/domain/GrayImage.hpp"
 
-namespace random_walker::qt_adapter
-{
-    [[nodiscard]] inline domain::GrayImage to_gray_image(const QImage& image)
-    {
+namespace random_walker::qt_adapter {
+    [[nodiscard]] inline domain::GrayImage to_gray_image(const QImage& image) {
         const QImage grayscale = image.convertToFormat(QImage::Format_Grayscale8);
         const int width = grayscale.width();
         const int height = grayscale.height();
@@ -25,16 +23,16 @@ namespace random_walker::qt_adapter
         return domain::GrayImage(std::move(pixels));
     }
 
-    [[nodiscard]] inline QImage to_qimage(const domain::GrayImage& image)
-    {
+    [[nodiscard]] inline QImage to_qimage(const domain::GrayImage& image) {
         if (image.empty()) {
             return {};
         }
 
         QImage result(
-            image.width(),
-            image.height(),
-            QImage::Format_Grayscale8);
+            image.width()
+            , image.height()
+            , QImage::Format_Grayscale8
+        );
 
         for (int row = 0; row < image.height(); ++row) {
             uchar* scan_line = result.scanLine(row);

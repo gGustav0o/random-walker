@@ -5,8 +5,7 @@
 #include "application/settings/SettingsService.hpp"
 #include "infrastructure/settings/QSettingsRepository.hpp"
 
-namespace
-{
+namespace {
     constexpr auto kSettingsGroup = "applicationSettings";
     constexpr auto kSchemaVersionKey = "schemaVersion";
     constexpr auto kRandomWalkerBetaKey = "randomWalker/beta";
@@ -14,19 +13,16 @@ namespace
     constexpr int kCurrentSchemaVersion = 1;
 
     class InMemorySettingsRepository final
-        : public random_walker::application::SettingsRepository
-    {
+        : public random_walker::application::SettingsRepository {
     public:
         [[nodiscard]] random_walker::application::ApplicationSettings
-            load() const override
-        {
+            load() const override {
             return stored;
         }
 
         void save(
             const random_walker::application::ApplicationSettings& settings)
-            override
-        {
+            override {
             stored = settings;
             ++save_count;
         }
@@ -35,16 +31,15 @@ namespace
         int save_count = 0;
     };
 
-    [[nodiscard]] QString settings_path(const QTemporaryDir& directory)
-    {
+    [[nodiscard]] QString settings_path(const QTemporaryDir& directory) {
         return directory.filePath(QStringLiteral("settings.ini"));
     }
 
     void write_value(
-        const QString& path,
-        const QString& key,
-        const QVariant& value)
-    {
+        const QString& path
+        , const QString& key
+        , const QVariant& value
+    ) {
         QSettings settings(path, QSettings::IniFormat);
         settings.beginGroup(kSettingsGroup);
         settings.setValue(key, value);
@@ -53,8 +48,7 @@ namespace
     }
 }
 
-class SettingsTests final : public QObject
-{
+class SettingsTests final : public QObject {
     Q_OBJECT
 
 private slots:
@@ -64,22 +58,21 @@ private slots:
     void migrates_legacy_schema();
 };
 
-void SettingsTests::loads_default_values()
-{
+void SettingsTests::loads_default_values() {
     InMemorySettingsRepository repository;
     random_walker::application::SettingsService service(repository);
 
     const auto settings = service.load();
 
     QCOMPARE(
-        settings.random_walker.beta,
-        random_walker::domain::kDefaultRandomWalkerBeta);
+        settings.random_walker.beta
+        , random_walker::domain::kDefaultRandomWalkerBeta
+    );
     QVERIFY(repository.stored == settings);
     QCOMPARE(repository.save_count, 0);
 }
 
-void SettingsTests::repairs_corrupted_values()
-{
+void SettingsTests::repairs_corrupted_values() {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
     const QString path = settings_path(directory);
@@ -87,25 +80,27 @@ void SettingsTests::repairs_corrupted_values()
     write_value(path, kRandomWalkerBetaKey, QStringLiteral("invalid"));
 
     random_walker::infrastructure::QSettingsRepository repository(
-        path,
-        QSettings::IniFormat);
+        path
+        , QSettings::IniFormat
+    );
     random_walker::application::SettingsService service(repository);
 
     const auto settings = service.load();
 
     QCOMPARE(
-        settings.random_walker.beta,
-        random_walker::domain::kDefaultRandomWalkerBeta);
+        settings.random_walker.beta
+        , random_walker::domain::kDefaultRandomWalkerBeta
+    );
 
     QSettings persisted(path, QSettings::IniFormat);
     persisted.beginGroup(kSettingsGroup);
     QCOMPARE(
-        persisted.value(kRandomWalkerBetaKey).toDouble(),
-        random_walker::domain::kDefaultRandomWalkerBeta);
+        persisted.value(kRandomWalkerBetaKey).toDouble()
+        , random_walker::domain::kDefaultRandomWalkerBeta
+    );
 }
 
-void SettingsTests::ignores_unknown_newer_schema()
-{
+void SettingsTests::ignores_unknown_newer_schema() {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
     const QString path = settings_path(directory);
@@ -113,24 +108,26 @@ void SettingsTests::ignores_unknown_newer_schema()
     write_value(path, kRandomWalkerBetaKey, 0.005);
 
     random_walker::infrastructure::QSettingsRepository repository(
-        path,
-        QSettings::IniFormat);
+        path
+        , QSettings::IniFormat
+    );
 
     const auto settings = repository.load();
 
     QCOMPARE(
-        settings.random_walker.beta,
-        random_walker::domain::kDefaultRandomWalkerBeta);
+        settings.random_walker.beta
+        , random_walker::domain::kDefaultRandomWalkerBeta
+    );
 
     QSettings persisted(path, QSettings::IniFormat);
     persisted.beginGroup(kSettingsGroup);
     QCOMPARE(
-        persisted.value(kSchemaVersionKey).toInt(),
-        kCurrentSchemaVersion + 1);
+        persisted.value(kSchemaVersionKey).toInt()
+        , kCurrentSchemaVersion + 1
+    );
 }
 
-void SettingsTests::migrates_legacy_schema()
-{
+void SettingsTests::migrates_legacy_schema() {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
     const QString path = settings_path(directory);
@@ -139,8 +136,9 @@ void SettingsTests::migrates_legacy_schema()
     write_value(path, kLegacyBetaKey, legacy_beta);
 
     random_walker::infrastructure::QSettingsRepository repository(
-        path,
-        QSettings::IniFormat);
+        path
+        , QSettings::IniFormat
+    );
 
     const auto settings = repository.load();
 
@@ -149,11 +147,13 @@ void SettingsTests::migrates_legacy_schema()
     QSettings persisted(path, QSettings::IniFormat);
     persisted.beginGroup(kSettingsGroup);
     QCOMPARE(
-        persisted.value(kSchemaVersionKey).toInt(),
-        kCurrentSchemaVersion);
+        persisted.value(kSchemaVersionKey).toInt()
+        , kCurrentSchemaVersion
+    );
     QCOMPARE(
-        persisted.value(kRandomWalkerBetaKey).toDouble(),
-        legacy_beta);
+        persisted.value(kRandomWalkerBetaKey).toDouble()
+        , legacy_beta
+    );
     QVERIFY(!persisted.contains(kLegacyBetaKey));
 }
 

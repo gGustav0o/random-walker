@@ -4,16 +4,12 @@
 #include <optional>
 #include <utility>
 
-namespace random_walker::executor
-{
-    namespace
-    {
-        class ProgressThrottle final
-        {
+namespace random_walker::executor {
+    namespace {
+        class ProgressThrottle final {
         public:
             [[nodiscard]] bool should_emit(
-                const domain::SegmentationProgress& progress)
-            {
+                const domain::SegmentationProgress& progress) {
                 const auto now = Clock::now();
                 const bool stage_changed =
                     !last_stage_.has_value()
@@ -60,28 +56,26 @@ namespace random_walker::executor
     JThreadSegmentationExecutor::JThreadSegmentationExecutor()
         : worker_([this](std::stop_token thread_stop) {
             run(thread_stop);
-        })
-    {
+        }) {
     }
 
-    JThreadSegmentationExecutor::~JThreadSegmentationExecutor()
-    {
+    JThreadSegmentationExecutor::~JThreadSegmentationExecutor() {
         cancel();
         worker_.request_stop();
         task_available_.notify_all();
     }
 
     void JThreadSegmentationExecutor::submit(
-        domain::SegmentationRequest request,
-        SegmentationProgressHandler progress_handler,
-        SegmentationCompletionHandler completion_handler)
-    {
+        domain::SegmentationRequest request
+        , SegmentationProgressHandler progress_handler
+        , SegmentationCompletionHandler completion_handler
+    ) {
         const domain::SegmentationRequestId request_id =
             request.request_id();
         auto task = std::make_unique<Task>(Task {
-            .request = std::move(request),
-            .progress_handler = std::move(progress_handler),
-            .completion_handler = std::move(completion_handler)
+            .request = std::move(request)
+            , .progress_handler = std::move(progress_handler)
+            , .completion_handler = std::move(completion_handler)
         });
 
         {
@@ -98,8 +92,7 @@ namespace random_walker::executor
         task_available_.notify_one();
     }
 
-    void JThreadSegmentationExecutor::cancel() noexcept
-    {
+    void JThreadSegmentationExecutor::cancel() noexcept {
         std::lock_guard lock(mutex_);
 
         latest_request_id_.reset();
@@ -110,8 +103,7 @@ namespace random_walker::executor
         }
     }
 
-    void JThreadSegmentationExecutor::run(std::stop_token thread_stop)
-    {
+    void JThreadSegmentationExecutor::run(std::stop_token thread_stop) {
         while (!thread_stop.stop_requested()) {
             std::unique_ptr<Task> task;
             std::stop_source task_stop_source;
@@ -119,9 +111,9 @@ namespace random_walker::executor
             {
                 std::unique_lock lock(mutex_);
                 task_available_.wait(
-                    lock,
-                    thread_stop,
-                    [this] {
+                    lock
+                    , thread_stop
+                    , [this] {
                         return pending_task_ != nullptr;
                     });
 
@@ -138,11 +130,11 @@ namespace random_walker::executor
                 task->request.request_id();
             ProgressThrottle progress_throttle;
             const domain::ProgressReporter progress_reporter(
-                request_id,
-                [this,
-                 request_id,
-                 &progress_throttle,
-                 &progress_handler = task->progress_handler](
+                request_id
+                , [this
+                 , request_id
+                 , &progress_throttle
+                 , &progress_handler = task->progress_handler](
                     domain::SegmentationProgress progress) {
                     if (!progress_throttle.should_emit(progress)) {
                         return;
@@ -166,15 +158,16 @@ namespace random_walker::executor
 
             domain::SegmentationOutcome outcome =
                 segmentation_service_.segment(
-                    task->request,
-                    domain::CancellationToken(
-                        task_stop_source.get_token()),
-                    progress_reporter);
+                    task->request
+                    , domain::CancellationToken(
+                        task_stop_source.get_token())
+                    , progress_reporter
+                );
 
             SegmentationCompletionHandler completion_handler;
             SegmentationCompletion completion {
-                .request_id = task->request.request_id(),
-                .outcome = std::move(outcome)
+                .request_id = task->request.request_id()
+                , .outcome = std::move(outcome)
             };
 
             {

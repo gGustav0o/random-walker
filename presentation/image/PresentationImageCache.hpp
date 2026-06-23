@@ -2,8 +2,7 @@
 
 #include <QImage>
 
-class PresentationImageCache
-{
+class PresentationImageCache {
 public:
     virtual ~PresentationImageCache() = default;
 

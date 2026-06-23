@@ -4,11 +4,9 @@
 
 #include "model/algorithm/RandomWalkerAlgorithm.hpp"
 
-namespace random_walker::service
-{
+namespace random_walker::service {
     std::optional<domain::SegmentationError> SegmentationService::validate(
-        const domain::SegmentationRequest& request) noexcept
-    {
+        const domain::SegmentationRequest& request) noexcept {
         if (request.image().empty()) {
             return domain::SegmentationError::EmptyImage;
         }
@@ -50,10 +48,9 @@ namespace random_walker::service
     }
 
     domain::SegmentationOutcome SegmentationService::segment(
-        const domain::SegmentationRequest& request,
-        domain::CancellationToken cancellation,
-        const domain::ProgressReporter& progress) const
-    {
+        const domain::SegmentationRequest& request
+        , domain::CancellationToken cancellation
+        , const domain::ProgressReporter& progress) const {
         if (cancellation.stop_requested()) {
             return domain::Cancelled {};
         }
@@ -66,23 +63,25 @@ namespace random_walker::service
 
         domain::SeedExpansionOutcome expansion =
             domain::expand_seed_regions(
-                request.seed_regions(),
-                cancellation,
-                progress);
+                request.seed_regions()
+                , cancellation
+                , progress
+            );
         if (std::holds_alternative<domain::Cancelled>(expansion)) {
             return domain::Cancelled {};
         }
         const std::vector<domain::Seed>& seeds =
             std::get<std::vector<domain::Seed>>(expansion);
         const domain::SegmentationInput input {
-            request.image(),
-            seeds
+            request.image()
+            , seeds
         };
 
         return algorithm::detail::run_validated_random_walker(
-            input,
-            request.parameters().beta,
-            cancellation,
-            progress);
+            input
+            , request.parameters().beta
+            , cancellation
+            , progress
+        );
     }
 }

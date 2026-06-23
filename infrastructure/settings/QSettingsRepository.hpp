@@ -5,18 +5,18 @@
 
 #include "application/settings/SettingsRepository.hpp"
 
-namespace random_walker::infrastructure
-{
+namespace random_walker::infrastructure {
     class QSettingsRepository final
-        : public application::SettingsRepository
-    {
+        : public application::SettingsRepository {
     public:
         QSettingsRepository(
-            QString organization_name,
-            QString application_name);
+            QString organization_name
+            , QString application_name
+        );
         QSettingsRepository(
-            QString file_name,
-            QSettings::Format format);
+            QString file_name
+            , QSettings::Format format
+        );
 
         [[nodiscard]] application::ApplicationSettings load() const override;
         void save(

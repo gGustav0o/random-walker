@@ -3,10 +3,8 @@
 #include "ApplicationSettings.hpp"
 #include "SettingsRepository.hpp"
 
-namespace random_walker::application
-{
-    class SettingsService final
-    {
+namespace random_walker::application {
+    class SettingsService final {
     public:
         explicit SettingsService(SettingsRepository& repository);
 

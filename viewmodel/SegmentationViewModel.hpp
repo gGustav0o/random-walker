@@ -15,8 +15,7 @@
 #include "model/executor/SegmentationExecutor.hpp"
 #include "viewmodel/SeedListModel.hpp"
 
-class SegmentationViewModel final : public QObject
-{
+class SegmentationViewModel final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString image_source READ image_source NOTIFY image_source_changed)
     Q_PROPERTY(bool image_loaded READ image_loaded NOTIFY image_loaded_changed)
@@ -44,34 +43,33 @@ class SegmentationViewModel final : public QObject
     Q_PROPERTY(int object_seed_count READ object_seed_count NOTIFY seeds_changed)
 
 public:
-    enum SeedLabel
-    {
-        Background = 0,
-        Object = 1
+    enum SeedLabel {
+        Background = 0
+        , Object = 1
     };
     Q_ENUM(SeedLabel)
 
-    enum ProgressStage
-    {
-        Idle,
-        ValidatingInput,
-        ExpandingSeeds,
-        BuildingGraph,
-        BuildingLabels,
-        PartitioningSystem,
-        Factorizing,
-        Solving,
-        AssemblingProbabilities,
-        Thresholding
+    enum ProgressStage {
+        Idle
+        , ValidatingInput
+        , ExpandingSeeds
+        , BuildingGraph
+        , BuildingLabels
+        , PartitioningSystem
+        , Factorizing
+        , Solving
+        , AssemblingProbabilities
+        , Thresholding
     };
     Q_ENUM(ProgressStage)
 
     explicit SegmentationViewModel(
-        random_walker::executor::SegmentationExecutor& segmentation_executor,
-        random_walker::application::SettingsService& settings_service,
-        PresentationImageCache& base_image_cache,
-        PresentationImageCache& result_image_cache,
-        QObject* parent = nullptr);
+        random_walker::executor::SegmentationExecutor& segmentation_executor
+        , random_walker::application::SettingsService& settings_service
+        , PresentationImageCache& base_image_cache
+        , PresentationImageCache& result_image_cache
+        , QObject* parent = nullptr
+    );
     ~SegmentationViewModel() override;
 
     [[nodiscard]] QString image_source() const;
@@ -127,11 +125,13 @@ private:
     void update_random_walker_parameters(
         random_walker::domain::RandomWalkerParameters parameters);
     static void dispatch_completion(
-        const std::shared_ptr<CompletionDeliveryGate>& delivery_gate,
-        random_walker::executor::SegmentationCompletion completion);
+        const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
+        , random_walker::executor::SegmentationCompletion completion
+    );
     static void dispatch_progress(
-        const std::shared_ptr<CompletionDeliveryGate>& delivery_gate,
-        random_walker::domain::SegmentationProgress progress);
+        const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
+        , random_walker::domain::SegmentationProgress progress
+    );
     void handle_completion(
         random_walker::executor::SegmentationCompletion completion);
     void handle_progress(

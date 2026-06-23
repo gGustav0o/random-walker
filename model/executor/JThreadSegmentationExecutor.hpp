@@ -11,10 +11,8 @@
 #include "model/domain/ProgressReporter.hpp"
 #include "model/service/SegmentationService.hpp"
 
-namespace random_walker::executor
-{
-    class JThreadSegmentationExecutor final : public SegmentationExecutor
-    {
+namespace random_walker::executor {
+    class JThreadSegmentationExecutor final : public SegmentationExecutor {
     public:
         JThreadSegmentationExecutor();
         ~JThreadSegmentationExecutor() override;
@@ -24,14 +22,14 @@ namespace random_walker::executor
             const JThreadSegmentationExecutor&) = delete;
 
         void submit(
-            domain::SegmentationRequest request,
-            SegmentationProgressHandler progress_handler,
-            SegmentationCompletionHandler completion_handler) override;
+            domain::SegmentationRequest request
+            , SegmentationProgressHandler progress_handler
+            , SegmentationCompletionHandler completion_handler
+        ) override;
         void cancel() noexcept override;
 
     private:
-        struct Task
-        {
+        struct Task {
             domain::SegmentationRequest request;
             SegmentationProgressHandler progress_handler;
             SegmentationCompletionHandler completion_handler;

@@ -8,24 +8,20 @@
 #include "Cancellation.hpp"
 #include "ProgressReporter.hpp"
 
-namespace random_walker::domain
-{
-    struct PixelCoordinate
-    {
+namespace random_walker::domain {
+    struct PixelCoordinate {
         int x = 0;
         int y = 0;
 
         bool operator==(const PixelCoordinate&) const = default;
     };
 
-    enum class SeedLabel
-    {
-        Background,
-        Object
+    enum class SeedLabel {
+        Background
+        , Object
     };
 
-    struct PixelRectangle
-    {
+    struct PixelRectangle {
         int x = 0;
         int y = 0;
         int width = 0;
@@ -34,22 +30,19 @@ namespace random_walker::domain
         bool operator==(const PixelRectangle&) const = default;
     };
 
-    struct SeedRegion
-    {
+    struct SeedRegion {
         PixelRectangle area;
         SeedLabel label = SeedLabel::Background;
     };
 
-    struct Seed
-    {
+    struct Seed {
         PixelCoordinate position;
         SeedLabel label = SeedLabel::Background;
     };
 
     [[nodiscard]] inline int seed_pixel_count(
-        std::span<const SeedRegion> regions,
-        SeedLabel label) noexcept
-    {
+        std::span<const SeedRegion> regions
+        , SeedLabel label) noexcept {
         int result = 0;
         for (const SeedRegion& region : regions) {
             if (region.label == label) {
@@ -62,10 +55,10 @@ namespace random_walker::domain
     using SeedExpansionOutcome = std::variant<std::vector<Seed>, Cancelled>;
 
     [[nodiscard]] inline SeedExpansionOutcome expand_seed_regions(
-        std::span<const SeedRegion> regions,
-        const CancellationToken& cancellation,
-        const ProgressReporter& progress)
-    {
+        std::span<const SeedRegion> regions
+        , const CancellationToken& cancellation
+        , const ProgressReporter& progress
+    ) {
         std::size_t seed_count = 0;
         for (const SeedRegion& region : regions) {
             if (cancellation.stop_requested()) {
@@ -98,15 +91,15 @@ namespace random_walker::domain
                         return Cancelled {};
                     }
                     result.push_back({
-                        .position = { .x = column, .y = row },
-                        .label = region.label
+                        .position = { .x = column, .y = row }
+                        , .label = region.label
                     });
                     ++expanded_count;
                 }
 
                 progress.report(
-                    SegmentationStage::ExpandingSeeds,
-                    seed_count == 0
+                    SegmentationStage::ExpandingSeeds
+                    , seed_count == 0
                         ? 1.0
                         : static_cast<double>(expanded_count)
                             / static_cast<double>(seed_count));

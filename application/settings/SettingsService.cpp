@@ -1,14 +1,11 @@
 #include "SettingsService.hpp"
 
-namespace random_walker::application
-{
+namespace random_walker::application {
     SettingsService::SettingsService(SettingsRepository& repository)
-        : repository_(repository)
-    {
+        : repository_(repository) {
     }
 
-    ApplicationSettings SettingsService::load()
-    {
+    ApplicationSettings SettingsService::load() {
         const ApplicationSettings stored = repository_.load();
         const ApplicationSettings normalized = normalize(stored);
 
@@ -19,8 +16,7 @@ namespace random_walker::application
         return normalized;
     }
 
-    bool SettingsService::try_save(const ApplicationSettings& settings)
-    {
+    bool SettingsService::try_save(const ApplicationSettings& settings) {
         if (!is_valid(settings)) {
             return false;
         }
@@ -29,20 +25,17 @@ namespace random_walker::application
         return true;
     }
 
-    ApplicationSettings SettingsService::defaults()
-    {
+    ApplicationSettings SettingsService::defaults() {
         return {};
     }
 
     bool SettingsService::is_valid(
-        const ApplicationSettings& settings) noexcept
-    {
+        const ApplicationSettings& settings) noexcept {
         return domain::is_valid(settings.random_walker);
     }
 
     ApplicationSettings SettingsService::normalize(
-        ApplicationSettings settings)
-    {
+        ApplicationSettings settings) {
         const ApplicationSettings default_settings = defaults();
         if (!is_valid(settings)) {
             settings.random_walker = default_settings.random_walker;

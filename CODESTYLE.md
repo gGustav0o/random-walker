@@ -37,8 +37,7 @@ This style guide defines conventions used in this repository for C++20 developme
   explicit.
 - Express each function property independently with standard C++ syntax:
   ```cpp
-  [[nodiscard]] constexpr int add(int a, int b) noexcept
-  {
+  [[nodiscard]] constexpr int add(int a, int b) noexcept {
       return a + b;
   }
   ```
@@ -81,8 +80,14 @@ auto result = input
 Compose custom utilities where needed:
 
 ```cpp
-template <std::ranges::range R, typename Pred>
-auto filter(R&& r, Pred&& pred) {
+template <
+    std::ranges::range R
+    , typename Pred
+>
+auto filter(
+    R&& r
+    , Pred&& pred
+) {
     return r | std::views::filter(std::forward<Pred>(pred));
 }
 ```
@@ -106,9 +111,12 @@ auto filter(R&& r, Pred&& pred) {
 - Combine with `std::ranges`:
 
 ```cpp
-std::ranges::for_each(std::views::iota(0, vec.size()), [&](int i) {
-    result[i] = transform(vec[i]);
-});
+std::ranges::for_each(
+    std::views::iota(0, vec.size())
+    , [&](int i) {
+        result[i] = transform(vec[i]);
+    }
+);
 ```
 
 ---
@@ -125,15 +133,13 @@ std::ranges::for_each(std::views::iota(0, vec.size()), [&](int i) {
 Use standard C++ keywords and attributes directly:
 
 ```cpp
-class Worker
-{
+class Worker {
 public:
     Worker(const Worker&) = delete;
     Worker& operator=(const Worker&) = delete;
 };
 
-[[nodiscard]] constexpr int answer() noexcept
-{
+[[nodiscard]] constexpr int answer() noexcept {
     return 42;
 }
 ```
@@ -160,7 +166,7 @@ constant evaluation, exception guarantees, or optimization hints.
 
 - Indent with **4 spaces**.
 - Opening braces on the **same line**.
-- Use **leading commas** in enums and initializer lists, especially in multiline format.
+- Use **leading commas** in all multiline lists: function parameters, template arguments, function calls, enums, and initializer lists.
 
 **Example:**
 
@@ -186,7 +192,7 @@ enum class Mode {
     
 - Opening braces on the **same line**.
     
-- Use **leading commas** in enums and initializer lists, especially in multiline format.
+- Use **leading commas** in all multiline lists: function parameters, template arguments, function calls, enums, and initializer lists.
     
 - Group includes in the order:
     
@@ -216,9 +222,9 @@ inline constexpr int kDefaultPrecision = 4;
 ```cpp
 template <typename T>
 [[nodiscard]] std::string toString(
-    const Eigen::MatrixBase<T>& obj,
-    int precision = kDefaultPrecision)
-{
+    const Eigen::MatrixBase<T>& obj
+    , int precision = kDefaultPrecision
+) {
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(precision);
     oss << obj;

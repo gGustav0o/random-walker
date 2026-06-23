@@ -6,27 +6,23 @@
 #include <cstdint>
 #include <vector>
 
-namespace random_walker::graph
-{
-    namespace
-    {
-        enum class Direction
-        {
-            Right,
-            Down,
-            Left,
-            Up
+namespace random_walker::graph {
+    namespace {
+        enum class Direction {
+            Right
+            , Down
+            , Left
+            , Up
         };
 
         constexpr std::array<Direction, 4> kDirections = {
-            Direction::Right,
-            Direction::Down,
-            Direction::Left,
-            Direction::Up
+            Direction::Right
+            , Direction::Down
+            , Direction::Left
+            , Direction::Up
         };
 
-        [[nodiscard]] constexpr std::pair<int, int> offset(Direction direction) noexcept
-        {
+        [[nodiscard]] constexpr std::pair<int, int> offset(Direction direction) noexcept {
             switch (direction) {
             case Direction::Right:
                 return { 0, 1 };
@@ -42,30 +38,28 @@ namespace random_walker::graph
         }
 
         [[nodiscard]] constexpr bool is_inside(
-            int row,
-            int column,
-            int height,
-            int width) noexcept
-        {
+            int row
+            , int column
+            , int height
+            , int width) noexcept {
             return row >= 0 && row < height && column >= 0 && column < width;
         }
 
         [[nodiscard]] double compute_weight(
-            std::uint8_t first_intensity,
-            std::uint8_t second_intensity,
-            double beta) noexcept
-        {
+            std::uint8_t first_intensity
+            , std::uint8_t second_intensity
+            , double beta) noexcept {
             const double difference =
                 static_cast<double>(first_intensity) - static_cast<double>(second_intensity);
             return std::exp(-beta * difference * difference);
         }
 
         [[nodiscard]] LaplacianOutcome compute_laplacian(
-            const domain::GrayImage& image,
-            double beta,
-            const domain::CancellationToken& cancellation,
-            const domain::ProgressReporter& progress)
-        {
+            const domain::GrayImage& image
+            , double beta
+            , const domain::CancellationToken& cancellation
+            , const domain::ProgressReporter& progress
+        ) {
             const int height = image.height();
             const int width = image.width();
             const int pixel_count = width * height;
@@ -104,9 +98,10 @@ namespace random_walker::graph
 
                         const int target_index = index_at(neighbor_row, neighbor_column);
                         const double weight = compute_weight(
-                            source_intensity,
-                            image.at(neighbor_row, neighbor_column),
-                            beta);
+                            source_intensity
+                            , image.at(neighbor_row, neighbor_column)
+                            , beta
+                        );
 
                         triplets.emplace_back(source_index, target_index, -weight);
                         degrees[source_index] += weight;
@@ -114,8 +109,8 @@ namespace random_walker::graph
                 }
 
                 progress.report(
-                    domain::SegmentationStage::BuildingGraph,
-                    static_cast<double>(row + 1)
+                    domain::SegmentationStage::BuildingGraph
+                    , static_cast<double>(row + 1)
                         / static_cast<double>(height));
             }
 
@@ -144,15 +139,16 @@ namespace random_walker::graph
     }
 
     LaplacianOutcome build_laplacian(
-        const domain::GrayImage& image,
-        double beta,
-        const domain::CancellationToken& cancellation,
-        const domain::ProgressReporter& progress)
-    {
+        const domain::GrayImage& image
+        , double beta
+        , const domain::CancellationToken& cancellation
+        , const domain::ProgressReporter& progress
+    ) {
         return compute_laplacian(
-            image,
-            beta,
-            cancellation,
-            progress);
+            image
+            , beta
+            , cancellation
+            , progress
+        );
     }
 }

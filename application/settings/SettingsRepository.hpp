@@ -2,10 +2,8 @@
 
 #include "ApplicationSettings.hpp"
 
-namespace random_walker::application
-{
-    class SettingsRepository
-    {
+namespace random_walker::application {
+    class SettingsRepository {
     public:
         virtual ~SettingsRepository() = default;
 

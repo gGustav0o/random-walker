@@ -3,12 +3,12 @@
 #include "model/domain/ProgressReporter.hpp"
 #include "model/domain/Segmentation.hpp"
 
-namespace random_walker::algorithm::detail
-{
+namespace random_walker::algorithm::detail {
     // Precondition: the input has been validated by SegmentationService.
     [[nodiscard]] domain::SegmentationOutcome run_validated_random_walker(
-        const domain::SegmentationInput& input,
-        double beta,
-        const domain::CancellationToken& cancellation,
-        const domain::ProgressReporter& progress);
+        const domain::SegmentationInput& input
+        , double beta
+        , const domain::CancellationToken& cancellation
+        , const domain::ProgressReporter& progress
+    );
 }

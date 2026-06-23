@@ -13,23 +13,21 @@
 #include "RandomWalkerParameters.hpp"
 #include "Seed.hpp"
 
-namespace random_walker::domain
-{
+namespace random_walker::domain {
     using ProbabilityMap = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>;
     using BinaryMask = Eigen::Matrix<std::uint8_t, Eigen::Dynamic, Eigen::Dynamic>;
-    class SegmentationRequest final
-    {
+    class SegmentationRequest final {
     public:
         SegmentationRequest(
-            SegmentationRequestId request_id,
-            GrayImage image,
-            std::vector<SeedRegion> seed_regions,
-            RandomWalkerParameters parameters)
+            SegmentationRequestId request_id
+            , GrayImage image
+            , std::vector<SeedRegion> seed_regions
+            , RandomWalkerParameters parameters
+        )
             : request_id_(request_id)
             , image_(std::move(image))
             , seed_regions_(std::move(seed_regions))
-            , parameters_(parameters)
-        {
+            , parameters_(parameters) {
         }
 
         SegmentationRequest(const SegmentationRequest&) = default;
@@ -37,23 +35,19 @@ namespace random_walker::domain
         SegmentationRequest& operator=(const SegmentationRequest&) = delete;
         SegmentationRequest& operator=(SegmentationRequest&&) = delete;
 
-        [[nodiscard]] SegmentationRequestId request_id() const noexcept
-        {
+        [[nodiscard]] SegmentationRequestId request_id() const noexcept {
             return request_id_;
         }
 
-        [[nodiscard]] const GrayImage& image() const noexcept
-        {
+        [[nodiscard]] const GrayImage& image() const noexcept {
             return image_;
         }
 
-        [[nodiscard]] std::span<const SeedRegion> seed_regions() const noexcept
-        {
+        [[nodiscard]] std::span<const SeedRegion> seed_regions() const noexcept {
             return seed_regions_;
         }
 
-        [[nodiscard]] const RandomWalkerParameters& parameters() const noexcept
-        {
+        [[nodiscard]] const RandomWalkerParameters& parameters() const noexcept {
             return parameters_;
         }
 
@@ -64,28 +58,25 @@ namespace random_walker::domain
         RandomWalkerParameters parameters_;
     };
 
-    struct SegmentationInput
-    {
+    struct SegmentationInput {
         const GrayImage& image;
         std::span<const Seed> seeds;
     };
 
-    struct SegmentationResult
-    {
+    struct SegmentationResult {
         ProbabilityMap probabilities;
         BinaryMask mask;
     };
 
-    enum class SegmentationError
-    {
-        EmptyImage,
-        InvalidBeta,
-        MissingBackgroundSeeds,
-        MissingObjectSeeds,
-        SeedOutOfBounds,
-        LaplacianDecompositionFailed,
-        LinearSystemSolveFailed,
-        NonFiniteSolution
+    enum class SegmentationError {
+        EmptyImage
+        , InvalidBeta
+        , MissingBackgroundSeeds
+        , MissingObjectSeeds
+        , SeedOutOfBounds
+        , LaplacianDecompositionFailed
+        , LinearSystemSolveFailed
+        , NonFiniteSolution
     };
 
     using SegmentationOutcome =

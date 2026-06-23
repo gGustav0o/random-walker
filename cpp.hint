@@ -1,5 +1,2 @@
-// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
-// such as names of functions and macros.
-// For more information see https://go.microsoft.com/fwlink/?linkid=865984
-#define VISIBLE_PROPERTY private: Q_PROPERTY(bool visible READ visible NOTIFY visible_changed) bool visible_; void set_visible(bool value) { if (visible_ == value) return; visible_ = value; emit visible_changed(visible_); } public: bool visible() const { return visible_; } signals: void visible_changed(bool); public slots: void hide() { set_visible(false); } void show() { set_visible(true); } void on_request_set_visible(bool value) { if (visible_ == value) return; visible_ = value; emit visible_changed(visible_); } private:
-#define SOME_MACRP Q_PROPERTY(bool has_reference READ has_reference NOTIFY has_reference_changed)
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers.
+// Project code does not rely on custom annotation or property macros.
