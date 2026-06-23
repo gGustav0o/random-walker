@@ -10,10 +10,11 @@
 #include <QImage>
 #include <QMetaObject>
 #include <QThread>
-#include <QUrl>
 
 #include "presentation/adapter/MaskRenderer.hpp"
 #include "presentation/adapter/QImageAdapter.hpp"
+#include "presentation/error/ErrorPresenter.hpp"
+#include "presentation/image/ImageLoader.hpp"
 #include "presentation/qml/qml_names.hpp"
 
 namespace {
@@ -22,34 +23,18 @@ namespace {
     const double kMaximumBetaExponent =
         std::log10(random_walker::domain::kMaximumRandomWalkerBeta);
 
-    [[nodiscard]] QString error_message(
-        random_walker::domain::SegmentationError error) {
-        using Error = random_walker::domain::SegmentationError;
+    [[nodiscard]] random_walker::application::ApplicationError
+    application_error(random_walker::executor::ExecutionError error) noexcept {
+        using Error = random_walker::executor::ExecutionError;
 
         switch (error) {
-        case Error::EmptyImage:
-            return QStringLiteral("No image is loaded.");
-        case Error::InvalidBeta:
-            return QStringLiteral(
-                "Beta is outside the supported range.");
-        case Error::MissingBackgroundSeeds:
-            return QStringLiteral("At least one background seed is required.");
-        case Error::MissingObjectSeeds:
-            return QStringLiteral("At least one object seed is required.");
-        case Error::SeedOutOfBounds:
-            return QStringLiteral("A seed lies outside the image.");
-        case Error::ConflictingSeedLabels:
-            return QStringLiteral(
-                "Background and object seeds must not overlap.");
-        case Error::LaplacianDecompositionFailed:
-            return QStringLiteral("Failed to decompose the graph Laplacian.");
-        case Error::LinearSystemSolveFailed:
-            return QStringLiteral("Failed to solve the Random Walker system.");
-        case Error::NonFiniteSolution:
-            return QStringLiteral("The Random Walker solution is not finite.");
+        case Error::UnexpectedInternalFailure:
+            return random_walker::application::ApplicationError::
+                UnexpectedInternalFailure;
         }
 
-        return QStringLiteral("Unknown segmentation error.");
+        return random_walker::application::ApplicationError::
+            UnexpectedInternalFailure;
     }
 
     [[nodiscard]] int progress_stage(
@@ -224,7 +209,9 @@ int SegmentationViewModel::selected_label() const noexcept {
 }
 
 QString SegmentationViewModel::error_message() const {
-    return error_message_;
+    return error_.has_value()
+        ? random_walker::presentation::error_message(*error_)
+        : QString();
 }
 
 int SegmentationViewModel::background_seed_count() const noexcept {
@@ -282,14 +269,15 @@ void SegmentationViewModel::set_beta_slider_position(double position) {
 void SegmentationViewModel::open_image(const QString& path) {
     assert_ui_thread();
 
-    const QUrl url(path);
-    const QString local_path = url.isLocalFile() ? url.toLocalFile() : path;
-    const QImage loaded(local_path);
-
-    if (loaded.isNull()) {
-        set_error(QStringLiteral("Failed to load the selected image."));
+    random_walker::presentation::ImageLoadOutcome load_outcome =
+        random_walker::presentation::load_image(path);
+    if (const auto* error =
+            std::get_if<random_walker::application::ImageLoadError>(
+                &load_outcome)) {
+        set_error(*error);
         return;
     }
+    QImage loaded = std::get<QImage>(std::move(load_outcome));
 
     const bool previous_can_run = can_run();
     const bool was_loaded = image_loaded();
@@ -300,7 +288,7 @@ void SegmentationViewModel::open_image(const QString& path) {
         seed_regions_.clear();
     });
     invalidate_result();
-    set_error({});
+    clear_error();
 
     base_image_cache_.store(
         random_walker::qt_adapter::to_qimage(image_));
@@ -320,7 +308,7 @@ void SegmentationViewModel::clear() {
     assert_ui_thread();
 
     if (!image_loaded() && seed_regions_.empty() && !has_result()
-        && error_message_.isEmpty()) {
+        && !error_.has_value()) {
         return;
     }
 
@@ -333,7 +321,7 @@ void SegmentationViewModel::clear() {
         seed_regions_.clear();
     });
     invalidate_result();
-    set_error({});
+    clear_error();
     base_image_cache_.clear();
     ++image_version_;
 
@@ -360,7 +348,7 @@ void SegmentationViewModel::clear_seeds() {
         seed_regions_.clear();
     });
     invalidate_result();
-    set_error({});
+    clear_error();
 
     emit seeds_changed();
     notify_can_run_if_changed(previous_can_run);
@@ -414,7 +402,7 @@ void SegmentationViewModel::add_seed_rectangle(
     });
 
     invalidate_result();
-    set_error({});
+    clear_error();
     emit seeds_changed();
     notify_can_run_if_changed(previous_can_run);
 }
@@ -438,7 +426,7 @@ void SegmentationViewModel::run_segmentation() {
     active_request_id_ = request_id;
     reset_progress();
     set_busy(true);
-    set_error({});
+    clear_error();
 
     const std::shared_ptr<CompletionDeliveryGate> delivery_gate =
         completion_delivery_;
@@ -477,13 +465,15 @@ void SegmentationViewModel::update_random_walker_parameters(
 
     auto updated_settings = application_settings_;
     updated_settings.random_walker = parameters;
-    if (!settings_service_.try_save(updated_settings)) {
+    if (const auto error = settings_service_.save(updated_settings);
+        error.has_value()) {
+        set_error(*error);
         return;
     }
 
     cancel_active_request();
     invalidate_result();
-    set_error({});
+    clear_error();
 
     application_settings_ = std::move(updated_settings);
     emit beta_changed();
@@ -547,9 +537,31 @@ void SegmentationViewModel::handle_completion(
     active_request_id_.reset();
     set_busy(false);
 
+    if (auto* execution_error =
+            std::get_if<random_walker::executor::ExecutionError>(
+                &completion.outcome)) {
+        invalidate_result();
+        set_error(application_error(*execution_error));
+        reset_progress();
+        return;
+    }
+
+    auto* segmentation_outcome =
+        std::get_if<random_walker::domain::SegmentationOutcome>(
+            &completion.outcome);
+    if (!segmentation_outcome) {
+        invalidate_result();
+        set_error(
+            random_walker::application::ApplicationError::
+                UnexpectedInternalFailure
+        );
+        reset_progress();
+        return;
+    }
+
     if (auto* segmentation_result =
             std::get_if<random_walker::domain::SegmentationResult>(
-                &completion.outcome)) {
+                segmentation_outcome)) {
         result_ = std::move(*segmentation_result);
         result_image_cache_.store(
             random_walker::qt_adapter::render_binary_mask(result_->mask));
@@ -557,9 +569,9 @@ void SegmentationViewModel::handle_completion(
         emit result_changed();
     } else if (auto* error =
                    std::get_if<random_walker::domain::SegmentationError>(
-                       &completion.outcome)) {
+                       segmentation_outcome)) {
         invalidate_result();
-        set_error(::error_message(*error));
+        set_error(*error);
     } else {
         invalidate_result();
     }
@@ -646,14 +658,26 @@ void SegmentationViewModel::set_busy(bool value) {
     notify_can_run_if_changed(previous_can_run);
 }
 
-void SegmentationViewModel::set_error(QString message) {
+void SegmentationViewModel::set_error(
+    random_walker::application::UserError error) {
     assert_ui_thread();
 
-    if (error_message_ == message) {
+    if (error_.has_value() && *error_ == error) {
         return;
     }
 
-    error_message_ = std::move(message);
+    error_ = std::move(error);
+    emit error_message_changed();
+}
+
+void SegmentationViewModel::clear_error() {
+    assert_ui_thread();
+
+    if (!error_.has_value()) {
+        return;
+    }
+
+    error_.reset();
     emit error_message_changed();
 }
 

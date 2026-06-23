@@ -8,6 +8,7 @@ namespace random_walker::application {
         virtual ~SettingsRepository() = default;
 
         [[nodiscard]] virtual ApplicationSettings load() const = 0;
-        virtual void save(const ApplicationSettings& settings) = 0;
+        [[nodiscard]] virtual bool save(
+            const ApplicationSettings& settings) = 0;
     };
 }

@@ -10,19 +10,23 @@ namespace random_walker::application {
         const ApplicationSettings normalized = normalize(stored);
 
         if (normalized != stored) {
-            repository_.save(normalized);
+            (void)repository_.save(normalized);
         }
 
         return normalized;
     }
 
-    bool SettingsService::try_save(const ApplicationSettings& settings) {
+    SettingsSaveOutcome SettingsService::save(
+        const ApplicationSettings& settings) {
         if (!is_valid(settings)) {
-            return false;
+            return SettingsError::InvalidSettings;
         }
 
-        repository_.save(settings);
-        return true;
+        if (!repository_.save(settings)) {
+            return SettingsError::SaveFailed;
+        }
+
+        return std::nullopt;
     }
 
     ApplicationSettings SettingsService::defaults() {

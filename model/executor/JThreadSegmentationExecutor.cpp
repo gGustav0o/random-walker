@@ -156,13 +156,17 @@ namespace random_walker::executor {
                     }
                 });
 
-            domain::SegmentationOutcome outcome =
-                segmentation_service_.segment(
+            SegmentationCompletionOutcome outcome;
+            try {
+                outcome = segmentation_service_.segment(
                     task->request
                     , domain::CancellationToken(
                         task_stop_source.get_token())
                     , progress_reporter
                 );
+            } catch (...) {
+                outcome = ExecutionError::UnexpectedInternalFailure;
+            }
 
             SegmentationCompletionHandler completion_handler;
             SegmentationCompletion completion {
@@ -185,7 +189,12 @@ namespace random_walker::executor {
             }
 
             if (completion_handler) {
-                completion_handler(std::move(completion));
+                try {
+                    completion_handler(std::move(completion));
+                } catch (...) {
+                    // Completion delivery failures cannot be reported through
+                    // the same failing callback. Keep the worker alive.
+                }
             }
         }
     }

@@ -25,6 +25,7 @@ find_package(Qt6 REQUIRED COMPONENTS
 qt_add_resources(qml_resources qml.qrc)
 
 set(HEADERS
+    application/error/UserError.hpp
     application/settings/ApplicationSettings.hpp
     application/settings/SettingsRepository.hpp
     application/settings/SettingsService.hpp
@@ -49,6 +50,8 @@ set(HEADERS
     model/service/SegmentationService.hpp
     presentation/adapter/MaskRenderer.hpp
     presentation/adapter/QImageAdapter.hpp
+    presentation/image/ImageLoader.hpp
+    presentation/error/ErrorPresenter.hpp
     presentation/image/BaseImageProvider.hpp
     presentation/image/PresentationImageCache.hpp
     presentation/image/ResultImageProvider.hpp
@@ -72,6 +75,8 @@ set(SOURCES
     model/graph/GridLaplacian.cpp
     model/service/SegmentationService.cpp
     presentation/adapter/MaskRenderer.cpp
+    presentation/image/ImageLoader.cpp
+    presentation/error/ErrorPresenter.cpp
     presentation/image/BaseImageProvider.cpp
     presentation/image/ResultImageProvider.cpp
     viewmodel/SegmentationViewModel.cpp

@@ -1,0 +1,96 @@
+#include "ErrorPresenter.hpp"
+
+#include <variant>
+
+namespace random_walker::presentation {
+    namespace {
+        [[nodiscard]] QString application_error_message(
+            application::ApplicationError error) {
+            using Error = application::ApplicationError;
+
+            switch (error) {
+            case Error::UnexpectedInternalFailure:
+                return QStringLiteral("Unexpected internal application error.");
+            }
+
+            return QStringLiteral("Unknown application error.");
+        }
+
+        [[nodiscard]] QString image_load_error_message(
+            application::ImageLoadError error) {
+            using Error = application::ImageLoadError;
+
+            switch (error) {
+            case Error::Failed:
+                return QStringLiteral("Failed to load the selected image.");
+            }
+
+            return QStringLiteral("Unknown image loading error.");
+        }
+
+        [[nodiscard]] QString settings_error_message(
+            application::SettingsError error) {
+            using Error = application::SettingsError;
+
+            switch (error) {
+            case Error::InvalidSettings:
+                return QStringLiteral("Application settings are invalid.");
+            case Error::SaveFailed:
+                return QStringLiteral("Failed to save application settings.");
+            }
+
+            return QStringLiteral("Unknown settings error.");
+        }
+
+        [[nodiscard]] QString segmentation_error_message(
+            domain::SegmentationError error) {
+            using Error = domain::SegmentationError;
+
+            switch (error) {
+            case Error::EmptyImage:
+                return QStringLiteral("No image is loaded.");
+            case Error::InvalidBeta:
+                return QStringLiteral(
+                    "Beta is outside the supported range.");
+            case Error::MissingBackgroundSeeds:
+                return QStringLiteral("At least one background seed is required.");
+            case Error::MissingObjectSeeds:
+                return QStringLiteral("At least one object seed is required.");
+            case Error::SeedOutOfBounds:
+                return QStringLiteral("A seed lies outside the image.");
+            case Error::ConflictingSeedLabels:
+                return QStringLiteral(
+                    "Background and object seeds must not overlap.");
+            case Error::LaplacianDecompositionFailed:
+                return QStringLiteral("Failed to decompose the graph Laplacian.");
+            case Error::LinearSystemSolveFailed:
+                return QStringLiteral("Failed to solve the Random Walker system.");
+            case Error::NonFiniteSolution:
+                return QStringLiteral("The Random Walker solution is not finite.");
+            }
+
+            return QStringLiteral("Unknown segmentation error.");
+        }
+    }
+
+    QString error_message(const application::UserError& error) {
+        if (const auto* application_error =
+                std::get_if<application::ApplicationError>(&error)) {
+            return application_error_message(*application_error);
+        }
+        if (const auto* image_load_error =
+                std::get_if<application::ImageLoadError>(&error)) {
+            return image_load_error_message(*image_load_error);
+        }
+        if (const auto* settings_error =
+                std::get_if<application::SettingsError>(&error)) {
+            return settings_error_message(*settings_error);
+        }
+        if (const auto* segmentation_error =
+                std::get_if<domain::SegmentationError>(&error)) {
+            return segmentation_error_message(*segmentation_error);
+        }
+
+        return QStringLiteral("Unknown application error.");
+    }
+}

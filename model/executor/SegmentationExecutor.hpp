@@ -1,13 +1,23 @@
 #pragma once
 
 #include <functional>
+#include <variant>
 
 #include "model/domain/Segmentation.hpp"
 
 namespace random_walker::executor {
+    enum class ExecutionError {
+        UnexpectedInternalFailure
+    };
+
+    using SegmentationCompletionOutcome = std::variant<
+        domain::SegmentationOutcome
+        , ExecutionError
+    >;
+
     struct SegmentationCompletion {
         domain::SegmentationRequestId request_id;
-        domain::SegmentationOutcome outcome;
+        SegmentationCompletionOutcome outcome;
     };
 
     using SegmentationCompletionHandler =

@@ -9,6 +9,7 @@
 #include <QString>
 #include <QtGlobal>
 
+#include "application/error/UserError.hpp"
 #include "application/settings/SettingsService.hpp"
 #include "presentation/image/PresentationImageCache.hpp"
 #include "model/domain/Segmentation.hpp"
@@ -141,7 +142,8 @@ private:
     void reset_progress();
     void invalidate_result();
     void set_busy(bool value);
-    void set_error(QString message);
+    void set_error(random_walker::application::UserError error);
+    void clear_error();
     void notify_can_run_if_changed(bool previous_value);
 
     random_walker::executor::SegmentationExecutor& segmentation_executor_;
@@ -152,7 +154,7 @@ private:
     std::vector<random_walker::domain::SeedRegion> seed_regions_;
     SeedListModel seed_model_;
     std::optional<random_walker::domain::SegmentationResult> result_;
-    QString error_message_;
+    std::optional<random_walker::application::UserError> error_;
     quint64 image_version_ = 0;
     quint64 result_version_ = 0;
     random_walker::domain::SegmentationRequestId next_request_id_ = 1;

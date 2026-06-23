@@ -19,7 +19,7 @@ namespace random_walker::infrastructure {
         );
 
         [[nodiscard]] application::ApplicationSettings load() const override;
-        void save(
+        [[nodiscard]] bool save(
             const application::ApplicationSettings& settings) override;
 
     private:

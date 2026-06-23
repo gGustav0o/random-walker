@@ -20,14 +20,16 @@ namespace {
             return stored;
         }
 
-        void save(
+        [[nodiscard]] bool save(
             const random_walker::application::ApplicationSettings& settings)
             override {
             stored = settings;
             ++save_count;
+            return save_succeeds;
         }
 
         mutable random_walker::application::ApplicationSettings stored;
+        bool save_succeeds = true;
         int save_count = 0;
     };
 
@@ -56,6 +58,8 @@ private slots:
     void repairs_corrupted_values();
     void ignores_unknown_newer_schema();
     void migrates_legacy_schema();
+    void rejects_invalid_settings_on_save();
+    void reports_settings_save_failure();
 };
 
 void SettingsTests::loads_default_values() {
@@ -155,6 +159,35 @@ void SettingsTests::migrates_legacy_schema() {
         , legacy_beta
     );
     QVERIFY(!persisted.contains(kLegacyBetaKey));
+}
+
+void SettingsTests::rejects_invalid_settings_on_save() {
+    InMemorySettingsRepository repository;
+    random_walker::application::SettingsService service(repository);
+
+    random_walker::application::ApplicationSettings settings;
+    settings.random_walker.beta =
+        random_walker::domain::kMaximumRandomWalkerBeta * 2.0;
+
+    const auto outcome = service.save(settings);
+
+    QVERIFY(outcome.has_value());
+    QVERIFY(*outcome == random_walker::application::SettingsError::InvalidSettings);
+    QCOMPARE(repository.save_count, 0);
+}
+
+void SettingsTests::reports_settings_save_failure() {
+    InMemorySettingsRepository repository;
+    repository.save_succeeds = false;
+    random_walker::application::SettingsService service(repository);
+
+    random_walker::application::ApplicationSettings settings;
+
+    const auto outcome = service.save(settings);
+
+    QVERIFY(outcome.has_value());
+    QVERIFY(*outcome == random_walker::application::SettingsError::SaveFailed);
+    QCOMPARE(repository.save_count, 1);
 }
 
 QTEST_GUILESS_MAIN(SettingsTests)

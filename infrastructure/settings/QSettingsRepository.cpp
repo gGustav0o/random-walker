@@ -72,12 +72,13 @@ namespace random_walker::infrastructure {
         return result;
     }
 
-    void QSettingsRepository::save(
+    bool QSettingsRepository::save(
         const application::ApplicationSettings& application_settings) {
         settings_.beginGroup(kSettingsGroup);
         write_current_schema(application_settings);
         settings_.endGroup();
         settings_.sync();
+        return settings_.status() == QSettings::NoError;
     }
 
     application::ApplicationSettings
