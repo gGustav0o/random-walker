@@ -29,11 +29,3 @@ AppContext::AppContext(QQmlApplicationEngine& engine)
         qml_names::kResultImageProvider,
         result_image_provider.release());
 }
-
-AppContext::~AppContext()
-{
-    // The ViewModel cancels its active request and removes queued deliveries.
-    // The executor is destroyed next and joins its worker thread.
-    // Image providers remain owned by QQmlApplicationEngine.
-    segmentation_view_model_.reset();
-}

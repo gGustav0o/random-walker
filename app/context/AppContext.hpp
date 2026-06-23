@@ -11,9 +11,11 @@ class AppContext final
 {
 public:
     explicit AppContext(QQmlApplicationEngine& engine);
-    ~AppContext();
+    ~AppContext() = default;
 
 private:
+    // Member order is intentional: destruction happens in reverse order,
+    // so the ViewModel stops using the executor before the executor joins.
     random_walker::executor::JThreadSegmentationExecutor
         segmentation_executor_;
     std::unique_ptr<SegmentationViewModel> segmentation_view_model_;

@@ -1,3 +1,5 @@
+#include <memory>
+
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 
@@ -14,8 +16,12 @@ int main(int argc, char* argv[])
 {
     setup_high_dpi();
     QGuiApplication app(argc, argv);
+
+    // The composition root must outlive the QML object tree because QML
+    // bindings hold a non-owning reference to its ViewModel.
+    std::unique_ptr<AppContext> context;
     QQmlApplicationEngine engine;
-    AppContext context(engine);
+    context = std::make_unique<AppContext>(engine);
 
     engine.load(QUrl(QStringLiteral(
         "qrc:/qt/qml/random-walker/view/views/MainView.qml")));
