@@ -31,10 +31,10 @@ namespace random_walker::algorithm {
                  entry;
                  ++entry) {
                 const PixelIndex row_pixel {
-                    .value = entry.row()
+                    .value = static_cast<int>(entry.row())
                 };
                 const PixelIndex column_pixel {
-                    .value = entry.col()
+                    .value = static_cast<int>(entry.col())
                 };
 
                 const auto row =

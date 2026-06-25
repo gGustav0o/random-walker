@@ -1,6 +1,8 @@
 <RCC>
     <qresource prefix="/qt/qml/random-walker">
         <file>view/panels/ControlPanel.qml</file>
+        <file>view/panels/SettingsPanel.qml</file>
+        <file>view/panels/SettingsSection.qml</file>
         <file>view/views/MainView.qml</file>
         <file>view/views/BaseImageView.qml</file>
         <file>view/views/ResultOverlay.qml</file>

@@ -8,6 +8,9 @@ Rectangle {
     color: "#222"
 
     property var vm: SegmentationViewModel
+    property bool settingsPanelOpen: false
+
+    signal settingsToggled()
 
     FileDialog {
         id: openImageDialog
@@ -61,69 +64,15 @@ Rectangle {
                 }
             }
 
-            Label {
-                text: "Beta:"
-                color: "#ddd"
-            }
-
-            Slider {
-                id: betaSlider
-                Layout.preferredWidth: 140
-                from: 0
-                to: 1
-                enabled: !root.vm.busy
-                value: root.vm.beta_slider_position
-                onMoved: root.vm.beta_slider_position = value
-            }
-
-            TextField {
-                id: betaField
-                Layout.preferredWidth: 92
-                enabled: !root.vm.busy
-                horizontalAlignment: Text.AlignRight
-                selectByMouse: true
-                validator: DoubleValidator {
-                    bottom: 0.000001
-                    top: 0.1
-                    notation: DoubleValidator.ScientificNotation
-                    locale: Qt.locale().name
-                }
-
-                function syncFromViewModel() {
-                    if (!activeFocus)
-                        forceSyncFromViewModel()
-                }
-
-                function forceSyncFromViewModel() {
-                    text = Number(root.vm.beta).toLocaleString(
-                        Qt.locale(),
-                        "g",
-                        6)
-                }
-
-                Component.onCompleted: forceSyncFromViewModel()
-
-                onEditingFinished: {
-                    if (acceptableInput) {
-                        root.vm.beta = Number.fromLocaleString(
-                            Qt.locale(),
-                            text)
-                    }
-                    forceSyncFromViewModel()
-                }
-
-                Connections {
-                    target: root.vm
-                    function onBetaChanged() {
-                        betaField.syncFromViewModel()
-                    }
-                }
-            }
-
             Button {
                 text: root.vm.busy ? "Running..." : "Run segmentation"
                 enabled: root.vm.can_run
                 onClicked: root.vm.run_segmentation()
+            }
+
+            Button {
+                text: root.settingsPanelOpen ? "Hide settings" : "Settings"
+                onClicked: root.settingsToggled()
             }
 
             Label {
