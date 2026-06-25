@@ -9,6 +9,8 @@ Rectangle {
 
     property var vm: SegmentationViewModel
     property bool expanded: false
+    // UI-only until connectivity is promoted to RandomWalkerParameters.
+    property int connectivityIndex: 0
     readonly property real expandedWidth: 320
     property real panelWidth: expanded ? expandedWidth : 0
 
@@ -55,6 +57,28 @@ Rectangle {
 
         SettingsSection {
             title: "Random Walker"
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Connectivity"
+                    color: "#ddd"
+                    elide: Text.ElideRight
+                }
+
+                ComboBox {
+                    Layout.preferredWidth: 150
+                    enabled: !root.vm.busy
+                    model: ["4-connectivity", "8-connectivity"]
+                    currentIndex: root.connectivityIndex
+                    onActivated: function(index) {
+                        root.connectivityIndex = index
+                    }
+                }
+            }
 
             RowLayout {
                 Layout.fillWidth: true
