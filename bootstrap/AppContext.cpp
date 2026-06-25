@@ -4,6 +4,7 @@
 
 #include <QQmlContext>
 
+#include "infrastructure/logging/Logging.hpp"
 #include "presentation/image/BaseImageProvider.hpp"
 #include "presentation/image/ResultImageProvider.hpp"
 #include "presentation/qml/qml_names.hpp"
@@ -13,6 +14,11 @@ AppContext::AppContext(QQmlApplicationEngine& engine)
         QStringLiteral("random-walker")
         , QStringLiteral("random-walker"))
     , settings_service_(settings_repository_) {
+    random_walker::infrastructure::log_info(
+        "bootstrap"
+        , "Creating application context"
+    );
+
     auto base_image_provider = std::make_unique<BaseImageProvider>();
     auto result_image_provider = std::make_unique<ResultImageProvider>();
 
@@ -35,5 +41,10 @@ AppContext::AppContext(QQmlApplicationEngine& engine)
     engine.addImageProvider(
         qml_names::kResultImageProvider
         , result_image_provider.release()
+    );
+
+    random_walker::infrastructure::log_info(
+        "bootstrap"
+        , "Application context created"
     );
 }

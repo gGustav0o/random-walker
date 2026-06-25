@@ -14,6 +14,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 find_package(Eigen3 3.4 REQUIRED NO_MODULE)
+find_package(spdlog CONFIG REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS
     Core
     Gui
@@ -31,6 +32,7 @@ set(HEADERS
     application/settings/SettingsService.hpp
     bootstrap/AppContext.hpp
     infrastructure/settings/QSettingsRepository.hpp
+    infrastructure/logging/Logging.hpp
     model/domain/Cancellation.hpp
     model/domain/GrayImage.hpp
     model/domain/ProgressReporter.hpp
@@ -70,6 +72,7 @@ set(SOURCES
     bootstrap/AppContext.cpp
     application/settings/SettingsService.cpp
     infrastructure/settings/QSettingsRepository.cpp
+    infrastructure/logging/Logging.cpp
     # model
     model/algorithm/BoundaryConditions.cpp
     model/algorithm/HarmonicSolver.cpp
@@ -115,6 +118,7 @@ target_link_libraries(${PROJECT_NAME}
         Qt6::Quick
         Qt6::QuickControls2
         Eigen3::Eigen
+        spdlog::spdlog
 )
 
 if(WIN32)

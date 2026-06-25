@@ -4,6 +4,7 @@
 #include <cmath>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <utility>
 #include <variant>
 
@@ -11,6 +12,7 @@
 #include <QMetaObject>
 #include <QThread>
 
+#include "infrastructure/logging/Logging.hpp"
 #include "presentation/image/ImageLoader.hpp"
 
 namespace {
@@ -56,6 +58,12 @@ SegmentationViewModel::SegmentationViewModel(
     , completion_delivery_(std::make_shared<CompletionDeliveryGate>()) {
     const auto loaded_settings = settings_service_.load();
     application_settings_ = loaded_settings.settings;
+    random_walker::infrastructure::log_info(
+        "viewmodel"
+        , loaded_settings.repair_required
+            ? "Application settings loaded; repair required"
+            : "Application settings loaded"
+    );
     if (loaded_settings.repair_required) {
         if (const auto error = settings_service_.save(application_settings_);
             error.has_value()) {
@@ -214,12 +222,20 @@ void SegmentationViewModel::set_beta_slider_position(double position) {
 
 void SegmentationViewModel::open_image(const QString& path) {
     assert_ui_thread();
+    random_walker::infrastructure::log_info(
+        "viewmodel"
+        , "Image open requested"
+    );
 
     random_walker::presentation::ImageLoadOutcome load_outcome =
         random_walker::presentation::load_image(path);
     if (const auto* error =
             std::get_if<random_walker::application::ImageLoadError>(
                 &load_outcome)) {
+        random_walker::infrastructure::log_warning(
+            "viewmodel"
+            , "Image loading failed"
+        );
         set_error(*error);
         return;
     }
@@ -230,6 +246,13 @@ void SegmentationViewModel::open_image(const QString& path) {
 
     cancel_active_request();
     image_state_.set(loaded);
+    random_walker::infrastructure::log_info(
+        "viewmodel"
+        , std::string("Image loaded: ")
+            + std::to_string(image_state_.width())
+            + "x"
+            + std::to_string(image_state_.height())
+    );
     clear_seed_regions();
     invalidate_result();
     clear_error();
@@ -255,6 +278,10 @@ void SegmentationViewModel::clear() {
     const bool previous_can_run = can_run();
     const bool was_loaded = image_loaded();
 
+    random_walker::infrastructure::log_info(
+        "viewmodel"
+        , "Clearing image and segmentation state"
+    );
     cancel_active_request();
     image_state_.clear();
     clear_seed_regions();
@@ -279,6 +306,10 @@ void SegmentationViewModel::clear_seeds() {
     }
 
     const bool previous_can_run = can_run();
+    random_walker::infrastructure::log_info(
+        "viewmodel"
+        , "Clearing seed regions"
+    );
     cancel_active_request();
     clear_seed_regions();
     invalidate_result();
@@ -323,6 +354,13 @@ void SegmentationViewModel::add_seed_rectangle(
     const DomainSeedLabel label = domain_seed_label();
 
     cancel_active_request();
+    random_walker::infrastructure::log_debug(
+        "viewmodel"
+        , std::string("Adding seed rectangle: ")
+            + std::to_string(right - left)
+            + "x"
+            + std::to_string(bottom - top)
+    );
     add_seed_region({
         .area = {
             .x = left
@@ -353,6 +391,22 @@ void SegmentationViewModel::run_segmentation() {
         , image_state_.image()
         , seed_state_.regions()
         , application_settings_.random_walker
+    );
+
+    random_walker::infrastructure::log_info(
+        "viewmodel"
+        , std::string("Segmentation requested: request_id=")
+            + std::to_string(request_id)
+            + ", image="
+            + std::to_string(image_state_.width())
+            + "x"
+            + std::to_string(image_state_.height())
+            + ", background_seed_pixels="
+            + std::to_string(background_seed_count())
+            + ", object_seed_pixels="
+            + std::to_string(object_seed_count())
+            + ", beta="
+            + std::to_string(application_settings_.random_walker.beta)
     );
 
     active_request_id_ = request_id;
@@ -399,9 +453,19 @@ void SegmentationViewModel::update_random_walker_parameters(
     updated_settings.random_walker = parameters;
     if (const auto error = settings_service_.save(updated_settings);
         error.has_value()) {
+        random_walker::infrastructure::log_warning(
+            "viewmodel"
+            , "Failed to save Random Walker parameters"
+        );
         set_error(*error);
         return;
     }
+
+    random_walker::infrastructure::log_info(
+        "viewmodel"
+        , std::string("Random Walker parameters updated: beta=")
+            + std::to_string(updated_settings.random_walker.beta)
+    );
 
     cancel_active_request();
     invalidate_result();
@@ -466,12 +530,21 @@ void SegmentationViewModel::handle_completion(
         return;
     }
 
+    random_walker::infrastructure::log_info(
+        "viewmodel"
+        , std::string("Segmentation completion received: request_id=")
+            + std::to_string(completion.request_id)
+    );
     active_request_id_.reset();
     set_busy(false);
 
     if (auto* execution_error =
             std::get_if<random_walker::executor::ExecutionError>(
                 &completion.outcome)) {
+        random_walker::infrastructure::log_error(
+            "viewmodel"
+            , "Segmentation finished with executor error"
+        );
         invalidate_result();
         set_error(application_error(*execution_error));
         reset_progress();
@@ -482,6 +555,10 @@ void SegmentationViewModel::handle_completion(
         std::get_if<random_walker::domain::SegmentationOutcome>(
             &completion.outcome);
     if (!segmentation_outcome) {
+        random_walker::infrastructure::log_warning(
+            "viewmodel"
+            , "Segmentation completion payload was unexpected"
+        );
         invalidate_result();
         set_error(
             random_walker::application::ApplicationError::
@@ -494,14 +571,26 @@ void SegmentationViewModel::handle_completion(
     if (auto* segmentation_result =
             std::get_if<random_walker::domain::SegmentationResult>(
                 segmentation_outcome)) {
+        random_walker::infrastructure::log_info(
+            "viewmodel"
+            , "Segmentation completed successfully"
+        );
         result_state_.set(std::move(*segmentation_result));
         emit result_changed();
     } else if (auto* error =
                    std::get_if<random_walker::domain::SegmentationError>(
                        segmentation_outcome)) {
+        random_walker::infrastructure::log_warning(
+            "viewmodel"
+            , "Segmentation finished with domain error"
+        );
         invalidate_result();
         set_error(*error);
     } else {
+        random_walker::infrastructure::log_info(
+            "viewmodel"
+            , "Segmentation was cancelled"
+        );
         invalidate_result();
     }
 
