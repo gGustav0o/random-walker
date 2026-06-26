@@ -97,17 +97,18 @@ $$
 
 ### Где задается параметр
 
-Фиксированное значение $\beta$ задается в:
+Значение $\beta$ задается в интерфейсе приложения в панели настроек алгоритма. Параметр хранится в настройках приложения и передается в математическое ядро через:
 
-```
-model/graph/GridLaplacian.cpp
-```
+- `viewmodel/SegmentationViewModel.hpp/cpp` — MVVM-состояние и команды UI;
+- `application/settings/ApplicationSettings.hpp` — настройки приложения;
+- `model/domain/RandomWalkerParameters.hpp` — доменная модель параметров Random Walker;
+- `model/graph/GridLaplacian.hpp/cpp` — построение весов графа с переданным значением $\beta$.
 
-```cpp
-static constexpr double kBeta = 0.05;
-```
+Диапазон допустимых значений задается в `RandomWalkerParameters.hpp`:
 
-Для изменения — отредактируйте это значение и пересоберите проект.
+- минимум: `kMinimumRandomWalkerBeta`;
+- максимум: `kMaximumRandomWalkerBeta`;
+- значение по умолчанию: `kDefaultRandomWalkerBeta`.
 
 ---
 
@@ -164,14 +165,26 @@ compute_weight_gradient(...)
   - уровень шума (SNR).
 
 ---
+
 ##  Внутренняя структура
 
-| Модуль                              | Назначение                            |
-| ----------------------------------- | ------------------------------------- |
-| `RandomWalkerAlgorithm.hpp/cpp`     | Оркестрация этапов Random Walker      |
-| `GridLaplacian.hpp/cpp`             | Взвешенный лапласиан grid-графа       |
-| `SceneManager.hpp/cpp`              | Связь между QML и C++ логикой         |
-| `ImageToEigen.hpp`                  | Преобразование QImage → Eigen матрицы |
+Проект разделен по слоям. Основное правило зависимостей: внешние слои могут зависеть от домена и application-абстракций, но математическое ядро не зависит от Qt, QML, infrastructure или presentation.
+
+| Слой / модуль                         | Назначение |
+| ------------------------------------- | ---------- |
+| `model/domain`                        | Чистые доменные типы: изображение, seed-регионы, параметры, результат, ошибки, cancellation/progress-контракты |
+| `model/algorithm`                     | Функционально ориентированные этапы Random Walker: граничные условия, разбиение узлов, решение гармонической задачи, сборка вероятностей |
+| `model/graph`                         | Построение взвешенного лапласиана grid-графа |
+| `model/service`                       | Use case сегментации: валидация запроса, раскрытие seed-регионов, запуск алгоритма |
+| `model/executor`                      | Асинхронный порт и реализация запуска сегментации в worker thread |
+| `application/settings`                | Настройки приложения и абстракция репозитория настроек |
+| `application/diagnostics`             | Application-level фасад логирования без зависимости от конкретного backend-а |
+| `infrastructure/settings`             | Реализация persistence через `QSettings` |
+| `infrastructure/logging`              | Backend логирования через `spdlog` с файловой ротацией |
+| `presentation`                        | Qt-адаптеры: загрузка изображения, `QImage` <-> domain, providers, rendering, error text |
+| `viewmodel`                           | MVVM-состояние, команды UI и доставка async-результатов в UI thread |
+| `view`                                | QML-представления и панели, включая локальное UI-состояние |
+| `bootstrap`                           | Composition root и связывание зависимостей |
 
 ---
 

@@ -12,6 +12,8 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/spdlog.h>
 
+#include "application/diagnostics/Logging.hpp"
+
 namespace random_walker::infrastructure {
     namespace {
         std::mutex logging_mutex;
@@ -63,8 +65,25 @@ namespace random_walker::infrastructure {
             return spdlog::level::info;
         }
 
-        void log_message(
-            spdlog::level::level_enum level
+        [[nodiscard]] spdlog::level::level_enum to_spdlog_level(
+            application::LogLevel level
+        ) noexcept {
+            switch (level) {
+            case application::LogLevel::Debug:
+                return spdlog::level::debug;
+            case application::LogLevel::Info:
+                return spdlog::level::info;
+            case application::LogLevel::Warning:
+                return spdlog::level::warn;
+            case application::LogLevel::Error:
+                return spdlog::level::err;
+            }
+
+            return spdlog::level::info;
+        }
+
+        void write_log_message(
+            application::LogLevel level
             , std::string_view category
             , std::string_view message
         ) noexcept {
@@ -75,7 +94,7 @@ namespace random_walker::infrastructure {
                 }
 
                 spdlog::log(
-                    level
+                    to_spdlog_level(level)
                     , "[{}] {}"
                     , std::string(category)
                     , std::string(message)
@@ -83,6 +102,23 @@ namespace random_walker::infrastructure {
             } catch (...) {
             }
         }
+    }
+
+    std::string logging_initialization_error_text(
+        LoggingInitializationError error
+    ) {
+        switch (error) {
+        case LoggingInitializationError::EmptyLogFileName:
+            return "log file name is empty";
+        case LoggingInitializationError::InvalidRotationPolicy:
+            return "log rotation policy is invalid";
+        case LoggingInitializationError::DirectoryCreationFailed:
+            return "failed to create log directory";
+        case LoggingInitializationError::SinkCreationFailed:
+            return "failed to create rotating log file sink";
+        }
+
+        return "unknown logging initialization error";
     }
 
     LoggingConfig default_logging_config() {
@@ -136,6 +172,7 @@ namespace random_walker::infrastructure {
             spdlog::flush_on(spdlog::level::warn);
             active_file_path = log_file_path;
             logging_initialized = true;
+            application::set_log_sink(write_log_message);
         } catch (const spdlog::spdlog_ex&) {
             return LoggingInitializationError::SinkCreationFailed;
         } catch (const std::exception&) {
@@ -149,6 +186,7 @@ namespace random_walker::infrastructure {
 
     void shutdown_logging() noexcept {
         try {
+            application::clear_log_sink();
             {
                 std::lock_guard lock(logging_mutex);
                 logging_initialized = false;
@@ -162,33 +200,5 @@ namespace random_walker::infrastructure {
     std::filesystem::path active_log_file_path() {
         std::lock_guard lock(logging_mutex);
         return active_file_path;
-    }
-
-    void log_debug(
-        std::string_view category
-        , std::string_view message
-    ) noexcept {
-        log_message(spdlog::level::debug, category, message);
-    }
-
-    void log_info(
-        std::string_view category
-        , std::string_view message
-    ) noexcept {
-        log_message(spdlog::level::info, category, message);
-    }
-
-    void log_warning(
-        std::string_view category
-        , std::string_view message
-    ) noexcept {
-        log_message(spdlog::level::warn, category, message);
-    }
-
-    void log_error(
-        std::string_view category
-        , std::string_view message
-    ) noexcept {
-        log_message(spdlog::level::err, category, message);
     }
 }

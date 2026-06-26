@@ -4,7 +4,6 @@
 #include <filesystem>
 #include <optional>
 #include <string>
-#include <string_view>
 
 namespace random_walker::infrastructure {
     enum class LogLevel {
@@ -32,6 +31,9 @@ namespace random_walker::infrastructure {
         LogLevel level = LogLevel::Info;
     };
 
+    [[nodiscard]] std::string
+    logging_initialization_error_text(LoggingInitializationError error);
+
     [[nodiscard]] LoggingConfig default_logging_config();
 
     [[nodiscard]] std::optional<LoggingInitializationError>
@@ -42,21 +44,4 @@ namespace random_walker::infrastructure {
     void shutdown_logging() noexcept;
 
     [[nodiscard]] std::filesystem::path active_log_file_path();
-
-    void log_debug(
-        std::string_view category
-        , std::string_view message
-    ) noexcept;
-    void log_info(
-        std::string_view category
-        , std::string_view message
-    ) noexcept;
-    void log_warning(
-        std::string_view category
-        , std::string_view message
-    ) noexcept;
-    void log_error(
-        std::string_view category
-        , std::string_view message
-    ) noexcept;
 }

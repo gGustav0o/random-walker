@@ -27,6 +27,7 @@ qt_add_resources(qml_resources qml.qrc)
 
 set(HEADERS
     application/error/UserError.hpp
+    application/diagnostics/Logging.hpp
     application/settings/ApplicationSettings.hpp
     application/settings/SettingsRepository.hpp
     application/settings/SettingsService.hpp
@@ -70,6 +71,7 @@ set(HEADERS
 set(SOURCES
     main.cpp
     bootstrap/AppContext.cpp
+    application/diagnostics/Logging.cpp
     application/settings/SettingsService.cpp
     infrastructure/settings/QSettingsRepository.cpp
     infrastructure/logging/Logging.cpp

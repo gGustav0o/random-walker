@@ -4,7 +4,7 @@
 
 #include <QQmlContext>
 
-#include "infrastructure/logging/Logging.hpp"
+#include "application/diagnostics/Logging.hpp"
 #include "presentation/image/BaseImageProvider.hpp"
 #include "presentation/image/ResultImageProvider.hpp"
 #include "presentation/qml/qml_names.hpp"
@@ -14,7 +14,7 @@ AppContext::AppContext(QQmlApplicationEngine& engine)
         QStringLiteral("random-walker")
         , QStringLiteral("random-walker"))
     , settings_service_(settings_repository_) {
-    random_walker::infrastructure::log_info(
+    random_walker::application::log_info(
         "bootstrap"
         , "Creating application context"
     );
@@ -43,7 +43,7 @@ AppContext::AppContext(QQmlApplicationEngine& engine)
         , result_image_provider.release()
     );
 
-    random_walker::infrastructure::log_info(
+    random_walker::application::log_info(
         "bootstrap"
         , "Application context created"
     );

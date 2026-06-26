@@ -1,10 +1,14 @@
 #include <memory>
 #include <string>
 
+#include <QDebug>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QString>
+#include <QUrl>
 
 #include "bootstrap/AppContext.hpp"
+#include "application/diagnostics/Logging.hpp"
 #include "infrastructure/logging/Logging.hpp"
 
 namespace {
@@ -26,16 +30,23 @@ int main(int argc, char* argv[]) {
     setup_high_dpi();
     QGuiApplication app(argc, argv);
 
-    const bool logging_ready =
-        !random_walker::infrastructure::initialize_logging().has_value();
+    const auto logging_error =
+        random_walker::infrastructure::initialize_logging();
     const LoggingShutdownGuard logging_shutdown_guard;
-    if (logging_ready) {
-        random_walker::infrastructure::log_info(
+    if (logging_error.has_value()) {
+        qWarning().noquote()
+            << QStringLiteral("Failed to initialize logging:")
+            << QString::fromStdString(
+                random_walker::infrastructure::
+                    logging_initialization_error_text(*logging_error)
+            );
+    } else {
+        random_walker::application::log_info(
             "application"
             , std::string("Logging initialized at ")
                 + random_walker::infrastructure::active_log_file_path().string()
         );
-        random_walker::infrastructure::log_info(
+        random_walker::application::log_info(
             "application"
             , "Application startup"
         );
@@ -52,25 +63,25 @@ int main(int argc, char* argv[]) {
         engine.load(QUrl(QStringLiteral(
             "qrc:/qt/qml/random-walker/view/views/MainView.qml")));
         if (engine.rootObjects().isEmpty()) {
-            random_walker::infrastructure::log_error(
+            random_walker::application::log_error(
                 "application"
                 , "QML root object creation failed"
             );
             exit_code = -1;
         } else {
-            random_walker::infrastructure::log_info(
+            random_walker::application::log_info(
                 "application"
                 , "QML root object loaded"
             );
             exit_code = app.exec();
-            random_walker::infrastructure::log_info(
+            random_walker::application::log_info(
                 "application"
                 , "Application event loop finished"
             );
         }
     }
 
-    random_walker::infrastructure::log_info(
+    random_walker::application::log_info(
         "application"
         , "Application shutdown"
     );
