@@ -14,6 +14,7 @@
 | [vcpkg](https://github.com/microsoft/vcpkg) | установлен и доступен через `VCPKG_ROOT` |
 | Компилятор                       | MSVC с поддержкой C++20            |
 | Генератор                        | Ninja                              |
+| OpenMP                           | опционально, через компилятор      |
 
 ---
 
@@ -60,6 +61,18 @@ $env:VCPKG_ROOT = 'D:\Development\vcpkg'
 ```
 
 Если `spdlog` уже установлен вручную и vcpkg использовать не нужно, создайте отдельный локальный preset, который не наследует `debug-base`/`release-base`, и укажите `spdlog_DIR` так, чтобы `find_package(spdlog CONFIG REQUIRED)` находил пакет. Для проекта рекомендуемый путь — vcpkg manifest.
+
+## Опциональный OpenMP
+
+Параллелизм в алгоритмическом слое управляется CMake-опцией `RANDOM_WALKER_ENABLE_OPENMP`. По умолчанию она выключена, поэтому OpenMP не является обязательным требованием для конфигурации проекта.
+
+Чтобы включить OpenMP, задайте опцию в локальном preset-е или при configure:
+
+```powershell
+cmake --preset debug -DRANDOM_WALKER_ENABLE_OPENMP=ON
+```
+
+Если опция включена, CMake ищет `OpenMP::OpenMP_CXX` и передает настройку в algorithm-инфраструктуру через `model/algorithm/ParallelPolicy.hpp`. Сейчас OpenMP используется только для детерминированных pixel-wise проходов; sparse-сборка остается последовательной до отдельного архитектурного дизайна.
 
 ## Visual Studio
 

@@ -38,6 +38,7 @@ add_random_walker_test(model_algorithm_tests
         ${PROJECT_SOURCE_DIR}/model/graph/GridLaplacian.cpp
     LIBRARIES
         Eigen3::Eigen
+        random_walker_algorithm_options
 )
 
 add_random_walker_test(model_service_tests
@@ -54,6 +55,7 @@ add_random_walker_test(model_service_tests
         ${PROJECT_SOURCE_DIR}/model/service/SegmentationService.cpp
     LIBRARIES
         Eigen3::Eigen
+        random_walker_algorithm_options
 )
 
 add_random_walker_test(application_diagnostics_tests

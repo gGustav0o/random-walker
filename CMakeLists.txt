@@ -13,6 +13,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
+option(RANDOM_WALKER_ENABLE_OPENMP "Enable OpenMP in algorithm implementation" OFF)
+
 find_package(Eigen3 3.4 REQUIRED NO_MODULE)
 find_package(spdlog CONFIG REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS
@@ -22,6 +24,24 @@ find_package(Qt6 REQUIRED COMPONENTS
     Quick
     QuickControls2
 )
+
+add_library(random_walker_algorithm_options INTERFACE)
+if(RANDOM_WALKER_ENABLE_OPENMP)
+    find_package(OpenMP REQUIRED COMPONENTS CXX)
+    target_compile_definitions(random_walker_algorithm_options
+        INTERFACE
+            RANDOM_WALKER_ENABLE_OPENMP=1
+    )
+    target_link_libraries(random_walker_algorithm_options
+        INTERFACE
+            OpenMP::OpenMP_CXX
+    )
+else()
+    target_compile_definitions(random_walker_algorithm_options
+        INTERFACE
+            RANDOM_WALKER_ENABLE_OPENMP=0
+    )
+endif()
 
 qt_add_resources(qml_resources qml.qrc)
 
@@ -45,6 +65,7 @@ set(HEADERS
     model/algorithm/IndexTypes.hpp
     model/algorithm/IterationPolicy.hpp
     model/algorithm/NodePartition.hpp
+    model/algorithm/ParallelPolicy.hpp
     model/algorithm/PartitionedLaplacian.hpp
     model/algorithm/ProbabilityField.hpp
     model/algorithm/RandomWalkerAlgorithm.hpp
@@ -122,6 +143,7 @@ target_link_libraries(${PROJECT_NAME}
         Qt6::QuickControls2
         Eigen3::Eigen
         spdlog::spdlog
+        random_walker_algorithm_options
 )
 
 if(WIN32)
