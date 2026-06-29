@@ -32,7 +32,7 @@ set(HEADERS
     application/settings/SettingsRepository.hpp
     application/settings/SettingsService.hpp
     bootstrap/AppContext.hpp
-    infrastructure/settings/QSettingsRepository.hpp
+    infrastructure/settings/QtSettingsRepository.hpp
     infrastructure/logging/Logging.hpp
     model/domain/Cancellation.hpp
     model/domain/GrayImage.hpp
@@ -73,7 +73,7 @@ set(SOURCES
     bootstrap/AppContext.cpp
     application/diagnostics/Logging.cpp
     application/settings/SettingsService.cpp
-    infrastructure/settings/QSettingsRepository.cpp
+    infrastructure/settings/QtSettingsRepository.cpp
     infrastructure/logging/Logging.cpp
     # model
     model/algorithm/BoundaryConditions.cpp

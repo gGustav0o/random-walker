@@ -95,7 +95,7 @@ add_random_walker_test(settings_tests
     SOURCES
         settings/SettingsTests.cpp
         ${PROJECT_SOURCE_DIR}/application/settings/SettingsService.cpp
-        ${PROJECT_SOURCE_DIR}/infrastructure/settings/QSettingsRepository.cpp
+        ${PROJECT_SOURCE_DIR}/infrastructure/settings/QtSettingsRepository.cpp
     LIBRARIES
         Eigen3::Eigen
 )

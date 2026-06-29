@@ -5,7 +5,7 @@
 #include <QQmlApplicationEngine>
 
 #include "application/settings/SettingsService.hpp"
-#include "infrastructure/settings/QSettingsRepository.hpp"
+#include "infrastructure/settings/QtSettingsRepository.hpp"
 #include "model/executor/JThreadSegmentationExecutor.hpp"
 #include "viewmodel/SegmentationViewModel.hpp"
 
@@ -22,7 +22,7 @@ private:
     random_walker::executor::JThreadSegmentationExecutor
         segmentation_executor_;
 
-    random_walker::infrastructure::QSettingsRepository
+    random_walker::infrastructure::QtSettingsRepository
         settings_repository_;
 
     random_walker::application::SettingsService settings_service_;

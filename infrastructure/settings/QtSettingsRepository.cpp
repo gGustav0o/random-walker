@@ -1,4 +1,4 @@
-#include "QSettingsRepository.hpp"
+#include "QtSettingsRepository.hpp"
 
 #include <limits>
 #include <utility>
@@ -28,7 +28,7 @@ namespace {
 
 namespace random_walker::infrastructure {
 
-    QSettingsRepository::QSettingsRepository(
+    QtSettingsRepository::QtSettingsRepository(
         QString organization_name
         , QString application_name
     )
@@ -40,14 +40,14 @@ namespace random_walker::infrastructure {
         ) {
     }
 
-    QSettingsRepository::QSettingsRepository(
+    QtSettingsRepository::QtSettingsRepository(
         QString file_name
         , QSettings::Format format
     )
         : settings_(std::move(file_name), format) {
     }
 
-    application::SettingsRepositoryLoadResult QSettingsRepository::load() const {
+    application::SettingsRepositoryLoadResult QtSettingsRepository::load() const {
         settings_.beginGroup(kSettingsGroup);
 
         bool converted = false;
@@ -70,7 +70,7 @@ namespace random_walker::infrastructure {
         return result;
     }
 
-    bool QSettingsRepository::save(
+    bool QtSettingsRepository::save(
         const application::ApplicationSettings& application_settings) {
         settings_.beginGroup(kSettingsGroup);
         write_current_schema(application_settings);
@@ -80,7 +80,7 @@ namespace random_walker::infrastructure {
     }
 
     application::ApplicationSettings
-    QSettingsRepository::load_current_schema() const {
+    QtSettingsRepository::load_current_schema() const {
         application::ApplicationSettings result;
         result.random_walker.beta = stored_double(
             settings_
@@ -90,7 +90,7 @@ namespace random_walker::infrastructure {
     }
 
     application::ApplicationSettings
-    QSettingsRepository::migrate_from(int schema_version) const {
+    QtSettingsRepository::migrate_from(int schema_version) const {
         application::ApplicationSettings result;
 
         switch (schema_version) {
@@ -103,7 +103,7 @@ namespace random_walker::infrastructure {
         }
     }
 
-    void QSettingsRepository::write_current_schema(
+    void QtSettingsRepository::write_current_schema(
         const application::ApplicationSettings& application_settings
     ) const {
         settings_.remove(QString{});

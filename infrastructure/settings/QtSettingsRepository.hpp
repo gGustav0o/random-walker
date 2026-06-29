@@ -7,16 +7,16 @@
 
 namespace random_walker::infrastructure {
 
-    class QSettingsRepository final
+    class QtSettingsRepository final
         : public application::SettingsRepository {
 
     public:
-        QSettingsRepository(
+        QtSettingsRepository(
             QString organization_name
             , QString application_name
         );
 
-        QSettingsRepository(
+        QtSettingsRepository(
             QString file_name
             , QSettings::Format format
         );

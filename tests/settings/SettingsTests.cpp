@@ -3,7 +3,7 @@
 #include <QtTest>
 
 #include "application/settings/SettingsService.hpp"
-#include "infrastructure/settings/QSettingsRepository.hpp"
+#include "infrastructure/settings/QtSettingsRepository.hpp"
 
 namespace {
     constexpr auto kSettingsGroup = "applicationSettings";
@@ -89,7 +89,7 @@ void SettingsTests::repairs_corrupted_values() {
     write_value(path, kSchemaVersionKey, kCurrentSchemaVersion);
     write_value(path, kRandomWalkerBetaKey, QStringLiteral("invalid"));
 
-    random_walker::infrastructure::QSettingsRepository repository(
+    random_walker::infrastructure::QtSettingsRepository repository(
         path
         , QSettings::IniFormat
     );
@@ -131,7 +131,7 @@ void SettingsTests::ignores_unknown_newer_schema() {
     write_value(path, kSchemaVersionKey, kCurrentSchemaVersion + 1);
     write_value(path, kRandomWalkerBetaKey, 0.005);
 
-    random_walker::infrastructure::QSettingsRepository repository(
+    random_walker::infrastructure::QtSettingsRepository repository(
         path
         , QSettings::IniFormat
     );
@@ -161,7 +161,7 @@ void SettingsTests::migrates_legacy_schema() {
     write_value(path, kSchemaVersionKey, 0);
     write_value(path, kLegacyBetaKey, legacy_beta);
 
-    random_walker::infrastructure::QSettingsRepository repository(
+    random_walker::infrastructure::QtSettingsRepository repository(
         path
         , QSettings::IniFormat
     );
