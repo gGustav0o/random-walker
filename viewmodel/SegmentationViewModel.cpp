@@ -4,6 +4,7 @@
 #include <cmath>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <utility>
 #include <variant>
@@ -40,6 +41,45 @@ namespace {
             UnexpectedInternalFailure;
     }
 
+    [[nodiscard]] std::optional<random_walker::domain::PixelRectangle>
+    clipped_seed_rectangle(
+        int x
+        , int y
+        , int width
+        , int height
+        , int image_width
+        , int image_height
+    ) noexcept {
+        if (width <= 0 || height <= 0) {
+            return std::nullopt;
+        }
+
+        const int left = std::clamp(x, 0, image_width);
+        const int top = std::clamp(y, 0, image_height);
+        const auto right_edge = static_cast<long long>(x) + width;
+        const auto bottom_edge = static_cast<long long>(y) + height;
+        const int right = static_cast<int>(std::clamp(
+            right_edge
+            , 0LL
+            , static_cast<long long>(image_width))
+        );
+        const int bottom = static_cast<int>(std::clamp(
+            bottom_edge
+            , 0LL
+            , static_cast<long long>(image_height))
+        );
+
+        if (left >= right || top >= bottom) {
+            return std::nullopt;
+        }
+
+        return random_walker::domain::PixelRectangle {
+            .x = left
+            , .y = top
+            , .width = right - left
+            , .height = bottom - top
+        };
+    }
 }
 
 struct SegmentationViewModel::CompletionDeliveryGate {
@@ -338,26 +378,20 @@ void SegmentationViewModel::add_seed_rectangle(
 ) {
     assert_ui_thread();
 
-    if (!image_loaded() || width <= 0 || height <= 0) {
+    if (!image_loaded()) {
         return;
     }
 
-    const int left = std::clamp(x, 0, image_state_.width());
-    const int top = std::clamp(y, 0, image_state_.height());
-    const auto right_edge = static_cast<long long>(x) + width;
-    const auto bottom_edge = static_cast<long long>(y) + height;
-    const int right = static_cast<int>(std::clamp(
-        right_edge
-        , 0LL
-        , static_cast<long long>(image_state_.width()))
-    );
-    const int bottom = static_cast<int>(std::clamp(
-        bottom_edge
-        , 0LL
-        , static_cast<long long>(image_state_.height()))
-    );
-
-    if (left >= right || top >= bottom) {
+    const std::optional<random_walker::domain::PixelRectangle> area =
+        clipped_seed_rectangle(
+            x
+            , y
+            , width
+            , height
+            , image_state_.width()
+            , image_state_.height()
+        );
+    if (!area.has_value()) {
         return;
     }
 
@@ -368,17 +402,12 @@ void SegmentationViewModel::add_seed_rectangle(
     random_walker::application::log_debug(
         random_walker::application::log_category::viewmodel
         , std::string("Adding seed rectangle: ")
-            + std::to_string(right - left)
+            + std::to_string(area->width)
             + "x"
-            + std::to_string(bottom - top)
+            + std::to_string(area->height)
     );
     add_seed_region({
-        .area = {
-            .x = left
-            , .y = top
-            , .width = right - left
-            , .height = bottom - top
-        }
+        .area = *area
         , .label = label
     });
 
