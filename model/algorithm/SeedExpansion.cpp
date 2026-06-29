@@ -1,5 +1,7 @@
 #include "SeedExpansion.hpp"
 
+#include "IterationPolicy.hpp"
+
 #include <cassert>
 #include <cstddef>
 #include <variant>
@@ -71,7 +73,7 @@ namespace random_walker::algorithm {
                      column < region.area.x + region.area.width;
                      ++column
                 ) {
-                    if ((column & 0x0fff) == 0
+                    if (should_poll_cancellation(static_cast<std::size_t>(column))
                         && cancellation.stop_requested()
                     ) {
                         return domain::Cancelled {};

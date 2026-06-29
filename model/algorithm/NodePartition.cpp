@@ -1,5 +1,7 @@
 #include "NodePartition.hpp"
 
+#include "IterationPolicy.hpp"
+
 #include <cassert>
 #include <cstddef>
 
@@ -29,7 +31,7 @@ namespace random_walker::algorithm {
 
         for (int index = 0; index < pixel_count; ++index) {
             if (
-                (index & 0x0fff) == 0
+                should_poll_cancellation(static_cast<std::size_t>(index))
                 && cancellation.stop_requested()
             ) {
                 return domain::Cancelled {};
@@ -51,7 +53,7 @@ namespace random_walker::algorithm {
             assert(insert_result.second);
             static_cast<void>(insert_result);
 
-            if ((index & 0x0fff) == 0) {
+            if (should_report_progress(static_cast<std::size_t>(index))) {
                 progress.report(
                     domain::SegmentationStage::PartitioningSystem
                     , 0.25 * static_cast<double>(index + 1)
@@ -66,7 +68,7 @@ namespace random_walker::algorithm {
         );
 
         for (std::size_t index = 0; index < result.boundary_pixels.size(); ++index) {
-            if ((index & 0x0fff) == 0
+            if (should_poll_cancellation(static_cast<std::size_t>(index))
                 && cancellation.stop_requested()) {
                 return domain::Cancelled {};
             }
@@ -81,7 +83,7 @@ namespace random_walker::algorithm {
             assert(insert_result.second);
             static_cast<void>(insert_result);
 
-            if ((index & 0x0fff) == 0) {
+            if (should_report_progress(static_cast<std::size_t>(index))) {
                 progress.report(
                     domain::SegmentationStage::PartitioningSystem
                     , result.boundary_pixels.empty()

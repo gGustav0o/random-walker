@@ -1,5 +1,7 @@
 #include "ProbabilityField.hpp"
 
+#include "IterationPolicy.hpp"
+
 #include <cassert>
 #include <cstddef>
 
@@ -45,7 +47,7 @@ namespace random_walker::algorithm {
             , 0.0
         );
         for (int index = 0; index < pixel_count; ++index) {
-            if ((index & 0x0fff) == 0
+            if (should_poll_cancellation(static_cast<std::size_t>(index))
                 && cancellation.stop_requested()) {
                 return domain::Cancelled {};
             }
@@ -73,7 +75,7 @@ namespace random_walker::algorithm {
                     unknown_values[unknown_position->second.value];
             }
 
-            if ((index & 0x0fff) == 0) {
+            if (should_report_progress(static_cast<std::size_t>(index))) {
                 progress.report(
                     domain::SegmentationStage::AssemblingProbabilities
                     , static_cast<double>(index + 1)

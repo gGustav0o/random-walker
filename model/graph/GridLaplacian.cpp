@@ -1,5 +1,7 @@
 #include "GridLaplacian.hpp"
 
+#include "model/algorithm/IterationPolicy.hpp"
+
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -102,118 +104,6 @@ namespace random_walker::graph {
             degrees[first_index.value] += weight;
             degrees[second_index.value] += weight;
         }
-
-        [[nodiscard]]
-        GridLaplacianOutcome compute_grid_laplacian(
-            const domain::GrayImage& image
-            , double beta
-            , const domain::CancellationToken& cancellation
-            , const domain::ProgressReporter& progress
-        ) {
-            assert(!image.empty());
-            assert(std::isfinite(beta));
-            assert(beta > 0.0);
-
-            const int height = image.height();
-            const int width = image.width();
-            assert(height > 0);
-            assert(width > 0);
-            const int pixel_count = width * height;
-            assert(pixel_count > 0);
-
-            std::vector<Eigen::Triplet<double>> triplets;
-            triplets.reserve(static_cast<std::size_t>(pixel_count) * 5);
-
-            Eigen::VectorXd degrees = Eigen::VectorXd::Zero(pixel_count);
-
-            progress.report(domain::SegmentationStage::BuildingGraph, 0.0);
-            for (int row = 0; row < height; ++row) {
-                if (cancellation.stop_requested()) {
-                    return domain::Cancelled {};
-                }
-
-                for (int column = 0; column < width; ++column) {
-                    if ((column & 0x0fff) == 0
-                        && cancellation.stop_requested()) {
-                        return domain::Cancelled {};
-                    }
-
-                    const GridNodeIndex source_index = flatten(row, column, width);
-                    assert(source_index.value >= 0);
-                    assert(source_index.value < pixel_count);
-                    const std::uint8_t source_intensity = image.at(row, column);
-
-                    for (const ForwardGridDirection direction : kForwardDirections) {
-                        const auto [row_offset, column_offset] = offset(direction);
-                        const int neighbor_row = row + row_offset;
-                        const int neighbor_column = column + column_offset;
-
-                        if (!is_inside(neighbor_row, neighbor_column, height, width)) {
-                            continue;
-                        }
-
-                        const GridNodeIndex target_index =
-                            flatten(neighbor_row, neighbor_column, width);
-                        assert(target_index.value >= 0);
-                        assert(target_index.value < pixel_count);
-                        const double weight = compute_weight(
-                            source_intensity
-                            , image.at(neighbor_row, neighbor_column)
-                            , beta
-                        );
-
-                        add_undirected_edge(
-                            triplets
-                            , degrees
-                            , source_index
-                            , target_index
-                            , weight
-                        );
-                    }
-                }
-
-                progress.report(
-                    domain::SegmentationStage::BuildingGraph
-                    , static_cast<double>(row + 1)
-                        / static_cast<double>(height)
-                );
-            }
-
-            for (int index = 0; index < pixel_count; ++index) {
-                if (
-                    (index & 0x0fff) == 0
-                    && cancellation.stop_requested()
-                ) {
-                    return domain::Cancelled {};
-                }
-                const GridNodeIndex diagonal_index {
-                    .value = index
-                };
-                assert(diagonal_index.value >= 0);
-                assert(static_cast<Eigen::Index>(diagonal_index.value) < degrees.size());
-                triplets.emplace_back(
-                    diagonal_index.value
-                    , diagonal_index.value
-                    , degrees[diagonal_index.value]
-                );
-            }
-
-            if (cancellation.stop_requested()) {
-                return domain::Cancelled {};
-            }
-
-            Eigen::SparseMatrix<double> laplacian(pixel_count, pixel_count);
-            laplacian.setFromTriplets(triplets.begin(), triplets.end());
-            assert(laplacian.rows() == pixel_count);
-            assert(laplacian.cols() == pixel_count);
-
-            if (cancellation.stop_requested()) {
-                return domain::Cancelled {};
-            }
-
-            progress.report(domain::SegmentationStage::BuildingGraph, 1.0);
-            return laplacian;
-        }
     }
 
     GridLaplacianOutcome build_grid_laplacian(
@@ -222,11 +112,108 @@ namespace random_walker::graph {
         , const domain::CancellationToken& cancellation
         , const domain::ProgressReporter& progress
     ) {
-        return compute_grid_laplacian(
-            image
-            , beta
-            , cancellation
-            , progress
-        );
+        assert(!image.empty());
+        assert(std::isfinite(beta));
+        assert(beta > 0.0);
+
+        const int height = image.height();
+        const int width = image.width();
+        assert(height > 0);
+        assert(width > 0);
+        const int pixel_count = width * height;
+        assert(pixel_count > 0);
+
+        std::vector<Eigen::Triplet<double>> triplets;
+        triplets.reserve(static_cast<std::size_t>(pixel_count) * 5);
+
+        Eigen::VectorXd degrees = Eigen::VectorXd::Zero(pixel_count);
+
+        progress.report(domain::SegmentationStage::BuildingGraph, 0.0);
+        for (int row = 0; row < height; ++row) {
+            if (cancellation.stop_requested()) {
+                return domain::Cancelled {};
+            }
+
+            for (int column = 0; column < width; ++column) {
+                if (algorithm::should_poll_cancellation(static_cast<std::size_t>(column))
+                    && cancellation.stop_requested()) {
+                    return domain::Cancelled {};
+                }
+
+                const GridNodeIndex source_index = flatten(row, column, width);
+                assert(source_index.value >= 0);
+                assert(source_index.value < pixel_count);
+                const std::uint8_t source_intensity = image.at(row, column);
+
+                for (const ForwardGridDirection direction : kForwardDirections) {
+                    const auto [row_offset, column_offset] = offset(direction);
+                    const int neighbor_row = row + row_offset;
+                    const int neighbor_column = column + column_offset;
+
+                    if (!is_inside(neighbor_row, neighbor_column, height, width)) {
+                        continue;
+                    }
+
+                    const GridNodeIndex target_index =
+                        flatten(neighbor_row, neighbor_column, width);
+                    assert(target_index.value >= 0);
+                    assert(target_index.value < pixel_count);
+                    const double weight = compute_weight(
+                        source_intensity
+                        , image.at(neighbor_row, neighbor_column)
+                        , beta
+                    );
+
+                    add_undirected_edge(
+                        triplets
+                        , degrees
+                        , source_index
+                        , target_index
+                        , weight
+                    );
+                }
+            }
+
+            progress.report(
+                domain::SegmentationStage::BuildingGraph
+                , static_cast<double>(row + 1)
+                    / static_cast<double>(height)
+            );
+        }
+
+        for (int index = 0; index < pixel_count; ++index) {
+            if (
+                algorithm::should_poll_cancellation(static_cast<std::size_t>(index))
+                && cancellation.stop_requested()
+            ) {
+                return domain::Cancelled {};
+            }
+            const GridNodeIndex diagonal_index {
+                .value = index
+            };
+            assert(diagonal_index.value >= 0);
+            assert(static_cast<Eigen::Index>(diagonal_index.value) < degrees.size());
+            triplets.emplace_back(
+                diagonal_index.value
+                , diagonal_index.value
+                , degrees[diagonal_index.value]
+            );
+        }
+
+        if (cancellation.stop_requested()) {
+            return domain::Cancelled {};
+        }
+
+        Eigen::SparseMatrix<double> laplacian(pixel_count, pixel_count);
+        laplacian.setFromTriplets(triplets.begin(), triplets.end());
+        assert(laplacian.rows() == pixel_count);
+        assert(laplacian.cols() == pixel_count);
+
+        if (cancellation.stop_requested()) {
+            return domain::Cancelled {};
+        }
+
+        progress.report(domain::SegmentationStage::BuildingGraph, 1.0);
+        return laplacian;
     }
 }

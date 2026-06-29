@@ -43,6 +43,7 @@ set(HEADERS
     model/algorithm/BoundaryConditions.hpp
     model/algorithm/HarmonicSolver.hpp
     model/algorithm/IndexTypes.hpp
+    model/algorithm/IterationPolicy.hpp
     model/algorithm/NodePartition.hpp
     model/algorithm/PartitionedLaplacian.hpp
     model/algorithm/ProbabilityField.hpp
