@@ -12,6 +12,9 @@
 #include "infrastructure/logging/Logging.hpp"
 
 namespace {
+    constexpr int kExitSuccess = 0;
+    constexpr int kExitQmlLoadFailure = -1;
+
     class LoggingShutdownGuard final {
     public:
         ~LoggingShutdownGuard() {
@@ -53,7 +56,7 @@ int main(int argc, char* argv[]) {
         );
     }
 
-    int exit_code = 0;
+    int exit_code = kExitSuccess;
     {
         // The composition root must outlive the QML object tree because QML
         // bindings hold a non-owning reference to its ViewModel.
@@ -70,7 +73,7 @@ int main(int argc, char* argv[]) {
                 random_walker::application::log_category::application
                 , "QML root object creation failed"
             );
-            exit_code = -1;
+            exit_code = kExitQmlLoadFailure;
         } else {
             random_walker::application::log_info(
                 random_walker::application::log_category::application
