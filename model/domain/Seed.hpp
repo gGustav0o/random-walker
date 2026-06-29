@@ -36,7 +36,8 @@ namespace random_walker::domain {
 
     [[nodiscard]] inline int seed_pixel_count(
         std::span<const SeedRegion> regions
-        , SeedLabel label) noexcept {
+        , SeedLabel label
+    ) noexcept {
         int result = 0;
         for (const SeedRegion& region : regions) {
             if (region.label == label) {

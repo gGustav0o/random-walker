@@ -19,7 +19,8 @@ namespace random_walker::executor {
 
         JThreadSegmentationExecutor(const JThreadSegmentationExecutor&) = delete;
         JThreadSegmentationExecutor& operator=(
-            const JThreadSegmentationExecutor&) = delete;
+            const JThreadSegmentationExecutor&
+        ) = delete;
 
         void submit(
             domain::SegmentationRequest request

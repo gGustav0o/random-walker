@@ -18,10 +18,14 @@ private:
     // Dependencies are declared before their consumers. Reverse destruction
     // therefore guarantees:
     // ViewModel -> SettingsService -> SettingsRepository.
+
     random_walker::executor::JThreadSegmentationExecutor
         segmentation_executor_;
+
     random_walker::infrastructure::QSettingsRepository
         settings_repository_;
+
     random_walker::application::SettingsService settings_service_;
+
     std::unique_ptr<SegmentationViewModel> segmentation_view_model_;
 };

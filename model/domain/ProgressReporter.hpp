@@ -7,6 +7,7 @@
 #include <utility>
 
 namespace random_walker::domain {
+
     using SegmentationRequestId = std::uint64_t;
 
     enum class SegmentationStage {
@@ -44,7 +45,8 @@ namespace random_walker::domain {
 
         void report(
             SegmentationStage stage
-            , double fraction) const {
+            , double fraction
+        ) const {
             if (!handler_) {
                 return;
             }

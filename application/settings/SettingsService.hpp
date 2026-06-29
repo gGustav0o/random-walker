@@ -7,6 +7,7 @@
 #include "SettingsRepository.hpp"
 
 namespace random_walker::application {
+
     struct SettingsLoadResult {
         ApplicationSettings settings;
         bool repair_required = false;
@@ -20,14 +21,19 @@ namespace random_walker::application {
 
         [[nodiscard]] SettingsLoadResult load() const;
         [[nodiscard]] SettingsSaveOutcome save(
-            const ApplicationSettings& settings);
+            const ApplicationSettings& settings
+        );
 
     private:
         [[nodiscard]] static ApplicationSettings defaults();
+
         [[nodiscard]] static bool is_valid(
-            const ApplicationSettings& settings) noexcept;
+            const ApplicationSettings& settings
+        ) noexcept;
+
         [[nodiscard]] static ApplicationSettings normalize(
-            ApplicationSettings settings);
+            ApplicationSettings settings
+        );
 
         SettingsRepository& repository_;
     };

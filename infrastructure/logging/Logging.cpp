@@ -15,7 +15,9 @@
 #include "application/diagnostics/Logging.hpp"
 
 namespace random_walker::infrastructure {
+
     namespace {
+
         std::mutex logging_mutex;
         std::filesystem::path active_file_path;
         bool logging_initialized = false;

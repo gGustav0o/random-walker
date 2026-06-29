@@ -32,6 +32,7 @@ int main(int argc, char* argv[]) {
 
     const auto logging_error =
         random_walker::infrastructure::initialize_logging();
+
     const LoggingShutdownGuard logging_shutdown_guard;
     if (logging_error.has_value()) {
         qWarning().noquote()
@@ -61,7 +62,9 @@ int main(int argc, char* argv[]) {
         context = std::make_unique<AppContext>(engine);
 
         engine.load(QUrl(QStringLiteral(
-            "qrc:/qt/qml/random-walker/view/views/MainView.qml")));
+            "qrc:/qt/qml/random-walker/view/views/MainView.qml"
+        )));
+
         if (engine.rootObjects().isEmpty()) {
             random_walker::application::log_error(
                 "application"

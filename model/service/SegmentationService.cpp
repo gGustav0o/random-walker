@@ -25,8 +25,10 @@ namespace random_walker::service {
         };
 
         struct SeedPixelIndexHash {
-            [[nodiscard]] std::size_t operator()(
-                SeedPixelIndex index) const noexcept {
+            [[nodiscard]]
+            std::size_t operator()(
+                SeedPixelIndex index
+            ) const noexcept {
                 return std::hash<int> {}(index.value);
             }
         };
@@ -34,25 +36,31 @@ namespace random_walker::service {
         using BoundaryMarkerMap =
             std::unordered_map<SeedPixelIndex, BoundaryMarker, SeedPixelIndexHash>;
 
-        [[nodiscard]] constexpr BoundaryMarker marker_for(
-            domain::SeedLabel label) noexcept {
+        [[nodiscard]]
+        constexpr BoundaryMarker marker_for(
+            domain::SeedLabel label
+        ) noexcept {
             return label == domain::SeedLabel::Object
                 ? BoundaryMarker::Object
                 : BoundaryMarker::Background;
         }
 
-        [[nodiscard]] constexpr SeedPixelIndex flatten(
+        [[nodiscard]]
+        constexpr SeedPixelIndex flatten(
             int row
             , int column
-            , int width) noexcept {
+            , int width
+        ) noexcept {
             return SeedPixelIndex {
                 .value = row * width + column
             };
         }
 
-        [[nodiscard]] bool is_out_of_bounds(
+        [[nodiscard]]
+        bool is_out_of_bounds(
             const domain::PixelRectangle& area
-            , const domain::GrayImage& image) noexcept {
+            , const domain::GrayImage& image
+        ) noexcept {
             return area.width <= 0
                 || area.height <= 0
                 || area.x < 0
@@ -61,11 +69,13 @@ namespace random_walker::service {
                 || area.y > image.height() - area.height;
         }
 
-        [[nodiscard]] std::optional<domain::SegmentationError>
+        [[nodiscard]]
+        std::optional<domain::SegmentationError>
         mark_seed_region(
             BoundaryMarkerMap& markers
             , const domain::SeedRegion& region
-            , int image_width) {
+            , int image_width
+        ) {
             const BoundaryMarker marker = marker_for(region.label);
             const domain::PixelRectangle& area = region.area;
 
@@ -73,8 +83,10 @@ namespace random_walker::service {
                 for (int column = area.x; column < area.x + area.width; ++column) {
                     const SeedPixelIndex pixel_index =
                         flatten(row, column, image_width);
+
                     const auto [position, inserted] =
                         markers.emplace(pixel_index, marker);
+
                     if (!inserted && position->second != marker) {
                         return domain::SegmentationError::ConflictingSeedLabels;
                     }
@@ -117,13 +129,15 @@ namespace random_walker::service {
                     markers
                     , region
                     , request.image().width()
-                ); error.has_value()) {
+                ); error.has_value()
+            ) {
                 return *error;
             }
 
             has_background_seed =
                 has_background_seed
                 || region.label == domain::SeedLabel::Background;
+
             has_object_seed =
                 has_object_seed
                 || region.label == domain::SeedLabel::Object;
@@ -142,7 +156,8 @@ namespace random_walker::service {
     domain::SegmentationOutcome SegmentationService::segment(
         const domain::SegmentationRequest& request
         , domain::CancellationToken cancellation
-        , const domain::ProgressReporter& progress) const {
+        , const domain::ProgressReporter& progress
+    ) const {
         if (cancellation.stop_requested()) {
             return domain::Cancelled {};
         }
@@ -159,11 +174,13 @@ namespace random_walker::service {
                 , cancellation
                 , progress
             );
+
         if (std::holds_alternative<domain::Cancelled>(expansion)) {
             return domain::Cancelled {};
         }
         const std::vector<domain::Seed>& seeds =
             std::get<std::vector<domain::Seed>>(expansion);
+
         const domain::SegmentationInput input {
             request.image()
             , seeds

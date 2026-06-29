@@ -14,8 +14,10 @@
 #include "Seed.hpp"
 
 namespace random_walker::domain {
+
     using ProbabilityMap = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>;
     using BinaryMask = Eigen::Matrix<std::uint8_t, Eigen::Dynamic, Eigen::Dynamic>;
+
     class SegmentationRequest final {
     public:
         SegmentationRequest(
@@ -27,8 +29,7 @@ namespace random_walker::domain {
             : request_id_(request_id)
             , image_(std::move(image))
             , seed_regions_(std::move(seed_regions))
-            , parameters_(parameters) {
-        }
+            , parameters_(parameters) {}
 
         SegmentationRequest(const SegmentationRequest&) = default;
         SegmentationRequest(SegmentationRequest&&) noexcept = default;

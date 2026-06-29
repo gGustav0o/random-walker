@@ -12,8 +12,10 @@
 AppContext::AppContext(QQmlApplicationEngine& engine)
     : settings_repository_(
         QStringLiteral("random-walker")
-        , QStringLiteral("random-walker"))
-    , settings_service_(settings_repository_) {
+        , QStringLiteral("random-walker")
+    )
+    , settings_service_(settings_repository_)
+{
     random_walker::application::log_info(
         "bootstrap"
         , "Creating application context"

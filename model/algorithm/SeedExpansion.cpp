@@ -28,15 +28,18 @@ namespace random_walker::algorithm {
             }
             for (int row = region.area.y;
                  row < region.area.y + region.area.height;
-                 ++row) {
+                 ++row
+            ) {
                 if (cancellation.stop_requested()) {
                     return domain::Cancelled {};
                 }
                 for (int column = region.area.x;
                      column < region.area.x + region.area.width;
-                     ++column) {
+                     ++column
+                ) {
                     if ((column & 0x0fff) == 0
-                        && cancellation.stop_requested()) {
+                        && cancellation.stop_requested()
+                    ) {
                         return domain::Cancelled {};
                     }
                     result.push_back({

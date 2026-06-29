@@ -22,6 +22,7 @@ namespace random_walker::executor {
 
     using SegmentationCompletionHandler =
         std::function<void(SegmentationCompletion)>;
+
     using SegmentationProgressHandler =
         std::function<void(domain::SegmentationProgress)>;
 

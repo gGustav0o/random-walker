@@ -27,9 +27,11 @@ namespace random_walker::algorithm {
             if (cancellation.stop_requested()) {
                 return domain::Cancelled {};
             }
-            for (Eigen::SparseMatrix<double>::InnerIterator entry(laplacian, outer);
+            for (
+                Eigen::SparseMatrix<double>::InnerIterator entry(laplacian, outer);
                  entry;
-                 ++entry) {
+                 ++entry
+            ) {
                 const PixelIndex row_pixel {
                     .value = static_cast<int>(entry.row())
                 };
@@ -39,6 +41,7 @@ namespace random_walker::algorithm {
 
                 const auto row =
                     node_partition.unknown_index_by_pixel.find(row_pixel);
+
                 if (row == node_partition.unknown_index_by_pixel.end()) {
                     continue;
                 }

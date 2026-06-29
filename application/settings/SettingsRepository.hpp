@@ -3,6 +3,7 @@
 #include "ApplicationSettings.hpp"
 
 namespace random_walker::application {
+
     struct SettingsRepositoryLoadResult {
         ApplicationSettings settings;
         bool repair_required = false;
@@ -13,7 +14,6 @@ namespace random_walker::application {
         virtual ~SettingsRepository() = default;
 
         [[nodiscard]] virtual SettingsRepositoryLoadResult load() const = 0;
-        [[nodiscard]] virtual bool save(
-            const ApplicationSettings& settings) = 0;
+        [[nodiscard]] virtual bool save(const ApplicationSettings& settings) = 0;
     };
 }

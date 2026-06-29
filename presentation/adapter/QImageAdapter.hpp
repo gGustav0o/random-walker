@@ -7,6 +7,7 @@
 #include "model/domain/GrayImage.hpp"
 
 namespace random_walker::qt_adapter {
+
     [[nodiscard]] inline domain::GrayImage to_gray_image(const QImage& image) {
         const QImage grayscale = image.convertToFormat(QImage::Format_Grayscale8);
         const int width = grayscale.width();

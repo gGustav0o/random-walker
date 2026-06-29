@@ -3,9 +3,11 @@
 #include <variant>
 
 namespace random_walker::presentation {
+
     namespace {
         [[nodiscard]] QString application_error_message(
-            application::ApplicationError error) {
+            application::ApplicationError error
+        ) {
             using Error = application::ApplicationError;
 
             switch (error) {
@@ -17,7 +19,8 @@ namespace random_walker::presentation {
         }
 
         [[nodiscard]] QString image_load_error_message(
-            application::ImageLoadError error) {
+            application::ImageLoadError error
+        ) {
             using Error = application::ImageLoadError;
 
             switch (error) {
@@ -29,7 +32,8 @@ namespace random_walker::presentation {
         }
 
         [[nodiscard]] QString settings_error_message(
-            application::SettingsError error) {
+            application::SettingsError error
+        ) {
             using Error = application::SettingsError;
 
             switch (error) {
@@ -43,7 +47,8 @@ namespace random_walker::presentation {
         }
 
         [[nodiscard]] QString segmentation_error_message(
-            domain::SegmentationError error) {
+            domain::SegmentationError error
+        ) {
             using Error = domain::SegmentationError;
 
             switch (error) {
@@ -75,19 +80,26 @@ namespace random_walker::presentation {
 
     QString error_message(const application::UserError& error) {
         if (const auto* application_error =
-                std::get_if<application::ApplicationError>(&error)) {
+                std::get_if<application::ApplicationError>(&error)
+        ) {
             return application_error_message(*application_error);
         }
+
         if (const auto* image_load_error =
-                std::get_if<application::ImageLoadError>(&error)) {
+                std::get_if<application::ImageLoadError>(&error)
+        ) {
             return image_load_error_message(*image_load_error);
         }
+
         if (const auto* settings_error =
-                std::get_if<application::SettingsError>(&error)) {
+                std::get_if<application::SettingsError>(&error)
+        ) {
             return settings_error_message(*settings_error);
         }
+
         if (const auto* segmentation_error =
-                std::get_if<domain::SegmentationError>(&error)) {
+                std::get_if<domain::SegmentationError>(&error)
+        ) {
             return segmentation_error_message(*segmentation_error);
         }
 

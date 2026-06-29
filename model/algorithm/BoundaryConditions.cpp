@@ -7,7 +7,8 @@ namespace random_walker::algorithm {
         [[nodiscard]] constexpr PixelIndex flatten(
             int row
             , int column
-            , int width) noexcept {
+            , int width
+        ) noexcept {
             return PixelIndex {
                 .value = row * width + column
             };
@@ -16,7 +17,8 @@ namespace random_walker::algorithm {
         void assign_boundary_value(
             BoundaryConditions& conditions
             , PixelIndex pixel_index
-            , double value) {
+            , double value)
+        {
             if (!conditions.value_by_pixel.contains(pixel_index)) {
                 conditions.pixels.push_back(pixel_index);
             }

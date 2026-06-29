@@ -8,13 +8,16 @@
 namespace random_walker::service {
     class SegmentationService final {
     public:
-        [[nodiscard]] domain::SegmentationOutcome segment(
+        [[nodiscard]]
+        domain::SegmentationOutcome segment(
             const domain::SegmentationRequest& request
             , domain::CancellationToken cancellation = {}
             , const domain::ProgressReporter& progress = {}
         ) const;
 
-        [[nodiscard]] static std::optional<domain::SegmentationError> validate(
-            const domain::SegmentationRequest& request);
+        [[nodiscard]]
+        static std::optional<domain::SegmentationError> validate(
+            const domain::SegmentationRequest& request
+        );
     };
 }

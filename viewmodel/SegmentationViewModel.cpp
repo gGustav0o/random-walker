@@ -16,13 +16,16 @@
 #include "presentation/image/ImageLoader.hpp"
 
 namespace {
+
     const double kMinimumBetaExponent =
         std::log10(random_walker::domain::kMinimumRandomWalkerBeta);
+
     const double kMaximumBetaExponent =
         std::log10(random_walker::domain::kMaximumRandomWalkerBeta);
 
     [[nodiscard]] random_walker::application::ApplicationError
-    application_error(random_walker::executor::ExecutionError error) noexcept {
+    application_error(random_walker::executor::ExecutionError error
+    ) noexcept {
         using Error = random_walker::executor::ExecutionError;
 
         switch (error) {
@@ -229,9 +232,12 @@ void SegmentationViewModel::open_image(const QString& path) {
 
     random_walker::presentation::ImageLoadOutcome load_outcome =
         random_walker::presentation::load_image(path);
-    if (const auto* error =
+    if (
+        const auto* error =
             std::get_if<random_walker::application::ImageLoadError>(
-                &load_outcome)) {
+                &load_outcome
+            )
+    ) {
         random_walker::application::log_warning(
             "viewmodel"
             , "Image loading failed"
@@ -416,6 +422,7 @@ void SegmentationViewModel::run_segmentation() {
 
     const std::shared_ptr<CompletionDeliveryGate> delivery_gate =
         completion_delivery_;
+
     segmentation_executor_.submit(
         std::move(request)
         , [delivery_gate](random_walker::domain::SegmentationProgress progress
@@ -481,7 +488,8 @@ void SegmentationViewModel::dispatch_completion(
 ) {
     auto payload =
         std::make_shared<random_walker::executor::SegmentationCompletion>(
-            std::move(completion));
+            std::move(completion)
+        );
 
     std::lock_guard lock(delivery_gate->mutex);
     SegmentationViewModel* receiver = delivery_gate->receiver;
@@ -538,9 +546,12 @@ void SegmentationViewModel::handle_completion(
     active_request_id_.reset();
     set_busy(false);
 
-    if (auto* execution_error =
+    if (
+        auto* execution_error =
             std::get_if<random_walker::executor::ExecutionError>(
-                &completion.outcome)) {
+                &completion.outcome
+            )
+    ) {
         random_walker::application::log_error(
             "viewmodel"
             , "Segmentation finished with executor error"
@@ -553,7 +564,9 @@ void SegmentationViewModel::handle_completion(
 
     auto* segmentation_outcome =
         std::get_if<random_walker::domain::SegmentationOutcome>(
-            &completion.outcome);
+            &completion.outcome
+        );
+
     if (!segmentation_outcome) {
         random_walker::application::log_warning(
             "viewmodel"
@@ -568,18 +581,23 @@ void SegmentationViewModel::handle_completion(
         return;
     }
 
-    if (auto* segmentation_result =
+    if (
+        auto* segmentation_result =
             std::get_if<random_walker::domain::SegmentationResult>(
-                segmentation_outcome)) {
+                segmentation_outcome
+            )
+    ) {
         random_walker::application::log_info(
             "viewmodel"
             , "Segmentation completed successfully"
         );
         result_state_.set(std::move(*segmentation_result));
         emit result_changed();
-    } else if (auto* error =
-                   std::get_if<random_walker::domain::SegmentationError>(
-                       segmentation_outcome)) {
+    } else if (
+        auto* error = std::get_if<random_walker::domain::SegmentationError>(
+            segmentation_outcome
+        )
+    ) {
         random_walker::application::log_warning(
             "viewmodel"
             , "Segmentation finished with domain error"
@@ -601,8 +619,10 @@ void SegmentationViewModel::handle_progress(
     random_walker::domain::SegmentationProgress progress) {
     assert_ui_thread();
 
-    if (!active_request_id_.has_value()
-        || *active_request_id_ != progress.request_id) {
+    if (
+        !active_request_id_.has_value()
+        || *active_request_id_ != progress.request_id
+    ) {
         return;
     }
 

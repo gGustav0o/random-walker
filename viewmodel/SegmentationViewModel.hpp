@@ -21,49 +21,48 @@
 
 class SegmentationViewModel final : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QString image_source READ image_source NOTIFY image_source_changed)
-    Q_PROPERTY(bool image_loaded READ image_loaded NOTIFY image_loaded_changed)
-    Q_PROPERTY(int image_width READ image_width NOTIFY image_dimensions_changed)
-    Q_PROPERTY(int image_height READ image_height NOTIFY image_dimensions_changed)
-    Q_PROPERTY(quint64 image_version READ image_version NOTIFY image_version_changed)
-    Q_PROPERTY(bool can_run READ can_run NOTIFY can_run_changed)
-    Q_PROPERTY(bool busy READ busy NOTIFY busy_changed)
-    Q_PROPERTY(int progress_stage READ progress_stage NOTIFY progress_changed)
-    Q_PROPERTY(double progress_fraction READ progress_fraction
-        NOTIFY progress_changed)
-    Q_PROPERTY(bool progress_indeterminate READ progress_indeterminate
-        NOTIFY progress_changed)
-    Q_PROPERTY(QString status_text READ status_text NOTIFY progress_changed)
-    Q_PROPERTY(double beta READ beta WRITE set_beta NOTIFY beta_changed)
-    Q_PROPERTY(double beta_slider_position READ beta_slider_position
-        WRITE set_beta_slider_position NOTIFY beta_changed)
-    Q_PROPERTY(bool has_result READ has_result NOTIFY result_changed)
-    Q_PROPERTY(QString result_source READ result_source NOTIFY result_changed)
-    Q_PROPERTY(quint64 result_version READ result_version NOTIFY result_changed)
+    Q_PROPERTY(QString image_source           READ image_source           NOTIFY image_source_changed)
+    Q_PROPERTY(bool    image_loaded           READ image_loaded           NOTIFY image_loaded_changed)
+    Q_PROPERTY(int     image_height           READ image_height           NOTIFY image_dimensions_changed)
+    Q_PROPERTY(int     image_width            READ image_width            NOTIFY image_dimensions_changed)
+    Q_PROPERTY(quint64 image_version          READ image_version          NOTIFY image_version_changed)
+    Q_PROPERTY(bool    can_run                READ can_run                NOTIFY can_run_changed)
+    Q_PROPERTY(bool    busy                   READ busy                   NOTIFY busy_changed)
+    Q_PROPERTY(int     progress_stage         READ progress_stage         NOTIFY progress_changed)
+    Q_PROPERTY(double  progress_fraction      READ progress_fraction      NOTIFY progress_changed)
+    Q_PROPERTY(bool    progress_indeterminate READ progress_indeterminate NOTIFY progress_changed)
+    Q_PROPERTY(QString status_text            READ status_text            NOTIFY progress_changed)
+    Q_PROPERTY(bool    has_result             READ has_result             NOTIFY result_changed)
+    Q_PROPERTY(QString result_source          READ result_source          NOTIFY result_changed)
+    Q_PROPERTY(quint64 result_version         READ result_version         NOTIFY result_changed)
+    Q_PROPERTY(QString error_message          READ error_message          NOTIFY error_message_changed)
+    Q_PROPERTY(int     background_seed_count  READ background_seed_count  NOTIFY seeds_changed)
+    Q_PROPERTY(int     object_seed_count      READ object_seed_count      NOTIFY seeds_changed)
+
+    Q_PROPERTY(double  beta                   READ beta                 WRITE set_beta                 NOTIFY beta_changed)
+    Q_PROPERTY(double  beta_slider_position   READ beta_slider_position WRITE set_beta_slider_position NOTIFY beta_changed)
+    Q_PROPERTY(int     selected_label         READ selected_label       WRITE set_selected_label       NOTIFY selected_label_changed)
+
     Q_PROPERTY(QAbstractItemModel* seed_model READ seed_model CONSTANT)
-    Q_PROPERTY(int selected_label READ selected_label WRITE set_selected_label NOTIFY selected_label_changed)
-    Q_PROPERTY(QString error_message READ error_message NOTIFY error_message_changed)
-    Q_PROPERTY(int background_seed_count READ background_seed_count NOTIFY seeds_changed)
-    Q_PROPERTY(int object_seed_count READ object_seed_count NOTIFY seeds_changed)
 
 public:
     enum SeedLabel {
         Background = 0
-        , Object = 1
+        , Object   = 1
     };
     Q_ENUM(SeedLabel)
 
     enum ProgressStage {
-        Idle = ProgressState::Idle
-        , ValidatingInput = ProgressState::ValidatingInput
-        , ExpandingSeeds = ProgressState::ExpandingSeeds
-        , BuildingGraph = ProgressState::BuildingGraph
+        Idle                         = ProgressState::Idle
+        , ValidatingInput            = ProgressState::ValidatingInput
+        , ExpandingSeeds             = ProgressState::ExpandingSeeds
+        , BuildingGraph              = ProgressState::BuildingGraph
         , BuildingBoundaryConditions = ProgressState::BuildingBoundaryConditions
-        , PartitioningSystem = ProgressState::PartitioningSystem
-        , Factorizing = ProgressState::Factorizing
-        , Solving = ProgressState::Solving
-        , AssemblingProbabilities = ProgressState::AssemblingProbabilities
-        , Thresholding = ProgressState::Thresholding
+        , PartitioningSystem         = ProgressState::PartitioningSystem
+        , Factorizing                = ProgressState::Factorizing
+        , Solving                    = ProgressState::Solving
+        , AssemblingProbabilities    = ProgressState::AssemblingProbabilities
+        , Thresholding               = ProgressState::Thresholding
     };
     Q_ENUM(ProgressStage)
 
@@ -126,8 +125,11 @@ private:
     struct CompletionDeliveryGate;
 
     [[nodiscard]] DomainSeedLabel domain_seed_label() const noexcept;
+
     void update_random_walker_parameters(
-        random_walker::domain::RandomWalkerParameters parameters);
+        random_walker::domain::RandomWalkerParameters parameters
+    );
+
     static void dispatch_completion(
         const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
         , random_walker::executor::SegmentationCompletion completion
@@ -137,9 +139,11 @@ private:
         , random_walker::domain::SegmentationProgress progress
     );
     void handle_completion(
-        random_walker::executor::SegmentationCompletion completion);
+        random_walker::executor::SegmentationCompletion completion
+    );
     void handle_progress(
-        random_walker::domain::SegmentationProgress progress);
+        random_walker::domain::SegmentationProgress progress
+    );
     void assert_ui_thread() const;
     void cancel_active_request();
     void clear_seed_regions();

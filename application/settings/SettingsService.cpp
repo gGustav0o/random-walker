@@ -17,7 +17,8 @@ namespace random_walker::application {
     }
 
     SettingsSaveOutcome SettingsService::save(
-        const ApplicationSettings& settings) {
+        const ApplicationSettings& settings
+    ) {
         if (!is_valid(settings)) {
             return SettingsError::InvalidSettings;
         }
@@ -34,12 +35,14 @@ namespace random_walker::application {
     }
 
     bool SettingsService::is_valid(
-        const ApplicationSettings& settings) noexcept {
+        const ApplicationSettings& settings
+    ) noexcept {
         return domain::is_valid(settings.random_walker);
     }
 
     ApplicationSettings SettingsService::normalize(
-        ApplicationSettings settings) {
+        ApplicationSettings settings
+    ) {
         const ApplicationSettings default_settings = defaults();
         if (!is_valid(settings)) {
             settings.random_walker = default_settings.random_walker;

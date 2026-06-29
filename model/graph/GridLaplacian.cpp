@@ -25,8 +25,10 @@ namespace random_walker::graph {
             , ForwardGridDirection::Down
         };
 
-        [[nodiscard]] constexpr std::pair<int, int> offset(
-            ForwardGridDirection direction) noexcept {
+        [[nodiscard]]
+        constexpr std::pair<int, int> offset(
+            ForwardGridDirection direction
+        ) noexcept {
             switch (direction) {
             case ForwardGridDirection::Right:
                 return { 0, 1 };
@@ -37,7 +39,8 @@ namespace random_walker::graph {
             return { 0, 0 };
         }
 
-        [[nodiscard]] constexpr bool is_inside(
+        [[nodiscard]]
+        constexpr bool is_inside(
             int row
             , int column
             , int height
@@ -45,19 +48,23 @@ namespace random_walker::graph {
             return row >= 0 && row < height && column >= 0 && column < width;
         }
 
-        [[nodiscard]] constexpr GridNodeIndex flatten(
+        [[nodiscard]]
+        constexpr GridNodeIndex flatten(
             int row
             , int column
-            , int width) noexcept {
+            , int width
+        ) noexcept {
             return GridNodeIndex {
                 .value = row * width + column
             };
         }
 
-        [[nodiscard]] double compute_weight(
+        [[nodiscard]]
+        double compute_weight(
             std::uint8_t first_intensity
             , std::uint8_t second_intensity
-            , double beta) noexcept {
+            , double beta
+        ) noexcept {
             const double difference =
                 static_cast<double>(first_intensity)
                 - static_cast<double>(second_intensity);
@@ -69,14 +76,16 @@ namespace random_walker::graph {
             , Eigen::VectorXd& degrees
             , GridNodeIndex first_index
             , GridNodeIndex second_index
-            , double weight) {
+            , double weight
+        ) {
             triplets.emplace_back(first_index.value, second_index.value, -weight);
             triplets.emplace_back(second_index.value, first_index.value, -weight);
             degrees[first_index.value] += weight;
             degrees[second_index.value] += weight;
         }
 
-        [[nodiscard]] GridLaplacianOutcome compute_grid_laplacian(
+        [[nodiscard]]
+        GridLaplacianOutcome compute_grid_laplacian(
             const domain::GrayImage& image
             , double beta
             , const domain::CancellationToken& cancellation
@@ -141,8 +150,10 @@ namespace random_walker::graph {
             }
 
             for (int index = 0; index < pixel_count; ++index) {
-                if ((index & 0x0fff) == 0
-                    && cancellation.stop_requested()) {
+                if (
+                    (index & 0x0fff) == 0
+                    && cancellation.stop_requested()
+                ) {
                     return domain::Cancelled {};
                 }
                 const GridNodeIndex diagonal_index {

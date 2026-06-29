@@ -20,7 +20,8 @@ namespace random_walker::qt_adapter {
                     , row
                     , mask(row, column) == 1
                         ? object_color
-                        : background_color);
+                        : background_color
+                );
             }
         }
 

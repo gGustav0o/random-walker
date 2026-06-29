@@ -13,9 +13,11 @@
 #include "model/graph/GridLaplacian.hpp"
 
 namespace random_walker::algorithm {
+
     namespace {
         [[nodiscard]] bool is_cancelled(
-            const auto& outcome) {
+            const auto& outcome
+        ) {
             return std::holds_alternative<domain::Cancelled>(outcome);
         }
 
@@ -47,6 +49,7 @@ namespace random_walker::algorithm {
                     , cancellation
                     , progress
                 );
+
             if (is_cancelled(probabilities_outcome)) {
                 return domain::Cancelled {};
             }

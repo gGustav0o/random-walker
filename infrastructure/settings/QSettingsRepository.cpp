@@ -6,6 +6,7 @@
 #include <QVariant>
 
 namespace {
+
     constexpr int kCurrentSchemaVersion = 1;
 
     constexpr auto kSettingsGroup = "applicationSettings";
@@ -26,6 +27,7 @@ namespace {
 }
 
 namespace random_walker::infrastructure {
+
     QSettingsRepository::QSettingsRepository(
         QString organization_name
         , QString application_name
@@ -45,8 +47,7 @@ namespace random_walker::infrastructure {
         : settings_(std::move(file_name), format) {
     }
 
-    application::SettingsRepositoryLoadResult QSettingsRepository::load()
-        const {
+    application::SettingsRepositoryLoadResult QSettingsRepository::load() const {
         settings_.beginGroup(kSettingsGroup);
 
         bool converted = false;
@@ -54,6 +55,7 @@ namespace random_walker::infrastructure {
             settings_.value(kSchemaVersionKey).toInt(&converted);
 
         application::SettingsRepositoryLoadResult result;
+
         if (converted && schema_version == kCurrentSchemaVersion) {
             result.settings = load_current_schema();
         } else if (!converted || schema_version < kCurrentSchemaVersion) {
@@ -102,7 +104,8 @@ namespace random_walker::infrastructure {
     }
 
     void QSettingsRepository::write_current_schema(
-        const application::ApplicationSettings& application_settings) const {
+        const application::ApplicationSettings& application_settings
+    ) const {
         settings_.remove(QString{});
         settings_.setValue(
             kRandomWalkerBetaKey

@@ -9,35 +9,42 @@ namespace random_walker::executor {
         class ProgressThrottle final {
         public:
             [[nodiscard]] bool should_emit(
-                const domain::SegmentationProgress& progress) {
+                const domain::SegmentationProgress& progress
+            ) {
                 const auto now = Clock::now();
                 const bool stage_changed =
                     !last_stage_.has_value()
                     || *last_stage_ != progress.stage;
+
                 const bool mode_changed =
                     !last_fraction_state_.has_value()
                     || *last_fraction_state_
                         != progress.fraction.has_value();
+
                 const bool stage_completed =
                     progress.fraction.has_value()
                     && *progress.fraction >= 1.0
                     && (!last_fraction_.has_value()
                         || *last_fraction_ < 1.0);
+
                 const bool interval_elapsed =
                     !last_emission_.has_value()
                     || now - *last_emission_ >= kMinimumInterval;
 
-                if (!stage_changed
+                if (
+                    !stage_changed
                     && !mode_changed
                     && !stage_completed
-                    && !interval_elapsed) {
+                    && !interval_elapsed
+                ) {
                     return false;
                 }
 
-                last_stage_ = progress.stage;
+                last_stage_          = progress.stage;
                 last_fraction_state_ = progress.fraction.has_value();
-                last_fraction_ = progress.fraction;
-                last_emission_ = now;
+                last_fraction_       = progress.fraction;
+                last_emission_       = now;
+
                 return true;
             }
 
@@ -72,6 +79,7 @@ namespace random_walker::executor {
     ) {
         const domain::SegmentationRequestId request_id =
             request.request_id();
+
         auto task = std::make_unique<Task>(Task {
             .request = std::move(request)
             , .progress_handler = std::move(progress_handler)
@@ -128,14 +136,18 @@ namespace random_walker::executor {
 
             const domain::SegmentationRequestId request_id =
                 task->request.request_id();
+
             ProgressThrottle progress_throttle;
             const domain::ProgressReporter progress_reporter(
                 request_id
-                , [this
-                 , request_id
-                 , &progress_throttle
-                 , &progress_handler = task->progress_handler](
-                    domain::SegmentationProgress progress) {
+                , [
+                    this
+                    , request_id
+                    , &progress_throttle
+                    , &progress_handler = task->progress_handler
+                ](
+                    domain::SegmentationProgress progress
+                ) {
                     if (!progress_throttle.should_emit(progress)) {
                         return;
                     }
@@ -146,6 +158,7 @@ namespace random_walker::executor {
                         const bool is_latest =
                             latest_request_id_.has_value()
                             && *latest_request_id_ == request_id;
+
                         if (is_latest) {
                             current_handler = progress_handler;
                         }
@@ -161,7 +174,8 @@ namespace random_walker::executor {
                 outcome = segmentation_service_.segment(
                     task->request
                     , domain::CancellationToken(
-                        task_stop_source.get_token())
+                        task_stop_source.get_token()
+                    )
                     , progress_reporter
                 );
             } catch (...) {
@@ -181,6 +195,7 @@ namespace random_walker::executor {
                 const bool is_latest =
                     latest_request_id_.has_value()
                     && *latest_request_id_ == completion.request_id;
+
                 if (is_latest && !thread_stop.stop_requested()) {
                     completion_handler =
                         std::move(task->completion_handler);

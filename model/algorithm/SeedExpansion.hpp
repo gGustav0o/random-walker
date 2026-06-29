@@ -9,6 +9,7 @@
 #include "model/domain/Seed.hpp"
 
 namespace random_walker::algorithm {
+
     using SeedExpansionOutcome = std::variant<
         std::vector<domain::Seed>
         , domain::Cancelled

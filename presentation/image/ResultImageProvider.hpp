@@ -8,17 +8,19 @@
 
 class ResultImageProvider final
     : public QQuickImageProvider
-    , public PresentationImageCache {
+    , public PresentationImageCache
+{
+
 public:
     ResultImageProvider()
-        : QQuickImageProvider(QQuickImageProvider::Image) {
-    }
+        : QQuickImageProvider(QQuickImageProvider::Image) {}
 
     QImage requestImage(
         const QString& id
         , QSize* size
         , const QSize& requested_size
     ) override;
+
     void store(const QImage& image) override;
     void clear() override;
 
