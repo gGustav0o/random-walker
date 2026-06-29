@@ -34,7 +34,8 @@ namespace random_walker::infrastructure {
 #endif
         }
 
-        [[nodiscard]] std::filesystem::path default_log_directory() {
+        [[nodiscard]]
+        std::filesystem::path default_log_directory() {
             const QString location = QStandardPaths::writableLocation(
                 QStandardPaths::AppLocalDataLocation
             );
@@ -46,7 +47,8 @@ namespace random_walker::infrastructure {
             return std::filesystem::current_path() / "logs";
         }
 
-        [[nodiscard]] spdlog::level::level_enum to_spdlog_level(
+        [[nodiscard]]
+        spdlog::level::level_enum to_spdlog_level(
             LogLevel level
         ) noexcept {
             switch (level) {
@@ -74,7 +76,8 @@ namespace random_walker::infrastructure {
             return spdlog::level::info;
         }
 
-        [[nodiscard]] spdlog::level::level_enum to_spdlog_level(
+        [[nodiscard]]
+        spdlog::level::level_enum to_spdlog_level(
             application::LogLevel level
         ) noexcept {
             switch (level) {
@@ -94,6 +97,30 @@ namespace random_walker::infrastructure {
                 , "Unhandled application log level"
             );
             return spdlog::level::info;
+        }
+
+        [[nodiscard]]
+        std::shared_ptr<spdlog::logger> create_rotating_logger(
+            const std::filesystem::path& log_file_path
+            , const LoggingConfig& config
+        ) {
+            auto sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+                log_file_path.string()
+                , config.max_file_size_bytes
+                , config.max_files
+            );
+            sink->set_level(to_spdlog_level(config.level));
+
+            auto logger = std::make_shared<spdlog::logger>(
+                "random-walker"
+                , std::move(sink)
+            );
+            logger->set_level(to_spdlog_level(config.level));
+            logger->set_pattern(
+                "[%Y-%m-%d %H:%M:%S.%e] [%t] [%n] [%^%l%$] %v"
+            );
+            logger->flush_on(spdlog::level::warn);
+            return logger;
         }
 
         void write_log_message(
@@ -171,22 +198,7 @@ namespace random_walker::infrastructure {
             config.log_directory / config.log_file_name;
 
         try {
-            auto sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-                log_file_path.string()
-                , config.max_file_size_bytes
-                , config.max_files
-            );
-            sink->set_level(to_spdlog_level(config.level));
-
-            auto logger = std::make_shared<spdlog::logger>(
-                "random-walker"
-                , std::move(sink)
-            );
-            logger->set_level(to_spdlog_level(config.level));
-            logger->set_pattern(
-                "[%Y-%m-%d %H:%M:%S.%e] [%t] [%n] [%^%l%$] %v"
-            );
-            logger->flush_on(spdlog::level::warn);
+            auto logger = create_rotating_logger(log_file_path, config);
 
             std::lock_guard lock(logging_mutex);
             spdlog::set_default_logger(std::move(logger));

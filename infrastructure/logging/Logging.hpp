@@ -28,6 +28,8 @@ namespace random_walker::infrastructure {
         std::string log_file_name = "random-walker.log";
         std::size_t max_file_size_bytes = 5U * 1024U * 1024U;
         std::size_t max_files = 5U;
+        // Single application-wide minimum level. Per-category and per-sink
+        // overrides are intentionally not modeled yet.
         LogLevel level = LogLevel::Info;
     };
 
