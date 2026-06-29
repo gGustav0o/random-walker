@@ -1,0 +1,385 @@
+#include <cmath>
+#include <cstdint>
+#include <initializer_list>
+#include <stop_token>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include <Eigen/Sparse>
+#include <QtTest>
+
+#include "model/algorithm/BoundaryConditions.hpp"
+#include "model/algorithm/NodePartition.hpp"
+#include "model/algorithm/PartitionedLaplacian.hpp"
+#include "model/algorithm/ProbabilityField.hpp"
+#include "model/algorithm/SeedExpansion.hpp"
+#include "model/domain/Cancellation.hpp"
+#include "model/domain/GrayImage.hpp"
+#include "model/domain/ProgressReporter.hpp"
+#include "model/domain/Seed.hpp"
+#include "model/domain/Segmentation.hpp"
+#include "model/graph/GridLaplacian.hpp"
+
+namespace algorithm = random_walker::algorithm;
+namespace domain = random_walker::domain;
+namespace graph = random_walker::graph;
+
+namespace {
+    [[nodiscard]] domain::GrayImage make_image(
+        int height
+        , int width
+        , std::initializer_list<std::uint8_t> values
+    ) {
+        domain::GrayImageMatrix pixels(height, width);
+        auto value = values.begin();
+        for (int row = 0; row < height; ++row) {
+            for (int column = 0; column < width; ++column) {
+                pixels(row, column) = *value;
+                ++value;
+            }
+        }
+        return domain::GrayImage(std::move(pixels));
+    }
+
+    [[nodiscard]] domain::CancellationToken cancelled_token() {
+        std::stop_source source;
+        source.request_stop();
+        return domain::CancellationToken(source.get_token());
+    }
+
+    [[nodiscard]] bool is_cancelled(const auto& outcome) {
+        return std::holds_alternative<domain::Cancelled>(outcome);
+    }
+
+    [[nodiscard]] double coefficient(
+        const Eigen::SparseMatrix<double>& matrix
+        , int row
+        , int column
+    ) {
+        return matrix.coeff(row, column);
+    }
+
+    [[nodiscard]] algorithm::BoundaryConditions boundary_conditions_for_2x2() {
+        algorithm::BoundaryConditions conditions;
+        conditions.pixels = {
+            algorithm::PixelIndex {.value = 0},
+            algorithm::PixelIndex {.value = 3}
+        };
+        conditions.value_by_pixel.emplace(
+            algorithm::PixelIndex {.value = 0}
+            , 0.0
+        );
+        conditions.value_by_pixel.emplace(
+            algorithm::PixelIndex {.value = 3}
+            , 1.0
+        );
+        return conditions;
+    }
+}
+
+class AlgorithmTests final : public QObject {
+    Q_OBJECT
+
+private slots:
+    void expands_seed_regions_in_row_major_order();
+    void seed_expansion_honors_cancellation();
+    void builds_boundary_conditions_with_expected_values();
+    void boundary_value_vector_follows_boundary_pixel_order();
+    void partitions_boundary_and_unknown_pixels();
+    void partitions_laplacian_into_unknown_blocks();
+    void assembles_probability_map_from_boundary_and_unknown_values();
+    void thresholds_probabilities_at_half();
+    void grid_laplacian_has_expected_2x2_structure();
+    void grid_laplacian_beta_changes_edge_weight();
+};
+
+void AlgorithmTests::expands_seed_regions_in_row_major_order() {
+    const std::vector<domain::SeedRegion> regions {
+        domain::SeedRegion {
+            .area = {.x = 1, .y = 2, .width = 2, .height = 2},
+            .label = domain::SeedLabel::Object
+        },
+        domain::SeedRegion {
+            .area = {.x = 0, .y = 0, .width = 1, .height = 1},
+            .label = domain::SeedLabel::Background
+        }
+    };
+
+    const auto outcome = algorithm::expand_seed_regions(
+        regions
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<std::vector<domain::Seed>>(outcome));
+    const auto& seeds = std::get<std::vector<domain::Seed>>(outcome);
+    QCOMPARE(seeds.size(), std::size_t {5});
+    QCOMPARE(seeds[0].position.x, 1);
+    QCOMPARE(seeds[0].position.y, 2);
+    QCOMPARE(seeds[1].position.x, 2);
+    QCOMPARE(seeds[1].position.y, 2);
+    QCOMPARE(seeds[2].position.x, 1);
+    QCOMPARE(seeds[2].position.y, 3);
+    QCOMPARE(seeds[3].position.x, 2);
+    QCOMPARE(seeds[3].position.y, 3);
+    QCOMPARE(static_cast<int>(seeds[0].label), static_cast<int>(domain::SeedLabel::Object));
+    QCOMPARE(static_cast<int>(seeds[4].label), static_cast<int>(domain::SeedLabel::Background));
+}
+
+void AlgorithmTests::seed_expansion_honors_cancellation() {
+    const std::vector<domain::SeedRegion> regions {
+        domain::SeedRegion {
+            .area = {.x = 0, .y = 0, .width = 1, .height = 1},
+            .label = domain::SeedLabel::Object
+        }
+    };
+
+    const auto outcome = algorithm::expand_seed_regions(
+        regions
+        , cancelled_token()
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(is_cancelled(outcome));
+}
+
+void AlgorithmTests::builds_boundary_conditions_with_expected_values() {
+    const domain::GrayImage image = make_image(2, 2, {10, 20, 30, 40});
+    const std::vector<domain::Seed> seeds {
+        domain::Seed {
+            .position = {.x = 1, .y = 0},
+            .label = domain::SeedLabel::Object
+        },
+        domain::Seed {
+            .position = {.x = 0, .y = 1},
+            .label = domain::SeedLabel::Background
+        }
+    };
+    const domain::SegmentationInput input {.image = image, .seeds = seeds};
+
+    const auto outcome = algorithm::build_boundary_conditions(
+        input
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<algorithm::BoundaryConditions>(outcome));
+    const auto& conditions = std::get<algorithm::BoundaryConditions>(outcome);
+    QVERIFY(conditions.contains(algorithm::PixelIndex {.value = 1}));
+    QVERIFY(conditions.contains(algorithm::PixelIndex {.value = 2}));
+    QCOMPARE(conditions.value_at(algorithm::PixelIndex {.value = 1}), 1.0);
+    QCOMPARE(conditions.value_at(algorithm::PixelIndex {.value = 2}), 0.0);
+}
+
+void AlgorithmTests::boundary_value_vector_follows_boundary_pixel_order() {
+    const algorithm::BoundaryConditions conditions = boundary_conditions_for_2x2();
+    const std::vector<algorithm::PixelIndex> boundary_pixels {
+        algorithm::PixelIndex {.value = 3},
+        algorithm::PixelIndex {.value = 0}
+    };
+
+    const auto outcome = algorithm::build_boundary_value_vector(
+        conditions
+        , boundary_pixels
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<Eigen::VectorXd>(outcome));
+    const Eigen::VectorXd& values = std::get<Eigen::VectorXd>(outcome);
+    QCOMPARE(static_cast<int>(values.size()), 2);
+    QCOMPARE(values[0], 1.0);
+    QCOMPARE(values[1], 0.0);
+}
+
+void AlgorithmTests::partitions_boundary_and_unknown_pixels() {
+    const algorithm::BoundaryConditions conditions = boundary_conditions_for_2x2();
+
+    const auto outcome = algorithm::partition_nodes(
+        4
+        , conditions
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<algorithm::NodePartition>(outcome));
+    const auto& partition = std::get<algorithm::NodePartition>(outcome);
+    QCOMPARE(partition.boundary_pixels.size(), std::size_t {2});
+    QCOMPARE(partition.unknown_pixels.size(), std::size_t {2});
+    QCOMPARE(partition.unknown_pixels[0].value, 1);
+    QCOMPARE(partition.unknown_pixels[1].value, 2);
+    QCOMPARE(partition.unknown_index_by_pixel.at(algorithm::PixelIndex {.value = 1}).value, 0);
+    QCOMPARE(partition.unknown_index_by_pixel.at(algorithm::PixelIndex {.value = 2}).value, 1);
+    QCOMPARE(partition.boundary_index_by_pixel.at(algorithm::PixelIndex {.value = 0}).value, 0);
+    QCOMPARE(partition.boundary_index_by_pixel.at(algorithm::PixelIndex {.value = 3}).value, 1);
+}
+
+void AlgorithmTests::partitions_laplacian_into_unknown_blocks() {
+    algorithm::NodePartition partition;
+    partition.unknown_pixels = {
+        algorithm::PixelIndex {.value = 1},
+        algorithm::PixelIndex {.value = 2}
+    };
+    partition.boundary_pixels = {
+        algorithm::PixelIndex {.value = 0},
+        algorithm::PixelIndex {.value = 3}
+    };
+    partition.unknown_index_by_pixel.emplace(algorithm::PixelIndex {.value = 1}, algorithm::UnknownIndex {.value = 0});
+    partition.unknown_index_by_pixel.emplace(algorithm::PixelIndex {.value = 2}, algorithm::UnknownIndex {.value = 1});
+    partition.boundary_index_by_pixel.emplace(algorithm::PixelIndex {.value = 0}, algorithm::BoundaryIndex {.value = 0});
+    partition.boundary_index_by_pixel.emplace(algorithm::PixelIndex {.value = 3}, algorithm::BoundaryIndex {.value = 1});
+
+    Eigen::SparseMatrix<double> laplacian(4, 4);
+    const std::vector<Eigen::Triplet<double>> triplets {
+        {0, 0, 2.0}, {0, 1, -1.0}, {0, 2, -1.0},
+        {1, 0, -1.0}, {1, 1, 2.0}, {1, 3, -1.0},
+        {2, 0, -1.0}, {2, 2, 2.0}, {2, 3, -1.0},
+        {3, 1, -1.0}, {3, 2, -1.0}, {3, 3, 2.0}
+    };
+    laplacian.setFromTriplets(triplets.begin(), triplets.end());
+
+    const auto outcome = algorithm::partition_laplacian(
+        laplacian
+        , partition
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<algorithm::PartitionedLaplacian>(outcome));
+    const auto& blocks = std::get<algorithm::PartitionedLaplacian>(outcome);
+    QCOMPARE(static_cast<int>(blocks.unknown_unknown_block.rows()), 2);
+    QCOMPARE(static_cast<int>(blocks.unknown_unknown_block.cols()), 2);
+    QCOMPARE(static_cast<int>(blocks.unknown_boundary_block.rows()), 2);
+    QCOMPARE(static_cast<int>(blocks.unknown_boundary_block.cols()), 2);
+    QCOMPARE(coefficient(blocks.unknown_unknown_block, 0, 0), 2.0);
+    QCOMPARE(coefficient(blocks.unknown_unknown_block, 0, 1), 0.0);
+    QCOMPARE(coefficient(blocks.unknown_unknown_block, 1, 0), 0.0);
+    QCOMPARE(coefficient(blocks.unknown_unknown_block, 1, 1), 2.0);
+    QCOMPARE(coefficient(blocks.unknown_boundary_block, 0, 0), -1.0);
+    QCOMPARE(coefficient(blocks.unknown_boundary_block, 0, 1), -1.0);
+    QCOMPARE(coefficient(blocks.unknown_boundary_block, 1, 0), -1.0);
+    QCOMPARE(coefficient(blocks.unknown_boundary_block, 1, 1), -1.0);
+}
+
+void AlgorithmTests::assembles_probability_map_from_boundary_and_unknown_values() {
+    const algorithm::BoundaryConditions conditions = boundary_conditions_for_2x2();
+    algorithm::NodePartition partition;
+    partition.unknown_pixels = {
+        algorithm::PixelIndex {.value = 1},
+        algorithm::PixelIndex {.value = 2}
+    };
+    partition.unknown_index_by_pixel.emplace(algorithm::PixelIndex {.value = 1}, algorithm::UnknownIndex {.value = 0});
+    partition.unknown_index_by_pixel.emplace(algorithm::PixelIndex {.value = 2}, algorithm::UnknownIndex {.value = 1});
+
+    Eigen::VectorXd unknown_values(2);
+    unknown_values << 0.25, 0.75;
+
+    const auto outcome = algorithm::assemble_probability_map(
+        conditions
+        , partition
+        , unknown_values
+        , 2
+        , 2
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<domain::ProbabilityMap>(outcome));
+    const domain::ProbabilityMap& probabilities =
+        std::get<domain::ProbabilityMap>(outcome);
+    QCOMPARE(static_cast<int>(probabilities.rows()), 2);
+    QCOMPARE(static_cast<int>(probabilities.cols()), 2);
+    QCOMPARE(probabilities(0, 0), 0.0);
+    QCOMPARE(probabilities(0, 1), 0.25);
+    QCOMPARE(probabilities(1, 0), 0.75);
+    QCOMPARE(probabilities(1, 1), 1.0);
+}
+
+void AlgorithmTests::thresholds_probabilities_at_half() {
+    domain::ProbabilityMap probabilities(2, 3);
+    probabilities << 0.0, 0.49, 0.5,
+        0.51, 1.0, 0.2;
+
+    const auto outcome = algorithm::threshold_probabilities(
+        probabilities
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<domain::BinaryMask>(outcome));
+    const domain::BinaryMask& mask = std::get<domain::BinaryMask>(outcome);
+    QCOMPARE(static_cast<int>(mask.rows()), 2);
+    QCOMPARE(static_cast<int>(mask.cols()), 3);
+    QCOMPARE(static_cast<int>(mask(0, 0)), 0);
+    QCOMPARE(static_cast<int>(mask(0, 1)), 0);
+    QCOMPARE(static_cast<int>(mask(0, 2)), 1);
+    QCOMPARE(static_cast<int>(mask(1, 0)), 1);
+    QCOMPARE(static_cast<int>(mask(1, 1)), 1);
+    QCOMPARE(static_cast<int>(mask(1, 2)), 0);
+}
+
+void AlgorithmTests::grid_laplacian_has_expected_2x2_structure() {
+    const domain::GrayImage image = make_image(2, 2, {10, 10, 10, 10});
+
+    const auto outcome = graph::build_grid_laplacian(
+        image
+        , 0.01
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<Eigen::SparseMatrix<double>>(outcome));
+    const Eigen::SparseMatrix<double>& laplacian =
+        std::get<Eigen::SparseMatrix<double>>(outcome);
+    QCOMPARE(static_cast<int>(laplacian.rows()), 4);
+    QCOMPARE(static_cast<int>(laplacian.cols()), 4);
+
+    for (int index = 0; index < 4; ++index) {
+        QCOMPARE(coefficient(laplacian, index, index), 2.0);
+    }
+
+    QCOMPARE(coefficient(laplacian, 0, 1), -1.0);
+    QCOMPARE(coefficient(laplacian, 1, 0), -1.0);
+    QCOMPARE(coefficient(laplacian, 0, 2), -1.0);
+    QCOMPARE(coefficient(laplacian, 2, 0), -1.0);
+    QCOMPARE(coefficient(laplacian, 1, 3), -1.0);
+    QCOMPARE(coefficient(laplacian, 3, 1), -1.0);
+    QCOMPARE(coefficient(laplacian, 2, 3), -1.0);
+    QCOMPARE(coefficient(laplacian, 3, 2), -1.0);
+    QCOMPARE(coefficient(laplacian, 0, 3), 0.0);
+    QCOMPARE(coefficient(laplacian, 1, 2), 0.0);
+}
+
+void AlgorithmTests::grid_laplacian_beta_changes_edge_weight() {
+    const domain::GrayImage image = make_image(1, 2, {0, 10});
+
+    const auto weak_penalty_outcome = graph::build_grid_laplacian(
+        image
+        , 0.001
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+    const auto strong_penalty_outcome = graph::build_grid_laplacian(
+        image
+        , 0.01
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<Eigen::SparseMatrix<double>>(weak_penalty_outcome));
+    QVERIFY(std::holds_alternative<Eigen::SparseMatrix<double>>(strong_penalty_outcome));
+    const auto& weak_penalty =
+        std::get<Eigen::SparseMatrix<double>>(weak_penalty_outcome);
+    const auto& strong_penalty =
+        std::get<Eigen::SparseMatrix<double>>(strong_penalty_outcome);
+
+    const double weak_weight = -coefficient(weak_penalty, 0, 1);
+    const double strong_weight = -coefficient(strong_penalty, 0, 1);
+    QVERIFY(weak_weight > strong_weight);
+    QVERIFY(std::abs(weak_weight - std::exp(-0.001 * 100.0)) < 1e-12);
+    QVERIFY(std::abs(strong_weight - std::exp(-0.01 * 100.0)) < 1e-12);
+}
+
+QTEST_GUILESS_MAIN(AlgorithmTests)
+#include "AlgorithmTests.moc"
