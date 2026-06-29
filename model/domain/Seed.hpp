@@ -1,5 +1,8 @@
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
+#include <numeric>
 #include <span>
 
 namespace random_walker::domain {
@@ -34,16 +37,52 @@ namespace random_walker::domain {
         SeedLabel label = SeedLabel::Background;
     };
 
+    [[nodiscard]] inline bool has_seed_label(
+        std::span<const SeedRegion> regions
+        , SeedLabel label
+    ) noexcept {
+        return std::any_of(
+            regions.begin()
+            , regions.end()
+            , [label](const SeedRegion& region) {
+                return region.label == label;
+            }
+        );
+    }
+
     [[nodiscard]] inline int seed_pixel_count(
         std::span<const SeedRegion> regions
         , SeedLabel label
     ) noexcept {
-        int result = 0;
-        for (const SeedRegion& region : regions) {
-            if (region.label == label) {
-                result += region.area.width * region.area.height;
+        return std::accumulate(
+            regions.begin()
+            , regions.end()
+            , 0
+            , [label](int result, const SeedRegion& region) {
+                if (region.label != label) {
+                    return result;
+                }
+
+                return result + region.area.width * region.area.height;
             }
-        }
-        return result;
+        );
+    }
+
+    [[nodiscard]] inline std::size_t valid_seed_pixel_count(
+        std::span<const SeedRegion> regions
+    ) noexcept {
+        return std::accumulate(
+            regions.begin()
+            , regions.end()
+            , std::size_t {0}
+            , [](std::size_t result, const SeedRegion& region) {
+                if (region.area.width <= 0 || region.area.height <= 0) {
+                    return result;
+                }
+
+                return result + static_cast<std::size_t>(region.area.width)
+                    * static_cast<std::size_t>(region.area.height);
+            }
+        );
     }
 }

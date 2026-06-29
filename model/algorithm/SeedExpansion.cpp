@@ -1,21 +1,48 @@
 #include "SeedExpansion.hpp"
 
 #include <cstddef>
+#include <variant>
 
 namespace random_walker::algorithm {
+    namespace {
+        using SeedCountOutcome = std::variant<std::size_t, domain::Cancelled>;
+
+        [[nodiscard]] std::size_t seed_pixel_count(
+            const domain::SeedRegion& region
+        ) noexcept {
+            return static_cast<std::size_t>(region.area.width)
+                * static_cast<std::size_t>(region.area.height);
+        }
+
+        [[nodiscard]] SeedCountOutcome count_seed_pixels(
+            std::span<const domain::SeedRegion> regions
+            , const domain::CancellationToken& cancellation
+        ) {
+            std::size_t result = 0;
+            for (const domain::SeedRegion& region : regions) {
+                if (cancellation.stop_requested()) {
+                    return domain::Cancelled {};
+                }
+                result += seed_pixel_count(region);
+            }
+
+            return result;
+        }
+    }
+
     SeedExpansionOutcome expand_seed_regions(
         std::span<const domain::SeedRegion> regions
         , const domain::CancellationToken& cancellation
         , const domain::ProgressReporter& progress
     ) {
-        std::size_t seed_count = 0;
-        for (const domain::SeedRegion& region : regions) {
-            if (cancellation.stop_requested()) {
-                return domain::Cancelled {};
-            }
-            seed_count += static_cast<std::size_t>(region.area.width)
-                * static_cast<std::size_t>(region.area.height);
+        const SeedCountOutcome seed_count_outcome = count_seed_pixels(
+            regions
+            , cancellation
+        );
+        if (std::holds_alternative<domain::Cancelled>(seed_count_outcome)) {
+            return domain::Cancelled {};
         }
+        const std::size_t seed_count = std::get<std::size_t>(seed_count_outcome);
 
         std::vector<domain::Seed> result;
         result.reserve(seed_count);

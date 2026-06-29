@@ -99,6 +99,10 @@ void DomainTests::seed_pixel_count_counts_only_requested_label() {
         domain::SeedRegion {
             .area = {.x = 2, .y = 2, .width = 1, .height = 2},
             .label = domain::SeedLabel::Background
+        },
+        domain::SeedRegion {
+            .area = {.x = 3, .y = 3, .width = 0, .height = 5},
+            .label = domain::SeedLabel::Object
         }
     };
 
@@ -110,6 +114,9 @@ void DomainTests::seed_pixel_count_counts_only_requested_label() {
         domain::seed_pixel_count(regions, domain::SeedLabel::Object)
         , 4
     );
+    QVERIFY(domain::has_seed_label(regions, domain::SeedLabel::Background));
+    QVERIFY(domain::has_seed_label(regions, domain::SeedLabel::Object));
+    QCOMPARE(domain::valid_seed_pixel_count(regions), std::size_t {12});
 }
 
 void DomainTests::segmentation_request_exposes_immutable_input_contract() {

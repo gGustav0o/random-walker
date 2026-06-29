@@ -107,17 +107,8 @@ namespace random_walker::service {
             return domain::SegmentationError::InvalidBeta;
         }
 
-        bool has_background_seed = false;
-        bool has_object_seed = false;
         BoundaryMarkerMap markers;
-        std::size_t seed_pixel_count = 0;
-        for (const domain::SeedRegion& region : request.seed_regions()) {
-            if (region.area.width > 0 && region.area.height > 0) {
-                seed_pixel_count += static_cast<std::size_t>(region.area.width)
-                    * static_cast<std::size_t>(region.area.height);
-            }
-        }
-        markers.reserve(seed_pixel_count);
+        markers.reserve(domain::valid_seed_pixel_count(request.seed_regions()));
 
         for (const domain::SeedRegion& region : request.seed_regions()) {
             const domain::PixelRectangle& area = region.area;
@@ -133,20 +124,20 @@ namespace random_walker::service {
             ) {
                 return *error;
             }
-
-            has_background_seed =
-                has_background_seed
-                || region.label == domain::SeedLabel::Background;
-
-            has_object_seed =
-                has_object_seed
-                || region.label == domain::SeedLabel::Object;
         }
 
-        if (!has_background_seed) {
+        if (!domain::has_seed_label(
+                request.seed_regions()
+                , domain::SeedLabel::Background
+            )
+        ) {
             return domain::SegmentationError::MissingBackgroundSeeds;
         }
-        if (!has_object_seed) {
+        if (!domain::has_seed_label(
+                request.seed_regions()
+                , domain::SeedLabel::Object
+            )
+        ) {
             return domain::SegmentationError::MissingObjectSeeds;
         }
 
