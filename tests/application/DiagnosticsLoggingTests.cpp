@@ -10,6 +10,15 @@
 namespace diagnostics = random_walker::application;
 
 namespace {
+    [[nodiscard]] QString string_view_to_qstring(
+        std::string_view value
+    ) {
+        return QString::fromUtf8(
+            value.data()
+            , static_cast<qsizetype>(value.size())
+        );
+    }
+
     struct CapturedLogMessage {
         diagnostics::LogLevel level = diagnostics::LogLevel::Info;
         std::string category;
@@ -35,10 +44,22 @@ void DiagnosticsLoggingTests::cleanup() {
 void DiagnosticsLoggingTests::logging_without_sink_is_noop() {
     diagnostics::clear_log_sink();
 
-    diagnostics::log_debug("diagnostics", "debug message");
-    diagnostics::log_info("diagnostics", "info message");
-    diagnostics::log_warning("diagnostics", "warning message");
-    diagnostics::log_error("diagnostics", "error message");
+    diagnostics::log_debug(
+        diagnostics::log_category::diagnostics
+        , "debug message"
+    );
+    diagnostics::log_info(
+        diagnostics::log_category::diagnostics
+        , "info message"
+    );
+    diagnostics::log_warning(
+        diagnostics::log_category::diagnostics
+        , "warning message"
+    );
+    diagnostics::log_error(
+        diagnostics::log_category::diagnostics
+        , "error message"
+    );
 
     QVERIFY(true);
 }
@@ -59,15 +80,24 @@ void DiagnosticsLoggingTests::installed_sink_receives_log_message() {
         }
     );
 
-    diagnostics::log_warning("settings", "repair required");
+    diagnostics::log_warning(
+        diagnostics::log_category::settings
+        , "repair required"
+    );
 
     QCOMPARE(static_cast<int>(messages.size()), 1);
     QCOMPARE(
         static_cast<int>(messages.front().level)
         , static_cast<int>(diagnostics::LogLevel::Warning)
     );
-    QCOMPARE(QString::fromStdString(messages.front().category), QStringLiteral("settings"));
-    QCOMPARE(QString::fromStdString(messages.front().message), QStringLiteral("repair required"));
+    QCOMPARE(
+        QString::fromStdString(messages.front().category)
+        , string_view_to_qstring(diagnostics::log_category::settings)
+    );
+    QCOMPARE(
+        QString::fromStdString(messages.front().message)
+        , QStringLiteral("repair required")
+    );
 }
 
 void DiagnosticsLoggingTests::clear_log_sink_disables_delivery() {
@@ -87,7 +117,10 @@ void DiagnosticsLoggingTests::clear_log_sink_disables_delivery() {
     );
 
     diagnostics::clear_log_sink();
-    diagnostics::log_info("application", "startup");
+    diagnostics::log_info(
+        diagnostics::log_category::application
+        , "startup"
+    );
 
     QCOMPARE(static_cast<int>(messages.size()), 0);
 }
@@ -99,7 +132,10 @@ void DiagnosticsLoggingTests::sink_exceptions_do_not_escape_logging_api() {
         }
     );
 
-    diagnostics::log_error("application", "failed");
+    diagnostics::log_error(
+        diagnostics::log_category::application
+        , "failed"
+    );
 
     QVERIFY(true);
 }

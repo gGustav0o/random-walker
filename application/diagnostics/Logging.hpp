@@ -11,6 +11,14 @@ namespace random_walker::application {
         , Error
     };
 
+    namespace log_category {
+        inline constexpr std::string_view application = "application";
+        inline constexpr std::string_view bootstrap = "bootstrap";
+        inline constexpr std::string_view diagnostics = "diagnostics";
+        inline constexpr std::string_view settings = "settings";
+        inline constexpr std::string_view viewmodel = "viewmodel";
+    }
+
     using LogSink = std::function<void(
         LogLevel
         , std::string_view

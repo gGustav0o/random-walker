@@ -17,7 +17,7 @@ AppContext::AppContext(QQmlApplicationEngine& engine)
     , settings_service_(settings_repository_)
 {
     random_walker::application::log_info(
-        "bootstrap"
+        random_walker::application::log_category::bootstrap
         , "Creating application context"
     );
 
@@ -46,7 +46,7 @@ AppContext::AppContext(QQmlApplicationEngine& engine)
     );
 
     random_walker::application::log_info(
-        "bootstrap"
+        random_walker::application::log_category::bootstrap
         , "Application context created"
     );
 }

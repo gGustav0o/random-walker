@@ -43,12 +43,12 @@ int main(int argc, char* argv[]) {
             );
     } else {
         random_walker::application::log_info(
-            "application"
+            random_walker::application::log_category::application
             , std::string("Logging initialized at ")
                 + random_walker::infrastructure::active_log_file_path().string()
         );
         random_walker::application::log_info(
-            "application"
+            random_walker::application::log_category::application
             , "Application startup"
         );
     }
@@ -67,25 +67,25 @@ int main(int argc, char* argv[]) {
 
         if (engine.rootObjects().isEmpty()) {
             random_walker::application::log_error(
-                "application"
+                random_walker::application::log_category::application
                 , "QML root object creation failed"
             );
             exit_code = -1;
         } else {
             random_walker::application::log_info(
-                "application"
+                random_walker::application::log_category::application
                 , "QML root object loaded"
             );
             exit_code = app.exec();
             random_walker::application::log_info(
-                "application"
+                random_walker::application::log_category::application
                 , "Application event loop finished"
             );
         }
     }
 
     random_walker::application::log_info(
-        "application"
+        random_walker::application::log_category::application
         , "Application shutdown"
     );
     return exit_code;
