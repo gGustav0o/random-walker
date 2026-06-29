@@ -3,6 +3,7 @@
 #include <limits>
 #include <utility>
 
+#include <QDebug>
 #include <QVariant>
 
 namespace {
@@ -19,10 +20,19 @@ namespace {
         , const char* key
     ) {
         bool converted = false;
-        const double value = settings.value(key).toDouble(&converted);
-        return converted
-            ? value
-            : std::numeric_limits<double>::quiet_NaN();
+        const QVariant stored_value = settings.value(key);
+        const double value = stored_value.toDouble(&converted);
+        if (!converted) {
+            qWarning()
+                << "Failed to read numeric settings value"
+                << key
+                << "from"
+                << settings.fileName()
+                << "; defaults will be used if validation fails";
+            return std::numeric_limits<double>::quiet_NaN();
+        }
+
+        return value;
     }
 }
 
@@ -51,17 +61,35 @@ namespace random_walker::infrastructure {
         settings_.beginGroup(kSettingsGroup);
 
         bool converted = false;
-        const int schema_version =
-            settings_.value(kSchemaVersionKey).toInt(&converted);
+        const QVariant stored_schema_version = settings_.value(kSchemaVersionKey);
+        const int schema_version = stored_schema_version.toInt(&converted);
 
         application::SettingsRepositoryLoadResult result;
 
         if (converted && schema_version == kCurrentSchemaVersion) {
             result.settings = load_current_schema();
-        } else if (!converted || schema_version < kCurrentSchemaVersion) {
-            result.settings = migrate_from(converted ? schema_version : 0);
+        } else if (!converted) {
+            qWarning()
+                << "Settings schema version is missing or invalid in"
+                << settings_.fileName()
+                << "; trying legacy settings migration";
+            result.settings = migrate_from(0);
+            result.repair_required = true;
+        } else if (schema_version < kCurrentSchemaVersion) {
+            qWarning()
+                << "Migrating settings schema from version"
+                << schema_version
+                << "to"
+                << kCurrentSchemaVersion;
+            result.settings = migrate_from(schema_version);
             result.repair_required = true;
         } else {
+            qWarning()
+                << "Settings schema version"
+                << schema_version
+                << "is newer than supported version"
+                << kCurrentSchemaVersion
+                << "; settings will be ignored";
             // A newer schema must not be interpreted by an older binary.
             result.settings = {};
         }
@@ -99,6 +127,10 @@ namespace random_walker::infrastructure {
                 stored_double(settings_, kLegacyBetaKey);
             return result;
         default:
+            qWarning()
+                << "Unsupported legacy settings schema version"
+                << schema_version
+                << "; defaults will be used";
             return {};
         }
     }
