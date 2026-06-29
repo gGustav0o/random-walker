@@ -1,5 +1,6 @@
 #include "GridLaplacian.hpp"
 
+#include "model/algorithm/IndexTypes.hpp"
 #include "model/algorithm/IterationPolicy.hpp"
 
 #include <array>
@@ -17,10 +18,6 @@ namespace random_walker::graph {
         enum class ForwardGridDirection {
             Right
             , Down
-        };
-
-        struct GridNodeIndex {
-            int value = 0;
         };
 
         constexpr std::array<ForwardGridDirection, 2> kForwardDirections = {
@@ -53,21 +50,6 @@ namespace random_walker::graph {
         }
 
         [[nodiscard]]
-        GridNodeIndex flatten(
-            int row
-            , int column
-            , int width
-        ) noexcept {
-            assert(row >= 0);
-            assert(column >= 0);
-            assert(width > 0);
-            assert(column < width);
-            return GridNodeIndex {
-                .value = row * width + column
-            };
-        }
-
-        [[nodiscard]]
         double compute_weight(
             std::uint8_t first_intensity
             , std::uint8_t second_intensity
@@ -88,8 +70,8 @@ namespace random_walker::graph {
         void add_undirected_edge(
             std::vector<Eigen::Triplet<double>>& triplets
             , Eigen::VectorXd& degrees
-            , GridNodeIndex first_index
-            , GridNodeIndex second_index
+            , algorithm::PixelIndex first_index
+            , algorithm::PixelIndex second_index
             , double weight
         ) {
             assert(first_index.value >= 0);
@@ -140,7 +122,8 @@ namespace random_walker::graph {
                     return domain::Cancelled {};
                 }
 
-                const GridNodeIndex source_index = flatten(row, column, width);
+                const algorithm::PixelIndex source_index =
+                    algorithm::flatten_pixel_index(row, column, width);
                 assert(source_index.value >= 0);
                 assert(source_index.value < pixel_count);
                 const std::uint8_t source_intensity = image.at(row, column);
@@ -154,8 +137,12 @@ namespace random_walker::graph {
                         continue;
                     }
 
-                    const GridNodeIndex target_index =
-                        flatten(neighbor_row, neighbor_column, width);
+                    const algorithm::PixelIndex target_index =
+                        algorithm::flatten_pixel_index(
+                            neighbor_row
+                            , neighbor_column
+                            , width
+                        );
                     assert(target_index.value >= 0);
                     assert(target_index.value < pixel_count);
                     const double weight = compute_weight(
@@ -188,9 +175,7 @@ namespace random_walker::graph {
             ) {
                 return domain::Cancelled {};
             }
-            const GridNodeIndex diagonal_index {
-                .value = index
-            };
+            const algorithm::PixelIndex diagonal_index { .value = index };
             assert(diagonal_index.value >= 0);
             assert(static_cast<Eigen::Index>(diagonal_index.value) < degrees.size());
             triplets.emplace_back(

@@ -9,19 +9,6 @@
 
 namespace random_walker::algorithm {
     namespace {
-        [[nodiscard]] PixelIndex flatten(
-            int row
-            , int column
-            , int width
-        ) noexcept {
-            assert(row >= 0);
-            assert(column >= 0);
-            assert(width > 0);
-            assert(column < width);
-            return PixelIndex {
-                .value = row * width + column
-            };
-        }
 
         void assign_boundary_value(
             BoundaryConditions& conditions
@@ -73,7 +60,11 @@ namespace random_walker::algorithm {
                 if (seed.label == label) {
                     assign_boundary_value(
                         result
-                        , flatten(seed.position.y, seed.position.x, image_width)
+                        , flatten_pixel_index(
+                            seed.position.y
+                            , seed.position.x
+                            , image_width
+                        )
                         , value
                     );
                 }
