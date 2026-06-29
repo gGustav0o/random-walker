@@ -12,6 +12,7 @@
 #include "model/algorithm/BoundaryConditions.hpp"
 #include "model/algorithm/NodePartition.hpp"
 #include "model/algorithm/PartitionedLaplacian.hpp"
+#include "model/algorithm/ParallelPolicy.hpp"
 #include "model/algorithm/ProbabilityField.hpp"
 #include "model/algorithm/SeedExpansion.hpp"
 #include "model/domain/Cancellation.hpp"
@@ -60,6 +61,101 @@ namespace {
         return matrix.coeff(row, column);
     }
 
+    [[nodiscard]] std::size_t large_parallel_pixel_count() noexcept {
+        return algorithm::kParallelWorkItemThreshold;
+    }
+
+    [[nodiscard]] int large_parallel_width() noexcept {
+        return 256;
+    }
+
+    [[nodiscard]] int large_parallel_height() noexcept {
+        constexpr std::size_t width = 256;
+        return static_cast<int>(
+            (large_parallel_pixel_count() + width - 1) / width
+        );
+    }
+
+    [[nodiscard]] double probability_value_for_index(int index) noexcept {
+        return static_cast<double>((index * 37) % 101) / 100.0;
+    }
+
+    [[nodiscard]] algorithm::BoundaryConditions empty_boundary_conditions() {
+        return algorithm::BoundaryConditions {};
+    }
+
+    [[nodiscard]] algorithm::NodePartition all_unknown_partition(
+        int pixel_count
+    ) {
+        algorithm::NodePartition partition;
+        partition.unknown_pixels.reserve(static_cast<std::size_t>(pixel_count));
+        partition.unknown_index_by_pixel.reserve(
+            static_cast<std::size_t>(pixel_count)
+        );
+
+        for (int index = 0; index < pixel_count; ++index) {
+            const algorithm::PixelIndex pixel_index {.value = index};
+            partition.unknown_pixels.push_back(pixel_index);
+            partition.unknown_index_by_pixel.emplace(
+                pixel_index
+                , algorithm::UnknownIndex {.value = index}
+            );
+        }
+
+        return partition;
+    }
+
+    [[nodiscard]] Eigen::VectorXd large_unknown_values(int pixel_count) {
+        Eigen::VectorXd values(pixel_count);
+        for (int index = 0; index < pixel_count; ++index) {
+            values[index] = probability_value_for_index(index);
+        }
+        return values;
+    }
+
+    [[nodiscard]] domain::ProbabilityMap large_probability_map() {
+        const int width = large_parallel_width();
+        const int height = large_parallel_height();
+        domain::ProbabilityMap probabilities(height, width);
+
+        for (int index = 0; index < width * height; ++index) {
+            probabilities(index / width, index % width) =
+                probability_value_for_index(index);
+        }
+
+        return probabilities;
+    }
+
+    struct ProgressLog {
+        std::vector<domain::SegmentationProgress> entries;
+
+        [[nodiscard]] domain::ProgressReporter reporter() {
+            return domain::ProgressReporter {
+                7
+                , [this](domain::SegmentationProgress progress) {
+                    entries.push_back(std::move(progress));
+                }
+            };
+        }
+    };
+
+    void verify_pixel_wise_progress_contract(
+        const ProgressLog& progress_log
+        , domain::SegmentationStage stage
+    ) {
+        QVERIFY(progress_log.entries.size() >= std::size_t {2});
+        QCOMPARE(progress_log.entries.front().stage, stage);
+        QVERIFY(progress_log.entries.front().fraction.has_value());
+        QCOMPARE(*progress_log.entries.front().fraction, 0.0);
+        QCOMPARE(progress_log.entries.back().stage, stage);
+        QVERIFY(progress_log.entries.back().fraction.has_value());
+        QCOMPARE(*progress_log.entries.back().fraction, 1.0);
+
+        if constexpr (algorithm::kOpenMpEnabled) {
+            QCOMPARE(progress_log.entries.size(), std::size_t {2});
+        }
+    }
+
     [[nodiscard]] algorithm::BoundaryConditions boundary_conditions_for_2x2() {
         algorithm::BoundaryConditions conditions;
         conditions.pixels = {
@@ -82,6 +178,7 @@ class AlgorithmTests final : public QObject {
     Q_OBJECT
 
 private slots:
+    void parallel_policy_respects_compile_time_flag_and_threshold();
     void expands_seed_regions_in_row_major_order();
     void seed_expansion_honors_cancellation();
     void builds_boundary_conditions_with_expected_values();
@@ -89,10 +186,32 @@ private slots:
     void partitions_boundary_and_unknown_pixels();
     void partitions_laplacian_into_unknown_blocks();
     void assembles_probability_map_from_boundary_and_unknown_values();
+    void assembles_large_probability_map_deterministically();
+    void large_probability_assembly_honors_cancellation();
     void thresholds_probabilities_at_half();
+    void thresholds_large_probability_map_deterministically();
+    void large_thresholding_honors_cancellation();
     void grid_laplacian_has_expected_2x2_structure();
     void grid_laplacian_beta_changes_edge_weight();
 };
+
+void AlgorithmTests::parallel_policy_respects_compile_time_flag_and_threshold() {
+#if RANDOM_WALKER_ENABLE_OPENMP
+    constexpr bool openmp_enabled = true;
+#else
+    constexpr bool openmp_enabled = false;
+#endif
+
+    QCOMPARE(algorithm::kOpenMpEnabled, openmp_enabled);
+    QVERIFY(!algorithm::should_run_parallel(0));
+    QVERIFY(!algorithm::should_run_parallel(
+        algorithm::kParallelWorkItemThreshold - 1
+    ));
+    QCOMPARE(
+        algorithm::should_run_parallel(algorithm::kParallelWorkItemThreshold)
+        , openmp_enabled
+    );
+}
 
 void AlgorithmTests::expands_seed_regions_in_row_major_order() {
     const std::vector<domain::SeedRegion> regions {
@@ -302,6 +421,69 @@ void AlgorithmTests::assembles_probability_map_from_boundary_and_unknown_values(
     QCOMPARE(probabilities(1, 1), 1.0);
 }
 
+
+void AlgorithmTests::assembles_large_probability_map_deterministically() {
+    const int width = large_parallel_width();
+    const int height = large_parallel_height();
+    const int pixel_count = width * height;
+    const algorithm::BoundaryConditions conditions = empty_boundary_conditions();
+    const algorithm::NodePartition partition = all_unknown_partition(pixel_count);
+    const Eigen::VectorXd unknown_values = large_unknown_values(pixel_count);
+    ProgressLog progress_log;
+
+    const auto outcome = algorithm::assemble_probability_map(
+        conditions
+        , partition
+        , unknown_values
+        , width
+        , height
+        , domain::CancellationToken {}
+        , progress_log.reporter()
+    );
+
+    QVERIFY(std::holds_alternative<domain::ProbabilityMap>(outcome));
+    const domain::ProbabilityMap& probabilities =
+        std::get<domain::ProbabilityMap>(outcome);
+    QCOMPARE(static_cast<int>(probabilities.rows()), height);
+    QCOMPARE(static_cast<int>(probabilities.cols()), width);
+
+    for (int index = 0; index < pixel_count; index += 997) {
+        QCOMPARE(
+            probabilities(index / width, index % width)
+            , probability_value_for_index(index)
+        );
+    }
+    QCOMPARE(
+        probabilities((pixel_count - 1) / width, (pixel_count - 1) % width)
+        , probability_value_for_index(pixel_count - 1)
+    );
+    verify_pixel_wise_progress_contract(
+        progress_log
+        , domain::SegmentationStage::AssemblingProbabilities
+    );
+}
+
+void AlgorithmTests::large_probability_assembly_honors_cancellation() {
+    const int width = large_parallel_width();
+    const int height = large_parallel_height();
+    const int pixel_count = width * height;
+    const algorithm::BoundaryConditions conditions = empty_boundary_conditions();
+    const algorithm::NodePartition partition = all_unknown_partition(pixel_count);
+    const Eigen::VectorXd unknown_values = large_unknown_values(pixel_count);
+
+    const auto outcome = algorithm::assemble_probability_map(
+        conditions
+        , partition
+        , unknown_values
+        , width
+        , height
+        , cancelled_token()
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(is_cancelled(outcome));
+}
+
 void AlgorithmTests::thresholds_probabilities_at_half() {
     domain::ProbabilityMap probabilities(2, 3);
     probabilities << 0.0, 0.49, 0.5,
@@ -323,6 +505,51 @@ void AlgorithmTests::thresholds_probabilities_at_half() {
     QCOMPARE(static_cast<int>(mask(1, 0)), 1);
     QCOMPARE(static_cast<int>(mask(1, 1)), 1);
     QCOMPARE(static_cast<int>(mask(1, 2)), 0);
+}
+
+void AlgorithmTests::thresholds_large_probability_map_deterministically() {
+    const domain::ProbabilityMap probabilities = large_probability_map();
+    const int width = static_cast<int>(probabilities.cols());
+    const int height = static_cast<int>(probabilities.rows());
+    const int pixel_count = width * height;
+    ProgressLog progress_log;
+
+    const auto outcome = algorithm::threshold_probabilities(
+        probabilities
+        , domain::CancellationToken {}
+        , progress_log.reporter()
+    );
+
+    QVERIFY(std::holds_alternative<domain::BinaryMask>(outcome));
+    const domain::BinaryMask& mask = std::get<domain::BinaryMask>(outcome);
+    QCOMPARE(static_cast<int>(mask.rows()), height);
+    QCOMPARE(static_cast<int>(mask.cols()), width);
+
+    for (int index = 0; index < pixel_count; index += 997) {
+        const int expected = probability_value_for_index(index) >= 0.5 ? 1 : 0;
+        QCOMPARE(static_cast<int>(mask(index / width, index % width)), expected);
+    }
+    const int last_index = pixel_count - 1;
+    QCOMPARE(
+        static_cast<int>(mask(last_index / width, last_index % width))
+        , probability_value_for_index(last_index) >= 0.5 ? 1 : 0
+    );
+    verify_pixel_wise_progress_contract(
+        progress_log
+        , domain::SegmentationStage::Thresholding
+    );
+}
+
+void AlgorithmTests::large_thresholding_honors_cancellation() {
+    const domain::ProbabilityMap probabilities = large_probability_map();
+
+    const auto outcome = algorithm::threshold_probabilities(
+        probabilities
+        , cancelled_token()
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(is_cancelled(outcome));
 }
 
 void AlgorithmTests::grid_laplacian_has_expected_2x2_structure() {
