@@ -1,5 +1,6 @@
 #include "NodePartition.hpp"
 
+#include <cassert>
 #include <cstddef>
 
 namespace random_walker::algorithm {
@@ -9,6 +10,16 @@ namespace random_walker::algorithm {
         , const domain::CancellationToken& cancellation
         , const domain::ProgressReporter& progress
     ) {
+        assert(pixel_count > 0);
+        assert(
+            boundary_conditions.pixels.size()
+            == boundary_conditions.value_by_pixel.size()
+        );
+        assert(
+            boundary_conditions.pixels.size()
+            <= static_cast<std::size_t>(pixel_count)
+        );
+
         NodePartition result;
         result.boundary_pixels = boundary_conditions.pixels;
         result.unknown_pixels.reserve(
@@ -35,7 +46,10 @@ namespace random_walker::algorithm {
                 .value = static_cast<int>(result.unknown_pixels.size())
             };
             result.unknown_pixels.push_back(pixel_index);
-            result.unknown_index_by_pixel.emplace(pixel_index, unknown_index);
+            const auto insert_result =
+                result.unknown_index_by_pixel.emplace(pixel_index, unknown_index);
+            assert(insert_result.second);
+            static_cast<void>(insert_result);
 
             if ((index & 0x0fff) == 0) {
                 progress.report(
@@ -56,12 +70,16 @@ namespace random_walker::algorithm {
                 && cancellation.stop_requested()) {
                 return domain::Cancelled {};
             }
-            result.boundary_index_by_pixel.emplace(
+            assert(result.boundary_pixels[index].value >= 0);
+            assert(result.boundary_pixels[index].value < pixel_count);
+            const auto insert_result = result.boundary_index_by_pixel.emplace(
                 result.boundary_pixels[index]
                 , BoundaryIndex {
                     .value = static_cast<int>(index)
                 }
             );
+            assert(insert_result.second);
+            static_cast<void>(insert_result);
 
             if ((index & 0x0fff) == 0) {
                 progress.report(
@@ -73,6 +91,19 @@ namespace random_walker::algorithm {
                 );
             }
         }
+
+        assert(
+            result.unknown_pixels.size()
+            == result.unknown_index_by_pixel.size()
+        );
+        assert(
+            result.boundary_pixels.size()
+            == result.boundary_index_by_pixel.size()
+        );
+        assert(
+            result.unknown_pixels.size() + result.boundary_pixels.size()
+            == static_cast<std::size_t>(pixel_count)
+        );
 
         progress.report(
             domain::SegmentationStage::PartitioningSystem

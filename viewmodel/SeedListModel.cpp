@@ -2,6 +2,8 @@
 
 #include <cstddef>
 
+#include <QtGlobal>
+
 SeedListModel::SeedListModel(
     const std::vector<random_walker::domain::SeedRegion>& regions
     , QObject* parent
@@ -51,6 +53,7 @@ QHash<int, QByteArray> SeedListModel::roleNames() const {
 }
 
 void SeedListModel::reset(const std::function<void()>& update_regions) {
+    Q_ASSERT(update_regions);
     beginResetModel();
     update_regions();
     endResetModel();

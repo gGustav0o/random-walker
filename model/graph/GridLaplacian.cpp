@@ -51,11 +51,15 @@ namespace random_walker::graph {
         }
 
         [[nodiscard]]
-        constexpr GridNodeIndex flatten(
+        GridNodeIndex flatten(
             int row
             , int column
             , int width
         ) noexcept {
+            assert(row >= 0);
+            assert(column >= 0);
+            assert(width > 0);
+            assert(column < width);
             return GridNodeIndex {
                 .value = row * width + column
             };
@@ -67,10 +71,16 @@ namespace random_walker::graph {
             , std::uint8_t second_intensity
             , double beta
         ) noexcept {
+            assert(std::isfinite(beta));
+            assert(beta > 0.0);
             const double difference =
                 static_cast<double>(first_intensity)
                 - static_cast<double>(second_intensity);
-            return std::exp(-beta * difference * difference);
+            const double weight = std::exp(-beta * difference * difference);
+            assert(std::isfinite(weight));
+            assert(weight >= 0.0);
+            assert(weight <= 1.0);
+            return weight;
         }
 
         void add_undirected_edge(
@@ -80,6 +90,13 @@ namespace random_walker::graph {
             , GridNodeIndex second_index
             , double weight
         ) {
+            assert(first_index.value >= 0);
+            assert(static_cast<Eigen::Index>(first_index.value) < degrees.size());
+            assert(second_index.value >= 0);
+            assert(static_cast<Eigen::Index>(second_index.value) < degrees.size());
+            assert(std::isfinite(weight));
+            assert(weight >= 0.0);
+
             triplets.emplace_back(first_index.value, second_index.value, -weight);
             triplets.emplace_back(second_index.value, first_index.value, -weight);
             degrees[first_index.value] += weight;
@@ -93,9 +110,16 @@ namespace random_walker::graph {
             , const domain::CancellationToken& cancellation
             , const domain::ProgressReporter& progress
         ) {
+            assert(!image.empty());
+            assert(std::isfinite(beta));
+            assert(beta > 0.0);
+
             const int height = image.height();
             const int width = image.width();
+            assert(height > 0);
+            assert(width > 0);
             const int pixel_count = width * height;
+            assert(pixel_count > 0);
 
             std::vector<Eigen::Triplet<double>> triplets;
             triplets.reserve(static_cast<std::size_t>(pixel_count) * 5);
@@ -115,6 +139,8 @@ namespace random_walker::graph {
                     }
 
                     const GridNodeIndex source_index = flatten(row, column, width);
+                    assert(source_index.value >= 0);
+                    assert(source_index.value < pixel_count);
                     const std::uint8_t source_intensity = image.at(row, column);
 
                     for (const ForwardGridDirection direction : kForwardDirections) {
@@ -128,6 +154,8 @@ namespace random_walker::graph {
 
                         const GridNodeIndex target_index =
                             flatten(neighbor_row, neighbor_column, width);
+                        assert(target_index.value >= 0);
+                        assert(target_index.value < pixel_count);
                         const double weight = compute_weight(
                             source_intensity
                             , image.at(neighbor_row, neighbor_column)
@@ -161,6 +189,8 @@ namespace random_walker::graph {
                 const GridNodeIndex diagonal_index {
                     .value = index
                 };
+                assert(diagonal_index.value >= 0);
+                assert(static_cast<Eigen::Index>(diagonal_index.value) < degrees.size());
                 triplets.emplace_back(
                     diagonal_index.value
                     , diagonal_index.value
@@ -174,6 +204,8 @@ namespace random_walker::graph {
 
             Eigen::SparseMatrix<double> laplacian(pixel_count, pixel_count);
             laplacian.setFromTriplets(triplets.begin(), triplets.end());
+            assert(laplacian.rows() == pixel_count);
+            assert(laplacian.cols() == pixel_count);
 
             if (cancellation.stop_requested()) {
                 return domain::Cancelled {};

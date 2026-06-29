@@ -1,5 +1,6 @@
 #include "SeedRegionState.hpp"
 
+#include <cassert>
 #include <utility>
 
 bool SeedRegionState::empty() const noexcept {
@@ -26,5 +27,9 @@ void SeedRegionState::clear() {
 }
 
 void SeedRegionState::add(random_walker::domain::SeedRegion region) {
+    assert(region.area.x >= 0);
+    assert(region.area.y >= 0);
+    assert(region.area.width > 0);
+    assert(region.area.height > 0);
     regions_.push_back(std::move(region));
 }

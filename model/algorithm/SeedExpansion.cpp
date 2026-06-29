@@ -1,5 +1,6 @@
 #include "SeedExpansion.hpp"
 
+#include <cassert>
 #include <cstddef>
 #include <variant>
 
@@ -10,6 +11,8 @@ namespace random_walker::algorithm {
         [[nodiscard]] std::size_t seed_pixel_count(
             const domain::SeedRegion& region
         ) noexcept {
+            assert(region.area.width > 0);
+            assert(region.area.height > 0);
             return static_cast<std::size_t>(region.area.width)
                 * static_cast<std::size_t>(region.area.height);
         }
@@ -53,6 +56,10 @@ namespace random_walker::algorithm {
             if (cancellation.stop_requested()) {
                 return domain::Cancelled {};
             }
+            assert(region.area.width > 0);
+            assert(region.area.height > 0);
+            assert(region.area.x >= 0);
+            assert(region.area.y >= 0);
             for (int row = region.area.y;
                  row < region.area.y + region.area.height;
                  ++row
@@ -86,6 +93,7 @@ namespace random_walker::algorithm {
             }
         }
 
+        assert(result.size() == seed_count);
         progress.report(domain::SegmentationStage::ExpandingSeeds, 1.0);
         return result;
     }

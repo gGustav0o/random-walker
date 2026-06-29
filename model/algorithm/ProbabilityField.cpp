@@ -1,5 +1,8 @@
 #include "ProbabilityField.hpp"
 
+#include <cassert>
+#include <cstddef>
+
 namespace random_walker::algorithm {
     ProbabilityMapOutcome assemble_probability_map(
         const BoundaryConditions& boundary_conditions
@@ -10,6 +13,30 @@ namespace random_walker::algorithm {
         , const domain::CancellationToken& cancellation
         , const domain::ProgressReporter& progress
     ) {
+        assert(width > 0);
+        assert(height > 0);
+        assert(
+            unknown_values.size()
+            == static_cast<Eigen::Index>(node_partition.unknown_pixels.size())
+        );
+        assert(
+            node_partition.unknown_pixels.size()
+            == node_partition.unknown_index_by_pixel.size()
+        );
+        assert(
+            node_partition.boundary_pixels.size()
+            == node_partition.boundary_index_by_pixel.size()
+        );
+        assert(
+            node_partition.unknown_pixels.size()
+                + node_partition.boundary_pixels.size()
+            == static_cast<std::size_t>(width * height)
+        );
+        assert(
+            boundary_conditions.pixels.size()
+            == boundary_conditions.value_by_pixel.size()
+        );
+
         domain::ProbabilityMap result(height, width);
         const int pixel_count = width * height;
 
@@ -31,10 +58,19 @@ namespace random_walker::algorithm {
             if (boundary_conditions.contains(pixel_index)) {
                 result(row, column) = boundary_conditions.value_at(pixel_index);
             } else {
+                const auto unknown_position =
+                    node_partition.unknown_index_by_pixel.find(pixel_index);
+                assert(
+                    unknown_position
+                    != node_partition.unknown_index_by_pixel.end()
+                );
+                assert(unknown_position->second.value >= 0);
+                assert(
+                    static_cast<Eigen::Index>(unknown_position->second.value)
+                    < unknown_values.size()
+                );
                 result(row, column) =
-                    unknown_values[
-                        node_partition.unknown_index_by_pixel.at(pixel_index).value
-                    ];
+                    unknown_values[unknown_position->second.value];
             }
 
             if ((index & 0x0fff) == 0) {
@@ -60,6 +96,8 @@ namespace random_walker::algorithm {
     ) {
         const int height = static_cast<int>(probabilities.rows());
         const int width = static_cast<int>(probabilities.cols());
+        assert(height > 0);
+        assert(width > 0);
         domain::BinaryMask mask(height, width);
 
         progress.report(domain::SegmentationStage::Thresholding, 0.0);

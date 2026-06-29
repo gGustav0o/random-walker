@@ -269,8 +269,14 @@ void AlgorithmTests::assembles_probability_map_from_boundary_and_unknown_values(
         algorithm::PixelIndex {.value = 1},
         algorithm::PixelIndex {.value = 2}
     };
+    partition.boundary_pixels = {
+        algorithm::PixelIndex {.value = 0},
+        algorithm::PixelIndex {.value = 3}
+    };
     partition.unknown_index_by_pixel.emplace(algorithm::PixelIndex {.value = 1}, algorithm::UnknownIndex {.value = 0});
     partition.unknown_index_by_pixel.emplace(algorithm::PixelIndex {.value = 2}, algorithm::UnknownIndex {.value = 1});
+    partition.boundary_index_by_pixel.emplace(algorithm::PixelIndex {.value = 0}, algorithm::BoundaryIndex {.value = 0});
+    partition.boundary_index_by_pixel.emplace(algorithm::PixelIndex {.value = 3}, algorithm::BoundaryIndex {.value = 1});
 
     Eigen::VectorXd unknown_values(2);
     unknown_values << 0.25, 0.75;

@@ -1,14 +1,19 @@
 #include "BoundaryConditions.hpp"
 
+#include <cassert>
 #include <cstddef>
 
 namespace random_walker::algorithm {
     namespace {
-        [[nodiscard]] constexpr PixelIndex flatten(
+        [[nodiscard]] PixelIndex flatten(
             int row
             , int column
             , int width
         ) noexcept {
+            assert(row >= 0);
+            assert(column >= 0);
+            assert(width > 0);
+            assert(column < width);
             return PixelIndex {
                 .value = row * width + column
             };
@@ -19,6 +24,7 @@ namespace random_walker::algorithm {
             , PixelIndex pixel_index
             , double value)
         {
+            assert(pixel_index.value >= 0);
             if (!conditions.value_by_pixel.contains(pixel_index)) {
                 conditions.pixels.push_back(pixel_index);
             }
@@ -31,7 +37,9 @@ namespace random_walker::algorithm {
         , const domain::CancellationToken& cancellation
         , const domain::ProgressReporter& progress
     ) {
+        assert(!input.image.empty());
         const int width = input.image.width();
+        assert(width > 0);
 
         BoundaryConditions result;
 
@@ -43,6 +51,10 @@ namespace random_walker::algorithm {
                     return false;
                 }
 
+                assert(seed.position.x >= 0);
+                assert(seed.position.y >= 0);
+                assert(seed.position.x < input.image.width());
+                assert(seed.position.y < input.image.height());
                 if (seed.label == label) {
                     assign_boundary_value(
                         result
@@ -85,6 +97,8 @@ namespace random_walker::algorithm {
         , const domain::CancellationToken& cancellation
         , const domain::ProgressReporter& progress
     ) {
+        assert(boundary_conditions.pixels.size()
+            == boundary_conditions.value_by_pixel.size());
         Eigen::VectorXd values(static_cast<int>(boundary_pixels.size()));
 
         for (std::size_t index = 0; index < boundary_pixels.size(); ++index) {
@@ -92,6 +106,7 @@ namespace random_walker::algorithm {
                 && cancellation.stop_requested()) {
                 return domain::Cancelled {};
             }
+            assert(boundary_conditions.contains(boundary_pixels[index]));
             values[static_cast<int>(index)] =
                 boundary_conditions.value_at(boundary_pixels[index]);
 

@@ -1,5 +1,7 @@
 #include "HarmonicSolver.hpp"
 
+#include <cassert>
+
 #include <Eigen/SparseCholesky>
 
 namespace random_walker::algorithm {
@@ -9,6 +11,19 @@ namespace random_walker::algorithm {
         , const domain::CancellationToken& cancellation
         , const domain::ProgressReporter& progress
     ) {
+        assert(
+            laplacian.unknown_unknown_block.rows()
+            == laplacian.unknown_unknown_block.cols()
+        );
+        assert(
+            laplacian.unknown_boundary_block.rows()
+            == laplacian.unknown_unknown_block.rows()
+        );
+        assert(
+            laplacian.unknown_boundary_block.cols()
+            == boundary_values.size()
+        );
+
         if (cancellation.stop_requested()) {
             return domain::Cancelled {};
         }
@@ -41,6 +56,7 @@ namespace random_walker::algorithm {
             return domain::SegmentationError::NonFiniteSolution;
         }
 
+        assert(solution.size() == laplacian.unknown_unknown_block.rows());
         return solution;
     }
 }

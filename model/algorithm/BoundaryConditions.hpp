@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <unordered_map>
 #include <variant>
 #include <vector>
@@ -21,6 +22,7 @@ namespace random_walker::algorithm {
         }
 
         [[nodiscard]] double value_at(PixelIndex pixel_index) const {
+            assert(contains(pixel_index));
             return value_by_pixel.at(pixel_index);
         }
     };

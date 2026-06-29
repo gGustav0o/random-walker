@@ -1,5 +1,6 @@
 #include "SegmentationService.hpp"
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -46,11 +47,15 @@ namespace random_walker::service {
         }
 
         [[nodiscard]]
-        constexpr SeedPixelIndex flatten(
+        SeedPixelIndex flatten(
             int row
             , int column
             , int width
         ) noexcept {
+            assert(row >= 0);
+            assert(column >= 0);
+            assert(width > 0);
+            assert(column < width);
             return SeedPixelIndex {
                 .value = row * width + column
             };
@@ -76,8 +81,14 @@ namespace random_walker::service {
             , const domain::SeedRegion& region
             , int image_width
         ) {
+            assert(image_width > 0);
             const BoundaryMarker marker = marker_for(region.label);
             const domain::PixelRectangle& area = region.area;
+            assert(area.width > 0);
+            assert(area.height > 0);
+            assert(area.x >= 0);
+            assert(area.y >= 0);
+            assert(area.x <= image_width - area.width);
 
             for (int row = area.y; row < area.y + area.height; ++row) {
                 for (int column = area.x; column < area.x + area.width; ++column) {

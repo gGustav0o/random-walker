@@ -1,5 +1,7 @@
 #include "RandomWalkerAlgorithm.hpp"
 
+#include <cassert>
+#include <cstddef>
 #include <utility>
 #include <variant>
 
@@ -169,8 +171,14 @@ namespace random_walker::algorithm {
             return domain::Cancelled {};
         }
 
+        assert(!input.image.empty());
+        assert(domain::is_valid(domain::RandomWalkerParameters { .beta = beta }));
+        assert(!input.seeds.empty());
+
         const int width = input.image.width();
         const int height = input.image.height();
+        assert(width > 0);
+        assert(height > 0);
         const int pixel_count = width * height;
 
         graph::GridLaplacianOutcome laplacian_outcome =
@@ -185,6 +193,8 @@ namespace random_walker::algorithm {
         }
         Eigen::SparseMatrix<double> laplacian =
             std::get<Eigen::SparseMatrix<double>>(std::move(laplacian_outcome));
+        assert(laplacian.rows() == pixel_count);
+        assert(laplacian.cols() == pixel_count);
 
         progress.report(domain::SegmentationStage::BuildingBoundaryConditions, 0.0);
         BoundaryConditionsOutcome boundary_outcome =
@@ -198,6 +208,11 @@ namespace random_walker::algorithm {
         }
         BoundaryConditions boundary_conditions =
             std::get<BoundaryConditions>(std::move(boundary_outcome));
+        assert(
+            boundary_conditions.pixels.size()
+            == boundary_conditions.value_by_pixel.size()
+        );
+        assert(!boundary_conditions.pixels.empty());
 
         progress.report(domain::SegmentationStage::PartitioningSystem, 0.0);
         NodePartitionOutcome node_partition_outcome =
@@ -212,6 +227,19 @@ namespace random_walker::algorithm {
         }
         NodePartition node_partition =
             std::get<NodePartition>(std::move(node_partition_outcome));
+        assert(
+            node_partition.unknown_pixels.size()
+            == node_partition.unknown_index_by_pixel.size()
+        );
+        assert(
+            node_partition.boundary_pixels.size()
+            == node_partition.boundary_index_by_pixel.size()
+        );
+        assert(
+            node_partition.unknown_pixels.size()
+                + node_partition.boundary_pixels.size()
+            == static_cast<std::size_t>(pixel_count)
+        );
 
         if (node_partition.unknown_pixels.empty()) {
             return handle_fully_constrained_image(

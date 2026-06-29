@@ -63,6 +63,9 @@ SegmentationViewModel::SegmentationViewModel(
     , completion_delivery_(std::make_shared<CompletionDeliveryGate>()) {
     const auto loaded_settings = settings_service_.load();
     application_settings_ = loaded_settings.settings;
+    Q_ASSERT(random_walker::domain::is_valid(
+        application_settings_.random_walker
+    ));
     random_walker::application::log_info(
         random_walker::application::log_category::viewmodel
         , loaded_settings.repair_required
@@ -391,6 +394,12 @@ void SegmentationViewModel::run_segmentation() {
     if (!can_run()) {
         return;
     }
+    Q_ASSERT(image_loaded());
+    Q_ASSERT(background_seed_count() > 0);
+    Q_ASSERT(object_seed_count() > 0);
+    Q_ASSERT(random_walker::domain::is_valid(
+        application_settings_.random_walker
+    ));
 
     const random_walker::domain::SegmentationRequestId request_id =
         next_request_id_++;
@@ -488,6 +497,8 @@ void SegmentationViewModel::dispatch_completion(
     const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
     , random_walker::executor::SegmentationCompletion completion
 ) {
+    Q_ASSERT(delivery_gate);
+
     auto payload =
         std::make_shared<random_walker::executor::SegmentationCompletion>(
             std::move(completion)
@@ -512,6 +523,8 @@ void SegmentationViewModel::dispatch_progress(
     const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
     , random_walker::domain::SegmentationProgress progress
 ) {
+    Q_ASSERT(delivery_gate);
+
     auto payload =
         std::make_shared<random_walker::domain::SegmentationProgress>(
             std::move(progress));
@@ -710,6 +723,8 @@ void SegmentationViewModel::clear_error() {
 }
 
 void SegmentationViewModel::notify_can_run_if_changed(bool previous_value) {
+    assert_ui_thread();
+
     if (previous_value != can_run()) {
         emit can_run_changed();
     }
