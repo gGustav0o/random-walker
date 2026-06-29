@@ -1,6 +1,7 @@
 #include "JThreadSegmentationExecutor.hpp"
 
 #include <chrono>
+#include <cstdio>
 #include <optional>
 #include <utility>
 
@@ -179,6 +180,10 @@ namespace random_walker::executor {
                     , progress_reporter
                 );
             } catch (...) {
+                std::fputs(
+                    "Unexpected exception during segmentation execution.\n"
+                    , stderr
+                );
                 outcome = ExecutionError::UnexpectedInternalFailure;
             }
 
@@ -209,6 +214,10 @@ namespace random_walker::executor {
                 } catch (...) {
                     // Completion delivery failures cannot be reported through
                     // the same failing callback. Keep the worker alive.
+                    std::fputs(
+                        "Segmentation completion handler threw; completion was dropped.\n"
+                        , stderr
+                    );
                 }
             }
         }

@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 
+#include <QDebug>
 #include <QStandardPaths>
 #include <QString>
 #include <QtGlobal>
@@ -113,6 +114,8 @@ namespace random_walker::infrastructure {
                     , std::string(message)
                 );
             } catch (...) {
+                qWarning().noquote()
+                    << "Failed to write log message; message was dropped";
             }
         }
     }
@@ -212,6 +215,7 @@ namespace random_walker::infrastructure {
             }
             spdlog::shutdown();
         } catch (...) {
+            qCritical().noquote() << "Failed to shutdown logging";
         }
     }
 

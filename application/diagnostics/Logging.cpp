@@ -3,6 +3,8 @@
 #include <mutex>
 #include <utility>
 
+#include <QDebug>
+
 namespace random_walker::application {
     namespace {
         std::mutex log_sink_mutex;
@@ -24,6 +26,8 @@ namespace random_walker::application {
                     sink(level, category, message);
                 }
             } catch (...) {
+                qWarning().noquote()
+                    << "Application log sink threw; message was dropped";
             }
         }
     }
@@ -38,6 +42,8 @@ namespace random_walker::application {
             std::lock_guard lock(log_sink_mutex);
             current_log_sink = {};
         } catch (...) {
+            qWarning().noquote()
+                << "Application log sink cleanup failed";
         }
     }
 
