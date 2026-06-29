@@ -2,6 +2,8 @@
 
 #include <variant>
 
+#include <QtGlobal>
+
 namespace random_walker::presentation {
 
     namespace {
@@ -15,6 +17,11 @@ namespace random_walker::presentation {
                 return QStringLiteral("Unexpected internal application error.");
             }
 
+            Q_ASSERT_X(
+                false
+                , "application_error_message"
+                , "Unhandled application error"
+            );
             return QStringLiteral("Unknown application error.");
         }
 
@@ -28,6 +35,11 @@ namespace random_walker::presentation {
                 return QStringLiteral("Failed to load the selected image.");
             }
 
+            Q_ASSERT_X(
+                false
+                , "image_load_error_message"
+                , "Unhandled image load error"
+            );
             return QStringLiteral("Unknown image loading error.");
         }
 
@@ -43,6 +55,11 @@ namespace random_walker::presentation {
                 return QStringLiteral("Failed to save application settings.");
             }
 
+            Q_ASSERT_X(
+                false
+                , "settings_error_message"
+                , "Unhandled settings error"
+            );
             return QStringLiteral("Unknown settings error.");
         }
 
@@ -74,6 +91,11 @@ namespace random_walker::presentation {
                 return QStringLiteral("The Random Walker solution is not finite.");
             }
 
+            Q_ASSERT_X(
+                false
+                , "segmentation_error_message"
+                , "Unhandled segmentation error"
+            );
             return QStringLiteral("Unknown segmentation error.");
         }
     }
@@ -103,6 +125,7 @@ namespace random_walker::presentation {
             return segmentation_error_message(*segmentation_error);
         }
 
+        Q_ASSERT_X(false, "error_message", "Unhandled user error variant");
         return QStringLiteral("Unknown application error.");
     }
 }

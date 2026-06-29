@@ -38,6 +38,7 @@ QString ProgressState::status_text() const {
         return QStringLiteral("Building segmentation mask");
     }
 
+    Q_ASSERT_X(false, "ProgressState::status_text", "Unhandled progress stage");
     return {};
 }
 
@@ -97,5 +98,6 @@ int ProgressState::stage_from(
         return Thresholding;
     }
 
+    Q_ASSERT_X(false, "ProgressState::stage_from", "Unhandled segmentation stage");
     return Idle;
 }

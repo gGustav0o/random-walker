@@ -11,6 +11,7 @@
 #include <QImage>
 #include <QMetaObject>
 #include <QThread>
+#include <QtGlobal>
 
 #include "application/diagnostics/Logging.hpp"
 #include "presentation/image/ImageLoader.hpp"
@@ -34,6 +35,7 @@ namespace {
                 UnexpectedInternalFailure;
         }
 
+        Q_ASSERT_X(false, "application_error", "Unhandled executor error");
         return random_walker::application::ApplicationError::
             UnexpectedInternalFailure;
     }

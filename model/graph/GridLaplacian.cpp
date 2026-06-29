@@ -1,6 +1,7 @@
 #include "GridLaplacian.hpp"
 
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -26,7 +27,7 @@ namespace random_walker::graph {
         };
 
         [[nodiscard]]
-        constexpr std::pair<int, int> offset(
+        std::pair<int, int> offset(
             ForwardGridDirection direction
         ) noexcept {
             switch (direction) {
@@ -36,6 +37,7 @@ namespace random_walker::graph {
                 return { 1, 0 };
             }
 
+            assert(false && "Unhandled grid direction");
             return { 0, 0 };
         }
 

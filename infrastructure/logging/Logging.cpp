@@ -8,6 +8,7 @@
 
 #include <QStandardPaths>
 #include <QString>
+#include <QtGlobal>
 
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/spdlog.h>
@@ -64,6 +65,11 @@ namespace random_walker::infrastructure {
                 return spdlog::level::off;
             }
 
+            Q_ASSERT_X(
+                false
+                , "to_spdlog_level"
+                , "Unhandled infrastructure log level"
+            );
             return spdlog::level::info;
         }
 
@@ -81,6 +87,11 @@ namespace random_walker::infrastructure {
                 return spdlog::level::err;
             }
 
+            Q_ASSERT_X(
+                false
+                , "to_spdlog_level"
+                , "Unhandled application log level"
+            );
             return spdlog::level::info;
         }
 
@@ -120,6 +131,11 @@ namespace random_walker::infrastructure {
             return "failed to create rotating log file sink";
         }
 
+        Q_ASSERT_X(
+            false
+            , "logging_initialization_error_text"
+            , "Unhandled logging initialization error"
+        );
         return "unknown logging initialization error";
     }
 
