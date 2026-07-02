@@ -9,12 +9,13 @@
 
 namespace {
 
-    constexpr int kCurrentSchemaVersion = 2;
+    constexpr int kCurrentSchemaVersion = 3;
 
     constexpr auto kSettingsGroup = "applicationSettings";
     constexpr auto kSchemaVersionKey = "schemaVersion";
     constexpr auto kRandomWalkerBetaKey = "randomWalker/beta";
     constexpr auto kRandomWalkerConnectivityKey = "randomWalker/connectivity";
+    constexpr auto kRandomWalkerDistancePowerKey = "randomWalker/distancePower";
     constexpr auto kLegacyBetaKey = "beta";
 
     [[nodiscard]] double stored_double(
@@ -166,6 +167,10 @@ namespace random_walker::infrastructure {
             settings_
             , kRandomWalkerConnectivityKey
         );
+        result.random_walker.distance_power = stored_double(
+            settings_
+            , kRandomWalkerDistancePowerKey
+        );
         return result;
     }
 
@@ -181,6 +186,14 @@ namespace random_walker::infrastructure {
         case 1:
             result.random_walker.beta =
                 stored_double(settings_, kRandomWalkerBetaKey);
+            return result;
+        case 2:
+            result.random_walker.beta =
+                stored_double(settings_, kRandomWalkerBetaKey);
+            result.random_walker.connectivity = stored_connectivity(
+                settings_
+                , kRandomWalkerConnectivityKey
+            );
             return result;
         default:
             qWarning()
@@ -204,6 +217,10 @@ namespace random_walker::infrastructure {
             , connectivity_to_storage(
                 application_settings.random_walker.connectivity
             )
+        );
+        settings_.setValue(
+            kRandomWalkerDistancePowerKey
+            , application_settings.random_walker.distance_power
         );
         settings_.setValue(kSchemaVersionKey, kCurrentSchemaVersion);
     }

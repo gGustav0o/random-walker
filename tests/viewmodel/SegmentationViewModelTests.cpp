@@ -83,6 +83,7 @@ namespace {
             );
             last_beta = request.parameters().beta;
             last_connectivity = request.parameters().connectivity;
+            last_distance_power = request.parameters().distance_power;
             progress_handler_ = std::move(progress_handler);
             completion_handler_ = std::move(completion_handler);
             ++submit_count;
@@ -112,6 +113,7 @@ namespace {
         double last_beta = 0.0;
         domain::PixelConnectivity last_connectivity =
             domain::PixelConnectivity::Four;
+        double last_distance_power = 0.0;
 
     private:
         executor::SegmentationProgressHandler progress_handler_;
@@ -166,6 +168,7 @@ private slots:
     void initializes_from_settings();
     void set_beta_saves_settings_and_emits_change();
     void set_connectivity_saves_settings_and_emits_change();
+    void set_distance_power_saves_settings_and_emits_change();
     void open_image_updates_image_state_and_cache();
     void add_seed_rectangles_updates_counts_and_can_run();
     void run_segmentation_submits_request_and_updates_progress();
@@ -180,6 +183,10 @@ void SegmentationViewModelTests::initializes_from_settings() {
     QCOMPARE(
         fixture.view_model.connectivity()
         , static_cast<int>(SegmentationViewModel::FourConnectivity)
+    );
+    QCOMPARE(
+        fixture.view_model.distance_power()
+        , domain::kDefaultRandomWalkerDistancePower
     );
     QVERIFY(!fixture.view_model.image_loaded());
     QVERIFY(!fixture.view_model.can_run());
@@ -220,6 +227,21 @@ void SegmentationViewModelTests::set_connectivity_saves_settings_and_emits_chang
         , static_cast<int>(domain::PixelConnectivity::Eight)
     );
     QCOMPARE(connectivity_changed.count(), 1);
+}
+
+void SegmentationViewModelTests::set_distance_power_saves_settings_and_emits_change() {
+    ViewModelFixture fixture;
+    QSignalSpy distance_power_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::distance_power_changed
+    );
+
+    fixture.view_model.set_distance_power(1.5);
+
+    QCOMPARE(fixture.view_model.distance_power(), 1.5);
+    QCOMPARE(fixture.repository.save_count, 1);
+    QCOMPARE(fixture.repository.stored.random_walker.distance_power, 1.5);
+    QCOMPARE(distance_power_changed.count(), 1);
 }
 
 void SegmentationViewModelTests::open_image_updates_image_state_and_cache() {
@@ -267,6 +289,7 @@ void SegmentationViewModelTests::run_segmentation_submits_request_and_updates_pr
     fixture.view_model.set_selected_label(SegmentationViewModel::Object);
     fixture.view_model.add_seed_rectangle(2, 1, 1, 1);
     fixture.view_model.set_connectivity(SegmentationViewModel::EightConnectivity);
+    fixture.view_model.set_distance_power(1.5);
     QSignalSpy busy_changed(&fixture.view_model, &SegmentationViewModel::busy_changed);
     QSignalSpy progress_changed(
         &fixture.view_model
@@ -286,6 +309,7 @@ void SegmentationViewModelTests::run_segmentation_submits_request_and_updates_pr
         static_cast<int>(fixture.executor.last_connectivity)
         , static_cast<int>(domain::PixelConnectivity::Eight)
     );
+    QCOMPARE(fixture.executor.last_distance_power, 1.5);
     QVERIFY(fixture.view_model.busy());
     QCOMPARE(busy_changed.count(), 1);
 
@@ -351,7 +375,6 @@ void SegmentationViewModelTests::stale_completion_is_ignored() {
         , .outcome = domain::SegmentationOutcome {make_result(3, 2)}
     });
     process_queued_viewmodel_events();
-
     QVERIFY(fixture.view_model.busy());
     QVERIFY(!fixture.view_model.has_result());
     QCOMPARE(fixture.result_cache.store_count, 0);

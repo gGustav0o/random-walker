@@ -72,6 +72,7 @@ set(HEADERS
     model/algorithm/SeedExpansion.hpp
     model/executor/SegmentationExecutor.hpp
     model/executor/JThreadSegmentationExecutor.hpp
+    model/graph/EdgeWeight.hpp
     model/graph/GridLaplacian.hpp
     model/service/SegmentationService.hpp
     presentation/adapter/MaskRenderer.hpp

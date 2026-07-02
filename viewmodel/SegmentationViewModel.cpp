@@ -213,6 +213,10 @@ int SegmentationViewModel::connectivity() const noexcept {
     return view_connectivity(application_settings_.random_walker.connectivity);
 }
 
+double SegmentationViewModel::distance_power() const noexcept {
+    return application_settings_.random_walker.distance_power;
+}
+
 double SegmentationViewModel::beta_slider_position() const noexcept {
     const double exponent =
         std::log10(application_settings_.random_walker.beta);
@@ -309,6 +313,14 @@ void SegmentationViewModel::set_connectivity(int connectivity) {
 
     auto updated_parameters = application_settings_.random_walker;
     updated_parameters.connectivity = *updated_connectivity;
+    update_random_walker_parameters(updated_parameters);
+}
+
+void SegmentationViewModel::set_distance_power(double value) {
+    assert_ui_thread();
+
+    auto updated_parameters = application_settings_.random_walker;
+    updated_parameters.distance_power = value;
     update_random_walker_parameters(updated_parameters);
 }
 
@@ -499,6 +511,8 @@ void SegmentationViewModel::run_segmentation() {
             + std::to_string(application_settings_.random_walker.beta)
             + ", connectivity="
             + std::to_string(connectivity())
+            + ", distance_power="
+            + std::to_string(application_settings_.random_walker.distance_power)
     );
 
     active_request_id_ = request_id;
@@ -547,6 +561,9 @@ void SegmentationViewModel::update_random_walker_parameters(
     const bool connectivity_was_changed =
         parameters.connectivity
             != application_settings_.random_walker.connectivity;
+    const bool distance_power_was_changed =
+        parameters.distance_power
+            != application_settings_.random_walker.distance_power;
 
     auto updated_settings = application_settings_;
     updated_settings.random_walker = parameters;
@@ -568,6 +585,8 @@ void SegmentationViewModel::update_random_walker_parameters(
             + std::to_string(
                 view_connectivity(updated_settings.random_walker.connectivity)
             )
+            + ", distance_power="
+            + std::to_string(updated_settings.random_walker.distance_power)
     );
 
     cancel_active_request();
@@ -580,6 +599,9 @@ void SegmentationViewModel::update_random_walker_parameters(
     }
     if (connectivity_was_changed) {
         emit connectivity_changed();
+    }
+    if (distance_power_was_changed) {
+        emit distance_power_changed();
     }
 }
 

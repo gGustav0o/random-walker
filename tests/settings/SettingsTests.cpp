@@ -10,8 +10,9 @@ namespace {
     constexpr auto kSchemaVersionKey = "schemaVersion";
     constexpr auto kRandomWalkerBetaKey = "randomWalker/beta";
     constexpr auto kRandomWalkerConnectivityKey = "randomWalker/connectivity";
+    constexpr auto kRandomWalkerDistancePowerKey = "randomWalker/distancePower";
     constexpr auto kLegacyBetaKey = "beta";
-    constexpr int kCurrentSchemaVersion = 2;
+    constexpr int kCurrentSchemaVersion = 3;
 
     class InMemorySettingsRepository final
         : public random_walker::application::SettingsRepository {
@@ -61,10 +62,11 @@ class SettingsTests final : public QObject {
 private slots:
     void loads_default_values();
     void repairs_corrupted_values();
-    void loads_persisted_connectivity();
+    void loads_persisted_parameters();
     void ignores_unknown_newer_schema();
     void migrates_legacy_schema();
     void migrates_schema_one_with_default_connectivity();
+    void migrates_schema_two_with_default_distance_power();
     void rejects_invalid_settings_on_save();
     void reports_settings_save_failure();
 };
@@ -84,6 +86,10 @@ void SettingsTests::loads_default_values() {
         static_cast<int>(settings.random_walker.connectivity)
         , static_cast<int>(random_walker::domain::kDefaultPixelConnectivity)
     );
+    QCOMPARE(
+        settings.random_walker.distance_power
+        , random_walker::domain::kDefaultRandomWalkerDistancePower
+    );
     QVERIFY(repository.stored == settings);
     QVERIFY(!load_result.repair_required);
     QCOMPARE(repository.save_count, 0);
@@ -96,6 +102,7 @@ void SettingsTests::repairs_corrupted_values() {
     write_value(path, kSchemaVersionKey, kCurrentSchemaVersion);
     write_value(path, kRandomWalkerBetaKey, QStringLiteral("invalid"));
     write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
+    write_value(path, kRandomWalkerDistancePowerKey, QStringLiteral("invalid"));
 
     random_walker::infrastructure::QtSettingsRepository repository(
         path
@@ -113,6 +120,10 @@ void SettingsTests::repairs_corrupted_values() {
     QCOMPARE(
         static_cast<int>(settings.random_walker.connectivity)
         , static_cast<int>(random_walker::domain::kDefaultPixelConnectivity)
+    );
+    QCOMPARE(
+        settings.random_walker.distance_power
+        , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
     QVERIFY(load_result.repair_required);
 
@@ -138,15 +149,20 @@ void SettingsTests::repairs_corrupted_values() {
         repaired.value(kRandomWalkerConnectivityKey).toString()
         , QStringLiteral("four")
     );
+    QCOMPARE(
+        repaired.value(kRandomWalkerDistancePowerKey).toDouble()
+        , random_walker::domain::kDefaultRandomWalkerDistancePower
+    );
 }
 
-void SettingsTests::loads_persisted_connectivity() {
+void SettingsTests::loads_persisted_parameters() {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
     const QString path = settings_path(directory);
     write_value(path, kSchemaVersionKey, kCurrentSchemaVersion);
     write_value(path, kRandomWalkerBetaKey, 0.005);
     write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
+    write_value(path, kRandomWalkerDistancePowerKey, 1.5);
 
     random_walker::infrastructure::QtSettingsRepository repository(
         path
@@ -161,6 +177,7 @@ void SettingsTests::loads_persisted_connectivity() {
         static_cast<int>(settings.random_walker.connectivity)
         , static_cast<int>(random_walker::domain::PixelConnectivity::Eight)
     );
+    QCOMPARE(settings.random_walker.distance_power, 1.5);
     QVERIFY(!load_result.repair_required);
 }
 
@@ -171,6 +188,7 @@ void SettingsTests::ignores_unknown_newer_schema() {
     write_value(path, kSchemaVersionKey, kCurrentSchemaVersion + 1);
     write_value(path, kRandomWalkerBetaKey, 0.005);
     write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
+    write_value(path, kRandomWalkerDistancePowerKey, 1.5);
 
     random_walker::infrastructure::QtSettingsRepository repository(
         path
@@ -187,6 +205,10 @@ void SettingsTests::ignores_unknown_newer_schema() {
     QCOMPARE(
         static_cast<int>(settings.random_walker.connectivity)
         , static_cast<int>(random_walker::domain::kDefaultPixelConnectivity)
+    );
+    QCOMPARE(
+        settings.random_walker.distance_power
+        , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
     QVERIFY(!load_result.repair_required);
 
@@ -219,6 +241,10 @@ void SettingsTests::migrates_legacy_schema() {
         static_cast<int>(settings.random_walker.connectivity)
         , static_cast<int>(random_walker::domain::kDefaultPixelConnectivity)
     );
+    QCOMPARE(
+        settings.random_walker.distance_power
+        , random_walker::domain::kDefaultRandomWalkerDistancePower
+    );
     QVERIFY(load_result.repair_required);
 
     {
@@ -230,6 +256,7 @@ void SettingsTests::migrates_legacy_schema() {
         );
         QVERIFY(!persisted.contains(kRandomWalkerBetaKey));
         QVERIFY(!persisted.contains(kRandomWalkerConnectivityKey));
+        QVERIFY(!persisted.contains(kRandomWalkerDistancePowerKey));
         QVERIFY(persisted.contains(kLegacyBetaKey));
     }
 
@@ -248,6 +275,10 @@ void SettingsTests::migrates_legacy_schema() {
     QCOMPARE(
         migrated.value(kRandomWalkerConnectivityKey).toString()
         , QStringLiteral("four")
+    );
+    QCOMPARE(
+        migrated.value(kRandomWalkerDistancePowerKey).toDouble()
+        , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
     QVERIFY(!migrated.contains(kLegacyBetaKey));
 }
@@ -272,6 +303,39 @@ void SettingsTests::migrates_schema_one_with_default_connectivity() {
     QCOMPARE(
         static_cast<int>(settings.random_walker.connectivity)
         , static_cast<int>(random_walker::domain::PixelConnectivity::Four)
+    );
+    QCOMPARE(
+        settings.random_walker.distance_power
+        , random_walker::domain::kDefaultRandomWalkerDistancePower
+    );
+    QVERIFY(load_result.repair_required);
+}
+
+void SettingsTests::migrates_schema_two_with_default_distance_power() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString path = settings_path(directory);
+    constexpr double stored_beta = 0.006;
+    write_value(path, kSchemaVersionKey, 2);
+    write_value(path, kRandomWalkerBetaKey, stored_beta);
+    write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
+
+    random_walker::infrastructure::QtSettingsRepository repository(
+        path
+        , QSettings::IniFormat
+    );
+
+    const auto load_result = repository.load();
+    const auto settings = load_result.settings;
+
+    QCOMPARE(settings.random_walker.beta, stored_beta);
+    QCOMPARE(
+        static_cast<int>(settings.random_walker.connectivity)
+        , static_cast<int>(random_walker::domain::PixelConnectivity::Eight)
+    );
+    QCOMPARE(
+        settings.random_walker.distance_power
+        , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
     QVERIFY(load_result.repair_required);
 }

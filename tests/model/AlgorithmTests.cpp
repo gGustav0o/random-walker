@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstdint>
 #include <initializer_list>
+#include <limits>
 #include <stop_token>
 #include <utility>
 #include <variant>
@@ -20,6 +21,7 @@
 #include "model/domain/ProgressReporter.hpp"
 #include "model/domain/Seed.hpp"
 #include "model/domain/Segmentation.hpp"
+#include "model/graph/EdgeWeight.hpp"
 #include "model/graph/GridLaplacian.hpp"
 
 namespace algorithm = random_walker::algorithm;
@@ -74,6 +76,18 @@ namespace {
         return static_cast<int>(
             (large_parallel_pixel_count() + width - 1) / width
         );
+    }
+
+    [[nodiscard]] domain::RandomWalkerParameters random_walker_parameters(
+        double beta
+        , domain::PixelConnectivity connectivity
+        , double distance_power = domain::kDefaultRandomWalkerDistancePower
+    ) noexcept {
+        return {
+            .beta = beta
+            , .distance_power = distance_power
+            , .connectivity = connectivity
+        };
     }
 
     [[nodiscard]] double probability_value_for_index(int index) noexcept {
@@ -191,8 +205,14 @@ private slots:
     void thresholds_probabilities_at_half();
     void thresholds_large_probability_map_deterministically();
     void large_thresholding_honors_cancellation();
+    void edge_weight_parameters_validate_domain_bounds();
+    void edge_weight_zero_distance_power_matches_baseline();
+    void edge_weight_keeps_orthogonal_edges_independent_of_distance_power();
+    void edge_weight_uses_distance_power();
+    void edge_weight_function_object_matches_pure_formula();
     void grid_laplacian_has_expected_2x2_structure();
     void grid_laplacian_eight_connectivity_adds_diagonal_edges();
+    void grid_laplacian_distance_power_normalizes_diagonal_edges();
     void grid_laplacian_beta_changes_edge_weight();
 };
 
@@ -553,13 +573,146 @@ void AlgorithmTests::large_thresholding_honors_cancellation() {
     QVERIFY(is_cancelled(outcome));
 }
 
+void AlgorithmTests::edge_weight_parameters_validate_domain_bounds() {
+    QVERIFY(graph::is_valid(graph::EdgeWeightParameters {
+        .beta = domain::kMinimumRandomWalkerBeta
+        , .distance_power = domain::kMinimumRandomWalkerDistancePower
+    }));
+    QVERIFY(graph::is_valid(graph::EdgeWeightParameters {
+        .beta = domain::kMaximumRandomWalkerBeta
+        , .distance_power = domain::kMaximumRandomWalkerDistancePower
+    }));
+    QVERIFY(!graph::is_valid(graph::EdgeWeightParameters {
+        .beta = std::nextafter(domain::kMinimumRandomWalkerBeta, 0.0)
+    }));
+    QVERIFY(!graph::is_valid(graph::EdgeWeightParameters {
+        .beta = std::numeric_limits<double>::quiet_NaN()
+    }));
+    QVERIFY(!graph::is_valid(graph::EdgeWeightParameters {
+        .distance_power = std::nextafter(
+            domain::kMinimumRandomWalkerDistancePower
+            , -1.0
+        )
+    }));
+    QVERIFY(!graph::is_valid(graph::EdgeWeightParameters {
+        .distance_power = std::nextafter(
+            domain::kMaximumRandomWalkerDistancePower
+            , 3.0
+        )
+    }));
+    QVERIFY(!graph::is_valid(graph::EdgeWeightParameters {
+        .distance_power = std::numeric_limits<double>::quiet_NaN()
+    }));
+    QVERIFY(!graph::is_valid(graph::EdgeWeightParameters {
+        .distance_power = std::numeric_limits<double>::infinity()
+    }));
+}
+
+void AlgorithmTests::edge_weight_zero_distance_power_matches_baseline() {
+    const graph::EdgeWeightParameters parameters {
+        .beta = 0.01
+        , .distance_power = 0.0
+    };
+
+    const double diagonal_weight = graph::compute_edge_weight(
+        0
+        , 10
+        , std::sqrt(2.0)
+        , parameters
+    );
+
+    QVERIFY(std::abs(diagonal_weight - std::exp(-0.01 * 100.0)) < 1e-12);
+}
+
+void AlgorithmTests::edge_weight_keeps_orthogonal_edges_independent_of_distance_power() {
+    const graph::EdgeWeightParameters weak_distance_penalty {
+        .beta = 0.01
+        , .distance_power = 0.0
+    };
+    const graph::EdgeWeightParameters strong_distance_penalty {
+        .beta = 0.01
+        , .distance_power = 2.0
+    };
+
+    const double baseline = graph::compute_edge_weight(
+        0
+        , 10
+        , 1.0
+        , weak_distance_penalty
+    );
+    const double normalized = graph::compute_edge_weight(
+        0
+        , 10
+        , 1.0
+        , strong_distance_penalty
+    );
+
+    QVERIFY(std::abs(baseline - normalized) < 1e-12);
+    QVERIFY(std::abs(normalized - std::exp(-0.01 * 100.0)) < 1e-12);
+}
+
+void AlgorithmTests::edge_weight_uses_distance_power() {
+    const graph::EdgeWeightParameters linear_distance_penalty =
+        graph::edge_weight_parameters_from(
+            random_walker_parameters(0.01, domain::PixelConnectivity::Eight, 1.0)
+        );
+    const graph::EdgeWeightParameters quadratic_distance_penalty =
+        graph::edge_weight_parameters_from(
+            random_walker_parameters(0.01, domain::PixelConnectivity::Eight, 2.0)
+        );
+
+    const double linear_diagonal_weight = graph::compute_edge_weight(
+        0
+        , 10
+        , std::sqrt(2.0)
+        , linear_distance_penalty
+    );
+    const double quadratic_diagonal_weight = graph::compute_edge_weight(
+        0
+        , 10
+        , std::sqrt(2.0)
+        , quadratic_distance_penalty
+    );
+
+    const double contrast_weight = std::exp(-0.01 * 100.0);
+    QVERIFY(
+        std::abs(linear_diagonal_weight - contrast_weight / std::sqrt(2.0))
+        < 1e-12
+    );
+    QVERIFY(std::abs(quadratic_diagonal_weight - contrast_weight / 2.0)
+        < 1e-12);
+}
+
+void AlgorithmTests::edge_weight_function_object_matches_pure_formula() {
+    const graph::EdgeWeightParameters parameters {
+        .beta = 0.01
+        , .distance_power = 1.0
+    };
+    const graph::ExponentialDistanceEdgeWeight edge_weight {
+        .parameters = parameters
+    };
+
+    const double direct_weight = graph::compute_edge_weight(
+        0
+        , 10
+        , std::sqrt(2.0)
+        , parameters
+    );
+    const double function_object_weight = edge_weight(
+        0
+        , 10
+        , std::sqrt(2.0)
+    );
+
+    QVERIFY(std::abs(function_object_weight - direct_weight) < 1e-12);
+}
+
 void AlgorithmTests::grid_laplacian_has_expected_2x2_structure() {
     const domain::GrayImage image = make_image(2, 2, {10, 10, 10, 10});
 
     const auto outcome = graph::build_grid_laplacian(
         image
-        , 0.01
-        , domain::PixelConnectivity::Four
+        , random_walker_parameters(0.01, domain::PixelConnectivity::Four)
         , domain::CancellationToken {}
         , domain::ProgressReporter {}
     );
@@ -591,8 +744,7 @@ void AlgorithmTests::grid_laplacian_eight_connectivity_adds_diagonal_edges() {
 
     const auto outcome = graph::build_grid_laplacian(
         image
-        , 0.01
-        , domain::PixelConnectivity::Eight
+        , random_walker_parameters(0.01, domain::PixelConnectivity::Eight)
         , domain::CancellationToken {}
         , domain::ProgressReporter {}
     );
@@ -621,20 +773,45 @@ void AlgorithmTests::grid_laplacian_eight_connectivity_adds_diagonal_edges() {
     QCOMPARE(coefficient(laplacian, 2, 1), -1.0);
 }
 
+void AlgorithmTests::grid_laplacian_distance_power_normalizes_diagonal_edges() {
+    const domain::GrayImage image = make_image(2, 2, {10, 10, 10, 10});
+
+    const auto outcome = graph::build_grid_laplacian(
+        image
+        , random_walker_parameters(0.01, domain::PixelConnectivity::Eight, 1.0)
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<Eigen::SparseMatrix<double>>(outcome));
+    const Eigen::SparseMatrix<double>& laplacian =
+        std::get<Eigen::SparseMatrix<double>>(outcome);
+    const double diagonal_weight = 1.0 / std::sqrt(2.0);
+    const double expected_degree = 2.0 + diagonal_weight;
+
+    for (int index = 0; index < 4; ++index) {
+        QVERIFY(std::abs(coefficient(laplacian, index, index) - expected_degree)
+            < 1e-12);
+    }
+
+    QCOMPARE(coefficient(laplacian, 0, 1), -1.0);
+    QCOMPARE(coefficient(laplacian, 0, 2), -1.0);
+    QVERIFY(std::abs(coefficient(laplacian, 0, 3) + diagonal_weight) < 1e-12);
+    QVERIFY(std::abs(coefficient(laplacian, 1, 2) + diagonal_weight) < 1e-12);
+}
+
 void AlgorithmTests::grid_laplacian_beta_changes_edge_weight() {
     const domain::GrayImage image = make_image(1, 2, {0, 10});
 
     const auto weak_penalty_outcome = graph::build_grid_laplacian(
         image
-        , 0.001
-        , domain::PixelConnectivity::Four
+        , random_walker_parameters(0.001, domain::PixelConnectivity::Four)
         , domain::CancellationToken {}
         , domain::ProgressReporter {}
     );
     const auto strong_penalty_outcome = graph::build_grid_laplacian(
         image
-        , 0.01
-        , domain::PixelConnectivity::Four
+        , random_walker_parameters(0.01, domain::PixelConnectivity::Four)
         , domain::CancellationToken {}
         , domain::ProgressReporter {}
     );

@@ -20,6 +20,8 @@ private slots:
     void default_random_walker_parameters_are_valid();
     void random_walker_beta_accepts_closed_valid_range();
     void random_walker_beta_rejects_values_outside_valid_range();
+    void random_walker_distance_power_accepts_closed_valid_range();
+    void random_walker_distance_power_rejects_values_outside_valid_range();
     void gray_image_reports_empty_default_state();
     void gray_image_reports_dimensions_and_pixel_values();
     void seed_pixel_count_counts_only_requested_label();
@@ -34,6 +36,10 @@ void DomainTests::default_random_walker_parameters_are_valid() {
     QCOMPARE(
         static_cast<int>(parameters.connectivity)
         , static_cast<int>(domain::kDefaultPixelConnectivity)
+    );
+    QCOMPARE(
+        parameters.distance_power
+        , domain::kDefaultRandomWalkerDistancePower
     );
 }
 
@@ -64,6 +70,36 @@ void DomainTests::random_walker_beta_rejects_values_outside_valid_range() {
     }));
     QVERIFY(!domain::is_valid(domain::RandomWalkerParameters {
         .beta = std::numeric_limits<double>::infinity()
+    }));
+}
+
+void DomainTests::random_walker_distance_power_accepts_closed_valid_range() {
+    QVERIFY(domain::is_valid(domain::RandomWalkerParameters {
+        .distance_power = domain::kMinimumRandomWalkerDistancePower
+    }));
+    QVERIFY(domain::is_valid(domain::RandomWalkerParameters {
+        .distance_power = domain::kMaximumRandomWalkerDistancePower
+    }));
+}
+
+void DomainTests::random_walker_distance_power_rejects_values_outside_valid_range() {
+    QVERIFY(!domain::is_valid(domain::RandomWalkerParameters {
+        .distance_power = std::nextafter(
+            domain::kMinimumRandomWalkerDistancePower
+            , -1.0
+        )
+    }));
+    QVERIFY(!domain::is_valid(domain::RandomWalkerParameters {
+        .distance_power = std::nextafter(
+            domain::kMaximumRandomWalkerDistancePower
+            , 3.0
+        )
+    }));
+    QVERIFY(!domain::is_valid(domain::RandomWalkerParameters {
+        .distance_power = std::numeric_limits<double>::quiet_NaN()
+    }));
+    QVERIFY(!domain::is_valid(domain::RandomWalkerParameters {
+        .distance_power = std::numeric_limits<double>::infinity()
     }));
 }
 

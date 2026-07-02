@@ -143,6 +143,72 @@ Rectangle {
                 value: root.vm.beta_slider_position
                 onMoved: root.vm.beta_slider_position = value
             }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Distance p"
+                    color: "#ddd"
+                    elide: Text.ElideRight
+                }
+
+                TextField {
+                    id: distancePowerField
+                    Layout.preferredWidth: 108
+                    enabled: !root.vm.busy
+                    horizontalAlignment: Text.AlignRight
+                    selectByMouse: true
+                    validator: DoubleValidator {
+                        bottom: 0
+                        top: 2
+                        notation: DoubleValidator.StandardNotation
+                        locale: Qt.locale().name
+                    }
+
+                    function syncFromViewModel() {
+                        if (!activeFocus)
+                            forceSyncFromViewModel()
+                    }
+
+                    function forceSyncFromViewModel() {
+                        text = Number(root.vm.distance_power).toLocaleString(
+                            Qt.locale(),
+                            "f",
+                            2)
+                    }
+
+                    Component.onCompleted: forceSyncFromViewModel()
+
+                    onEditingFinished: {
+                        if (acceptableInput) {
+                            root.vm.distance_power = Number.fromLocaleString(
+                                Qt.locale(),
+                                text)
+                        }
+                        forceSyncFromViewModel()
+                    }
+
+                    Connections {
+                        target: root.vm
+                        function onDistance_powerChanged() {
+                            distancePowerField.syncFromViewModel()
+                        }
+                    }
+                }
+            }
+
+            Slider {
+                id: distancePowerSlider
+                Layout.fillWidth: true
+                from: 0
+                to: 2
+                stepSize: 0.01
+                enabled: !root.vm.busy
+                value: root.vm.distance_power
+                onMoved: root.vm.distance_power = value
+            }
         }
 
         Item {

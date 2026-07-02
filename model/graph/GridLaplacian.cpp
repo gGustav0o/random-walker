@@ -1,5 +1,6 @@
 #include "GridLaplacian.hpp"
 
+#include "EdgeWeight.hpp"
 #include "model/algorithm/IndexTypes.hpp"
 #include "model/algorithm/IterationPolicy.hpp"
 
@@ -45,15 +46,12 @@ namespace random_walker::graph {
 
         void assert_grid_laplacian_preconditions(
             const domain::GrayImage& image
-            , double beta
-            , domain::PixelConnectivity connectivity
+            , const domain::RandomWalkerParameters& parameters
         ) {
             assert(!image.empty());
-            assert(std::isfinite(beta));
-            assert(beta > 0.0);
+            assert(domain::is_valid(parameters));
             assert(image.height() > 0);
             assert(image.width() > 0);
-            assert(domain::is_valid(connectivity));
         }
 
         [[nodiscard]] int grid_pixel_count(int width, int height) noexcept {
@@ -114,6 +112,22 @@ namespace random_walker::graph {
             return { 0, 0 };
         }
 
+        [[nodiscard]] double edge_distance(
+            ForwardGridDirection direction
+        ) noexcept {
+            switch (direction) {
+            case ForwardGridDirection::Right:
+            case ForwardGridDirection::Down:
+                return 1.0;
+            case ForwardGridDirection::DownRight:
+            case ForwardGridDirection::DownLeft:
+                return std::sqrt(2.0);
+            }
+
+            assert(false && "Unhandled grid direction");
+            return 1.0;
+        }
+
         [[nodiscard]] std::span<const ForwardGridDirection> forward_directions_for(
             domain::PixelConnectivity connectivity
         ) noexcept {
@@ -135,23 +149,6 @@ namespace random_walker::graph {
             , int width
         ) noexcept {
             return row >= 0 && row < height && column >= 0 && column < width;
-        }
-
-        [[nodiscard]] double compute_weight(
-            std::uint8_t first_intensity
-            , std::uint8_t second_intensity
-            , double beta
-        ) noexcept {
-            assert(std::isfinite(beta));
-            assert(beta > 0.0);
-            const double difference =
-                static_cast<double>(first_intensity)
-                - static_cast<double>(second_intensity);
-            const double weight = std::exp(-beta * difference * difference);
-            assert(std::isfinite(weight));
-            assert(weight >= 0.0);
-            assert(weight <= 1.0);
-            return weight;
         }
 
         void add_undirected_edge(
@@ -183,13 +180,14 @@ namespace random_walker::graph {
             builder.degrees[second_index.value] += weight;
         }
 
+        template<EdgeWeightFunction WeightFunction>
         void add_forward_edges_for_pixel(
             GridGraphBuilder& builder
             , const domain::GrayImage& image
             , int row
             , int column
-            , double beta
             , domain::PixelConnectivity connectivity
+            , const WeightFunction& edge_weight
         ) {
             const int height = image.height();
             const int width = image.width();
@@ -219,21 +217,22 @@ namespace random_walker::graph {
                     );
                 assert(target_index.value >= 0);
                 assert(target_index.value < pixel_count);
-                const double weight = compute_weight(
+                const double weight = edge_weight(
                     source_intensity
                     , image.at(neighbor_row, neighbor_column)
-                    , beta
+                    , edge_distance(direction)
                 );
 
                 add_undirected_edge(builder, source_index, target_index, weight);
             }
         }
 
+        template<EdgeWeightFunction WeightFunction>
         [[nodiscard]] GridBuildStepOutcome add_grid_edges(
             GridGraphBuilder& builder
             , const domain::GrayImage& image
-            , double beta
             , domain::PixelConnectivity connectivity
+            , const WeightFunction& edge_weight
             , const domain::CancellationToken& cancellation
             , const domain::ProgressReporter& progress
         ) {
@@ -260,8 +259,8 @@ namespace random_walker::graph {
                         , image
                         , row
                         , column
-                        , beta
                         , connectivity
+                        , edge_weight
                     );
                 }
 
@@ -322,26 +321,28 @@ namespace random_walker::graph {
 
     GridLaplacianOutcome build_grid_laplacian(
         const domain::GrayImage& image
-        , double beta
-        , domain::PixelConnectivity connectivity
+        , const domain::RandomWalkerParameters& parameters
         , const domain::CancellationToken& cancellation
         , const domain::ProgressReporter& progress
     ) {
-        assert_grid_laplacian_preconditions(image, beta, connectivity);
+        assert_grid_laplacian_preconditions(image, parameters);
 
         const int height = image.height();
         const int width = image.width();
         const int pixel_count = grid_pixel_count(width, height);
         GridGraphBuilder builder = make_grid_graph_builder(
             pixel_count
-            , connectivity
+            , parameters.connectivity
         );
+        const ExponentialDistanceEdgeWeight edge_weight {
+            .parameters = edge_weight_parameters_from(parameters)
+        };
 
         if (const auto cancelled = add_grid_edges(
                 builder
                 , image
-                , beta
-                , connectivity
+                , parameters.connectivity
+                , edge_weight
                 , cancellation
                 , progress
             ); cancelled.has_value()

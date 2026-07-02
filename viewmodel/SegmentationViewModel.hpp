@@ -42,6 +42,7 @@ class SegmentationViewModel final : public QObject {
     Q_PROPERTY(double  beta                   READ beta                 WRITE set_beta                 NOTIFY beta_changed)
     Q_PROPERTY(double  beta_slider_position   READ beta_slider_position WRITE set_beta_slider_position NOTIFY beta_changed)
     Q_PROPERTY(int     connectivity           READ connectivity         WRITE set_connectivity         NOTIFY connectivity_changed)
+    Q_PROPERTY(double  distance_power        READ distance_power      WRITE set_distance_power      NOTIFY distance_power_changed)
     Q_PROPERTY(int     selected_label         READ selected_label       WRITE set_selected_label       NOTIFY selected_label_changed)
 
     Q_PROPERTY(QAbstractItemModel* seed_model READ seed_model CONSTANT)
@@ -96,6 +97,7 @@ public:
     [[nodiscard]] double beta() const noexcept;
     [[nodiscard]] double beta_slider_position() const noexcept;
     [[nodiscard]] int connectivity() const noexcept;
+    [[nodiscard]] double distance_power() const noexcept;
     [[nodiscard]] bool has_result() const noexcept;
     [[nodiscard]] QString result_source() const;
     [[nodiscard]] quint64 result_version() const noexcept;
@@ -108,6 +110,7 @@ public:
     void set_beta(double value);
     void set_beta_slider_position(double position);
     void set_connectivity(int connectivity);
+    void set_distance_power(double value);
 
     Q_INVOKABLE void open_image(const QString& path);
     Q_INVOKABLE void clear();
@@ -125,6 +128,7 @@ signals:
     void progress_changed();
     void beta_changed();
     void connectivity_changed();
+    void distance_power_changed();
     void result_changed();
     void selected_label_changed();
     void error_message_changed();

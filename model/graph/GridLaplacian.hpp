@@ -15,8 +15,7 @@ namespace random_walker::graph {
 
     [[nodiscard]] GridLaplacianOutcome build_grid_laplacian(
         const domain::GrayImage& image
-        , double beta
-        , domain::PixelConnectivity connectivity
+        , const domain::RandomWalkerParameters& parameters
         , const domain::CancellationToken& cancellation
         , const domain::ProgressReporter& progress
     );

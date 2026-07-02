@@ -184,8 +184,7 @@ namespace random_walker::algorithm {
         graph::GridLaplacianOutcome laplacian_outcome =
             graph::build_grid_laplacian(
                 input.image
-                , parameters.beta
-                , parameters.connectivity
+                , parameters
                 , cancellation
                 , progress
             );

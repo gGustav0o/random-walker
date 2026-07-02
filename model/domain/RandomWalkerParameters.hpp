@@ -7,6 +7,9 @@ namespace random_walker::domain {
     inline constexpr double kMinimumRandomWalkerBeta = 1e-6;
     inline constexpr double kMaximumRandomWalkerBeta = 1e-1;
     inline constexpr double kDefaultRandomWalkerBeta = 0.001;
+    inline constexpr double kMinimumRandomWalkerDistancePower = 0.0;
+    inline constexpr double kMaximumRandomWalkerDistancePower = 2.0;
+    inline constexpr double kDefaultRandomWalkerDistancePower = 0.0;
 
     enum class PixelConnectivity {
         Four
@@ -30,6 +33,7 @@ namespace random_walker::domain {
 
     struct RandomWalkerParameters {
         double beta = kDefaultRandomWalkerBeta;
+        double distance_power = kDefaultRandomWalkerDistancePower;
         PixelConnectivity connectivity = kDefaultPixelConnectivity;
         bool operator==(const RandomWalkerParameters&) const = default;
     };
@@ -40,6 +44,9 @@ namespace random_walker::domain {
         return std::isfinite(parameters.beta)
             && parameters.beta >= kMinimumRandomWalkerBeta
             && parameters.beta <= kMaximumRandomWalkerBeta
+            && std::isfinite(parameters.distance_power)
+            && parameters.distance_power >= kMinimumRandomWalkerDistancePower
+            && parameters.distance_power <= kMaximumRandomWalkerDistancePower
             && is_valid(parameters.connectivity);
     }
 }
