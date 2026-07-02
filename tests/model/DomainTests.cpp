@@ -31,6 +31,10 @@ void DomainTests::default_random_walker_parameters_are_valid() {
 
     QVERIFY(domain::is_valid(parameters));
     QCOMPARE(parameters.beta, domain::kDefaultRandomWalkerBeta);
+    QCOMPARE(
+        static_cast<int>(parameters.connectivity)
+        , static_cast<int>(domain::kDefaultPixelConnectivity)
+    );
 }
 
 void DomainTests::random_walker_beta_accepts_closed_valid_range() {

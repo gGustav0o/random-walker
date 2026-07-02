@@ -7,6 +7,7 @@
 #include "model/domain/Cancellation.hpp"
 #include "model/domain/GrayImage.hpp"
 #include "model/domain/ProgressReporter.hpp"
+#include "model/domain/RandomWalkerParameters.hpp"
 
 namespace random_walker::graph {
     using GridLaplacianOutcome =
@@ -15,6 +16,7 @@ namespace random_walker::graph {
     [[nodiscard]] GridLaplacianOutcome build_grid_laplacian(
         const domain::GrayImage& image
         , double beta
+        , domain::PixelConnectivity connectivity
         , const domain::CancellationToken& cancellation
         , const domain::ProgressReporter& progress
     );

@@ -1,6 +1,7 @@
 #include "QtSettingsRepository.hpp"
 
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include <QDebug>
@@ -8,11 +9,12 @@
 
 namespace {
 
-    constexpr int kCurrentSchemaVersion = 1;
+    constexpr int kCurrentSchemaVersion = 2;
 
     constexpr auto kSettingsGroup = "applicationSettings";
     constexpr auto kSchemaVersionKey = "schemaVersion";
     constexpr auto kRandomWalkerBetaKey = "randomWalker/beta";
+    constexpr auto kRandomWalkerConnectivityKey = "randomWalker/connectivity";
     constexpr auto kLegacyBetaKey = "beta";
 
     [[nodiscard]] double stored_double(
@@ -33,6 +35,52 @@ namespace {
         }
 
         return value;
+    }
+
+    [[nodiscard]] std::optional<random_walker::domain::PixelConnectivity>
+    connectivity_from_storage(const QString& value) noexcept {
+        if (value == QStringLiteral("four")) {
+            return random_walker::domain::PixelConnectivity::Four;
+        }
+        if (value == QStringLiteral("eight")) {
+            return random_walker::domain::PixelConnectivity::Eight;
+        }
+
+        return std::nullopt;
+    }
+
+    [[nodiscard]] QString connectivity_to_storage(
+        random_walker::domain::PixelConnectivity connectivity
+    ) noexcept {
+        switch (connectivity) {
+        case random_walker::domain::PixelConnectivity::Four:
+            return QStringLiteral("four");
+        case random_walker::domain::PixelConnectivity::Eight:
+            return QStringLiteral("eight");
+        }
+
+        Q_ASSERT_X(false, "connectivity_to_storage", "Unhandled connectivity");
+        return QStringLiteral("four");
+    }
+
+    [[nodiscard]] random_walker::domain::PixelConnectivity stored_connectivity(
+        const QSettings& settings
+        , const char* key
+    ) {
+        const QVariant stored_value = settings.value(key);
+        const std::optional<random_walker::domain::PixelConnectivity>
+            connectivity = connectivity_from_storage(stored_value.toString());
+        if (!connectivity.has_value()) {
+            qWarning()
+                << "Failed to read connectivity settings value"
+                << key
+                << "from"
+                << settings.fileName()
+                << "; settings will be repaired";
+            return static_cast<random_walker::domain::PixelConnectivity>(-1);
+        }
+
+        return *connectivity;
     }
 }
 
@@ -114,6 +162,10 @@ namespace random_walker::infrastructure {
             settings_
             , kRandomWalkerBetaKey
         );
+        result.random_walker.connectivity = stored_connectivity(
+            settings_
+            , kRandomWalkerConnectivityKey
+        );
         return result;
     }
 
@@ -125,6 +177,10 @@ namespace random_walker::infrastructure {
         case 0:
             result.random_walker.beta =
                 stored_double(settings_, kLegacyBetaKey);
+            return result;
+        case 1:
+            result.random_walker.beta =
+                stored_double(settings_, kRandomWalkerBetaKey);
             return result;
         default:
             qWarning()
@@ -142,6 +198,12 @@ namespace random_walker::infrastructure {
         settings_.setValue(
             kRandomWalkerBetaKey
             , application_settings.random_walker.beta
+        );
+        settings_.setValue(
+            kRandomWalkerConnectivityKey
+            , connectivity_to_storage(
+                application_settings.random_walker.connectivity
+            )
         );
         settings_.setValue(kSchemaVersionKey, kCurrentSchemaVersion);
     }

@@ -163,7 +163,7 @@ namespace random_walker::algorithm {
 
     domain::SegmentationOutcome run_random_walker(
         const domain::SegmentationInput& input
-        , double beta
+        , const domain::RandomWalkerParameters& parameters
         , const domain::CancellationToken& cancellation
         , const domain::ProgressReporter& progress
     ) {
@@ -172,7 +172,7 @@ namespace random_walker::algorithm {
         }
 
         assert(!input.image.empty());
-        assert(domain::is_valid(domain::RandomWalkerParameters { .beta = beta }));
+        assert(domain::is_valid(parameters));
         assert(!input.seeds.empty());
 
         const int width = input.image.width();
@@ -184,7 +184,8 @@ namespace random_walker::algorithm {
         graph::GridLaplacianOutcome laplacian_outcome =
             graph::build_grid_laplacian(
                 input.image
-                , beta
+                , parameters.beta
+                , parameters.connectivity
                 , cancellation
                 , progress
             );

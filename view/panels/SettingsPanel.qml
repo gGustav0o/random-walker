@@ -9,8 +9,6 @@ Rectangle {
 
     property var vm: SegmentationViewModel
     property bool expanded: false
-    // UI-only until connectivity is promoted to RandomWalkerParameters.
-    property int connectivityIndex: 0
     readonly property real expandedWidth: 320
     property real panelWidth: expanded ? expandedWidth : 0
 
@@ -73,9 +71,9 @@ Rectangle {
                     Layout.preferredWidth: 150
                     enabled: !root.vm.busy
                     model: ["4-connectivity", "8-connectivity"]
-                    currentIndex: root.connectivityIndex
+                    currentIndex: root.vm.connectivity
                     onActivated: function(index) {
-                        root.connectivityIndex = index
+                        root.vm.connectivity = index
                     }
                 }
             }

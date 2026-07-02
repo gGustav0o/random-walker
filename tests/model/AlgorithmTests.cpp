@@ -192,6 +192,7 @@ private slots:
     void thresholds_large_probability_map_deterministically();
     void large_thresholding_honors_cancellation();
     void grid_laplacian_has_expected_2x2_structure();
+    void grid_laplacian_eight_connectivity_adds_diagonal_edges();
     void grid_laplacian_beta_changes_edge_weight();
 };
 
@@ -558,6 +559,7 @@ void AlgorithmTests::grid_laplacian_has_expected_2x2_structure() {
     const auto outcome = graph::build_grid_laplacian(
         image
         , 0.01
+        , domain::PixelConnectivity::Four
         , domain::CancellationToken {}
         , domain::ProgressReporter {}
     );
@@ -584,18 +586,55 @@ void AlgorithmTests::grid_laplacian_has_expected_2x2_structure() {
     QCOMPARE(coefficient(laplacian, 1, 2), 0.0);
 }
 
+void AlgorithmTests::grid_laplacian_eight_connectivity_adds_diagonal_edges() {
+    const domain::GrayImage image = make_image(2, 2, {10, 10, 10, 10});
+
+    const auto outcome = graph::build_grid_laplacian(
+        image
+        , 0.01
+        , domain::PixelConnectivity::Eight
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<Eigen::SparseMatrix<double>>(outcome));
+    const Eigen::SparseMatrix<double>& laplacian =
+        std::get<Eigen::SparseMatrix<double>>(outcome);
+    QCOMPARE(static_cast<int>(laplacian.rows()), 4);
+    QCOMPARE(static_cast<int>(laplacian.cols()), 4);
+
+    for (int index = 0; index < 4; ++index) {
+        QCOMPARE(coefficient(laplacian, index, index), 3.0);
+    }
+
+    QCOMPARE(coefficient(laplacian, 0, 1), -1.0);
+    QCOMPARE(coefficient(laplacian, 1, 0), -1.0);
+    QCOMPARE(coefficient(laplacian, 0, 2), -1.0);
+    QCOMPARE(coefficient(laplacian, 2, 0), -1.0);
+    QCOMPARE(coefficient(laplacian, 1, 3), -1.0);
+    QCOMPARE(coefficient(laplacian, 3, 1), -1.0);
+    QCOMPARE(coefficient(laplacian, 2, 3), -1.0);
+    QCOMPARE(coefficient(laplacian, 3, 2), -1.0);
+    QCOMPARE(coefficient(laplacian, 0, 3), -1.0);
+    QCOMPARE(coefficient(laplacian, 3, 0), -1.0);
+    QCOMPARE(coefficient(laplacian, 1, 2), -1.0);
+    QCOMPARE(coefficient(laplacian, 2, 1), -1.0);
+}
+
 void AlgorithmTests::grid_laplacian_beta_changes_edge_weight() {
     const domain::GrayImage image = make_image(1, 2, {0, 10});
 
     const auto weak_penalty_outcome = graph::build_grid_laplacian(
         image
         , 0.001
+        , domain::PixelConnectivity::Four
         , domain::CancellationToken {}
         , domain::ProgressReporter {}
     );
     const auto strong_penalty_outcome = graph::build_grid_laplacian(
         image
         , 0.01
+        , domain::PixelConnectivity::Four
         , domain::CancellationToken {}
         , domain::ProgressReporter {}
     );

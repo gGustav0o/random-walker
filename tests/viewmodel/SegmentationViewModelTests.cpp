@@ -82,6 +82,7 @@ namespace {
                 , domain::SeedLabel::Object
             );
             last_beta = request.parameters().beta;
+            last_connectivity = request.parameters().connectivity;
             progress_handler_ = std::move(progress_handler);
             completion_handler_ = std::move(completion_handler);
             ++submit_count;
@@ -109,6 +110,8 @@ namespace {
         int last_background_seed_pixels = 0;
         int last_object_seed_pixels = 0;
         double last_beta = 0.0;
+        domain::PixelConnectivity last_connectivity =
+            domain::PixelConnectivity::Four;
 
     private:
         executor::SegmentationProgressHandler progress_handler_;
@@ -162,6 +165,7 @@ class SegmentationViewModelTests final : public QObject {
 private slots:
     void initializes_from_settings();
     void set_beta_saves_settings_and_emits_change();
+    void set_connectivity_saves_settings_and_emits_change();
     void open_image_updates_image_state_and_cache();
     void add_seed_rectangles_updates_counts_and_can_run();
     void run_segmentation_submits_request_and_updates_progress();
@@ -173,6 +177,10 @@ void SegmentationViewModelTests::initializes_from_settings() {
     ViewModelFixture fixture;
 
     QCOMPARE(fixture.view_model.beta(), domain::kDefaultRandomWalkerBeta);
+    QCOMPARE(
+        fixture.view_model.connectivity()
+        , static_cast<int>(SegmentationViewModel::FourConnectivity)
+    );
     QVERIFY(!fixture.view_model.image_loaded());
     QVERIFY(!fixture.view_model.can_run());
     QVERIFY(!fixture.view_model.busy());
@@ -191,6 +199,27 @@ void SegmentationViewModelTests::set_beta_saves_settings_and_emits_change() {
     QCOMPARE(fixture.repository.save_count, 1);
     QCOMPARE(fixture.repository.stored.random_walker.beta, 0.01);
     QCOMPARE(beta_changed.count(), 1);
+}
+
+void SegmentationViewModelTests::set_connectivity_saves_settings_and_emits_change() {
+    ViewModelFixture fixture;
+    QSignalSpy connectivity_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::connectivity_changed
+    );
+
+    fixture.view_model.set_connectivity(SegmentationViewModel::EightConnectivity);
+
+    QCOMPARE(
+        fixture.view_model.connectivity()
+        , static_cast<int>(SegmentationViewModel::EightConnectivity)
+    );
+    QCOMPARE(fixture.repository.save_count, 1);
+    QCOMPARE(
+        static_cast<int>(fixture.repository.stored.random_walker.connectivity)
+        , static_cast<int>(domain::PixelConnectivity::Eight)
+    );
+    QCOMPARE(connectivity_changed.count(), 1);
 }
 
 void SegmentationViewModelTests::open_image_updates_image_state_and_cache() {
@@ -237,6 +266,7 @@ void SegmentationViewModelTests::run_segmentation_submits_request_and_updates_pr
     fixture.view_model.add_seed_rectangle(0, 0, 1, 1);
     fixture.view_model.set_selected_label(SegmentationViewModel::Object);
     fixture.view_model.add_seed_rectangle(2, 1, 1, 1);
+    fixture.view_model.set_connectivity(SegmentationViewModel::EightConnectivity);
     QSignalSpy busy_changed(&fixture.view_model, &SegmentationViewModel::busy_changed);
     QSignalSpy progress_changed(
         &fixture.view_model
@@ -252,6 +282,10 @@ void SegmentationViewModelTests::run_segmentation_submits_request_and_updates_pr
     QCOMPARE(fixture.executor.last_background_seed_pixels, 1);
     QCOMPARE(fixture.executor.last_object_seed_pixels, 1);
     QCOMPARE(fixture.executor.last_beta, domain::kDefaultRandomWalkerBeta);
+    QCOMPARE(
+        static_cast<int>(fixture.executor.last_connectivity)
+        , static_cast<int>(domain::PixelConnectivity::Eight)
+    );
     QVERIFY(fixture.view_model.busy());
     QCOMPARE(busy_changed.count(), 1);
 

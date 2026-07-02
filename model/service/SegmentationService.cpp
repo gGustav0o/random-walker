@@ -190,7 +190,7 @@ namespace random_walker::service {
 
         return algorithm::run_random_walker(
             input
-            , request.parameters().beta
+            , request.parameters()
             , cancellation
             , progress
         );

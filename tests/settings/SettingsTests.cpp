@@ -9,8 +9,9 @@ namespace {
     constexpr auto kSettingsGroup = "applicationSettings";
     constexpr auto kSchemaVersionKey = "schemaVersion";
     constexpr auto kRandomWalkerBetaKey = "randomWalker/beta";
+    constexpr auto kRandomWalkerConnectivityKey = "randomWalker/connectivity";
     constexpr auto kLegacyBetaKey = "beta";
-    constexpr int kCurrentSchemaVersion = 1;
+    constexpr int kCurrentSchemaVersion = 2;
 
     class InMemorySettingsRepository final
         : public random_walker::application::SettingsRepository {
@@ -60,8 +61,10 @@ class SettingsTests final : public QObject {
 private slots:
     void loads_default_values();
     void repairs_corrupted_values();
+    void loads_persisted_connectivity();
     void ignores_unknown_newer_schema();
     void migrates_legacy_schema();
+    void migrates_schema_one_with_default_connectivity();
     void rejects_invalid_settings_on_save();
     void reports_settings_save_failure();
 };
@@ -77,6 +80,10 @@ void SettingsTests::loads_default_values() {
         settings.random_walker.beta
         , random_walker::domain::kDefaultRandomWalkerBeta
     );
+    QCOMPARE(
+        static_cast<int>(settings.random_walker.connectivity)
+        , static_cast<int>(random_walker::domain::kDefaultPixelConnectivity)
+    );
     QVERIFY(repository.stored == settings);
     QVERIFY(!load_result.repair_required);
     QCOMPARE(repository.save_count, 0);
@@ -88,6 +95,7 @@ void SettingsTests::repairs_corrupted_values() {
     const QString path = settings_path(directory);
     write_value(path, kSchemaVersionKey, kCurrentSchemaVersion);
     write_value(path, kRandomWalkerBetaKey, QStringLiteral("invalid"));
+    write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
 
     random_walker::infrastructure::QtSettingsRepository repository(
         path
@@ -101,6 +109,10 @@ void SettingsTests::repairs_corrupted_values() {
     QCOMPARE(
         settings.random_walker.beta
         , random_walker::domain::kDefaultRandomWalkerBeta
+    );
+    QCOMPARE(
+        static_cast<int>(settings.random_walker.connectivity)
+        , static_cast<int>(random_walker::domain::kDefaultPixelConnectivity)
     );
     QVERIFY(load_result.repair_required);
 
@@ -122,6 +134,34 @@ void SettingsTests::repairs_corrupted_values() {
         repaired.value(kRandomWalkerBetaKey).toDouble()
         , random_walker::domain::kDefaultRandomWalkerBeta
     );
+    QCOMPARE(
+        repaired.value(kRandomWalkerConnectivityKey).toString()
+        , QStringLiteral("four")
+    );
+}
+
+void SettingsTests::loads_persisted_connectivity() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString path = settings_path(directory);
+    write_value(path, kSchemaVersionKey, kCurrentSchemaVersion);
+    write_value(path, kRandomWalkerBetaKey, 0.005);
+    write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
+
+    random_walker::infrastructure::QtSettingsRepository repository(
+        path
+        , QSettings::IniFormat
+    );
+
+    const auto load_result = repository.load();
+    const auto settings = load_result.settings;
+
+    QCOMPARE(settings.random_walker.beta, 0.005);
+    QCOMPARE(
+        static_cast<int>(settings.random_walker.connectivity)
+        , static_cast<int>(random_walker::domain::PixelConnectivity::Eight)
+    );
+    QVERIFY(!load_result.repair_required);
 }
 
 void SettingsTests::ignores_unknown_newer_schema() {
@@ -130,6 +170,7 @@ void SettingsTests::ignores_unknown_newer_schema() {
     const QString path = settings_path(directory);
     write_value(path, kSchemaVersionKey, kCurrentSchemaVersion + 1);
     write_value(path, kRandomWalkerBetaKey, 0.005);
+    write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
 
     random_walker::infrastructure::QtSettingsRepository repository(
         path
@@ -142,6 +183,10 @@ void SettingsTests::ignores_unknown_newer_schema() {
     QCOMPARE(
         settings.random_walker.beta
         , random_walker::domain::kDefaultRandomWalkerBeta
+    );
+    QCOMPARE(
+        static_cast<int>(settings.random_walker.connectivity)
+        , static_cast<int>(random_walker::domain::kDefaultPixelConnectivity)
     );
     QVERIFY(!load_result.repair_required);
 
@@ -170,6 +215,10 @@ void SettingsTests::migrates_legacy_schema() {
     const auto settings = load_result.settings;
 
     QCOMPARE(settings.random_walker.beta, legacy_beta);
+    QCOMPARE(
+        static_cast<int>(settings.random_walker.connectivity)
+        , static_cast<int>(random_walker::domain::kDefaultPixelConnectivity)
+    );
     QVERIFY(load_result.repair_required);
 
     {
@@ -180,6 +229,7 @@ void SettingsTests::migrates_legacy_schema() {
             , 0
         );
         QVERIFY(!persisted.contains(kRandomWalkerBetaKey));
+        QVERIFY(!persisted.contains(kRandomWalkerConnectivityKey));
         QVERIFY(persisted.contains(kLegacyBetaKey));
     }
 
@@ -195,7 +245,35 @@ void SettingsTests::migrates_legacy_schema() {
         migrated.value(kRandomWalkerBetaKey).toDouble()
         , legacy_beta
     );
+    QCOMPARE(
+        migrated.value(kRandomWalkerConnectivityKey).toString()
+        , QStringLiteral("four")
+    );
     QVERIFY(!migrated.contains(kLegacyBetaKey));
+}
+
+void SettingsTests::migrates_schema_one_with_default_connectivity() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString path = settings_path(directory);
+    constexpr double stored_beta = 0.006;
+    write_value(path, kSchemaVersionKey, 1);
+    write_value(path, kRandomWalkerBetaKey, stored_beta);
+
+    random_walker::infrastructure::QtSettingsRepository repository(
+        path
+        , QSettings::IniFormat
+    );
+
+    const auto load_result = repository.load();
+    const auto settings = load_result.settings;
+
+    QCOMPARE(settings.random_walker.beta, stored_beta);
+    QCOMPARE(
+        static_cast<int>(settings.random_walker.connectivity)
+        , static_cast<int>(random_walker::domain::PixelConnectivity::Four)
+    );
+    QVERIFY(load_result.repair_required);
 }
 
 void SettingsTests::rejects_invalid_settings_on_save() {

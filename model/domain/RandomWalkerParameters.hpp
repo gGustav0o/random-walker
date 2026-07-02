@@ -8,8 +8,29 @@ namespace random_walker::domain {
     inline constexpr double kMaximumRandomWalkerBeta = 1e-1;
     inline constexpr double kDefaultRandomWalkerBeta = 0.001;
 
+    enum class PixelConnectivity {
+        Four
+        , Eight
+    };
+
+    inline constexpr PixelConnectivity kDefaultPixelConnectivity =
+        PixelConnectivity::Four;
+
+    [[nodiscard]] constexpr bool is_valid(
+        PixelConnectivity connectivity
+    ) noexcept {
+        switch (connectivity) {
+        case PixelConnectivity::Four:
+        case PixelConnectivity::Eight:
+            return true;
+        }
+
+        return false;
+    }
+
     struct RandomWalkerParameters {
         double beta = kDefaultRandomWalkerBeta;
+        PixelConnectivity connectivity = kDefaultPixelConnectivity;
         bool operator==(const RandomWalkerParameters&) const = default;
     };
 
@@ -18,6 +39,7 @@ namespace random_walker::domain {
     ) noexcept {
         return std::isfinite(parameters.beta)
             && parameters.beta >= kMinimumRandomWalkerBeta
-            && parameters.beta <= kMaximumRandomWalkerBeta;
+            && parameters.beta <= kMaximumRandomWalkerBeta
+            && is_valid(parameters.connectivity);
     }
 }

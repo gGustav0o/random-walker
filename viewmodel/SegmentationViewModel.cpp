@@ -41,6 +41,32 @@ namespace {
             UnexpectedInternalFailure;
     }
 
+
+    [[nodiscard]] int view_connectivity(
+        random_walker::domain::PixelConnectivity connectivity
+    ) noexcept {
+        switch (connectivity) {
+        case random_walker::domain::PixelConnectivity::Four:
+            return SegmentationViewModel::FourConnectivity;
+        case random_walker::domain::PixelConnectivity::Eight:
+            return SegmentationViewModel::EightConnectivity;
+        }
+
+        Q_ASSERT_X(false, "view_connectivity", "Unhandled connectivity");
+        return SegmentationViewModel::FourConnectivity;
+    }
+
+    [[nodiscard]] std::optional<random_walker::domain::PixelConnectivity>
+    domain_connectivity(int connectivity) noexcept {
+        switch (connectivity) {
+        case SegmentationViewModel::FourConnectivity:
+            return random_walker::domain::PixelConnectivity::Four;
+        case SegmentationViewModel::EightConnectivity:
+            return random_walker::domain::PixelConnectivity::Eight;
+        default:
+            return std::nullopt;
+        }
+    }
     [[nodiscard]] std::optional<random_walker::domain::PixelRectangle>
     clipped_seed_rectangle(
         int x
@@ -183,6 +209,10 @@ double SegmentationViewModel::beta() const noexcept {
     return application_settings_.random_walker.beta;
 }
 
+int SegmentationViewModel::connectivity() const noexcept {
+    return view_connectivity(application_settings_.random_walker.connectivity);
+}
+
 double SegmentationViewModel::beta_slider_position() const noexcept {
     const double exponent =
         std::log10(application_settings_.random_walker.beta);
@@ -266,6 +296,20 @@ void SegmentationViewModel::set_beta_slider_position(double position) {
         + normalized_position
             * (kMaximumBetaExponent - kMinimumBetaExponent);
     set_beta(std::pow(10.0, exponent));
+}
+
+void SegmentationViewModel::set_connectivity(int connectivity) {
+    assert_ui_thread();
+
+    const std::optional<DomainConnectivity> updated_connectivity =
+        domain_connectivity(connectivity);
+    if (!updated_connectivity.has_value()) {
+        return;
+    }
+
+    auto updated_parameters = application_settings_.random_walker;
+    updated_parameters.connectivity = *updated_connectivity;
+    update_random_walker_parameters(updated_parameters);
 }
 
 void SegmentationViewModel::open_image(const QString& path) {
@@ -453,6 +497,8 @@ void SegmentationViewModel::run_segmentation() {
             + std::to_string(object_seed_count())
             + ", beta="
             + std::to_string(application_settings_.random_walker.beta)
+            + ", connectivity="
+            + std::to_string(connectivity())
     );
 
     active_request_id_ = request_id;
@@ -496,6 +542,12 @@ void SegmentationViewModel::update_random_walker_parameters(
         return;
     }
 
+    const bool beta_was_changed =
+        parameters.beta != application_settings_.random_walker.beta;
+    const bool connectivity_was_changed =
+        parameters.connectivity
+            != application_settings_.random_walker.connectivity;
+
     auto updated_settings = application_settings_;
     updated_settings.random_walker = parameters;
     if (const auto error = settings_service_.save(updated_settings);
@@ -512,6 +564,10 @@ void SegmentationViewModel::update_random_walker_parameters(
         random_walker::application::log_category::viewmodel
         , std::string("Random Walker parameters updated: beta=")
             + std::to_string(updated_settings.random_walker.beta)
+            + ", connectivity="
+            + std::to_string(
+                view_connectivity(updated_settings.random_walker.connectivity)
+            )
     );
 
     cancel_active_request();
@@ -519,7 +575,12 @@ void SegmentationViewModel::update_random_walker_parameters(
     clear_error();
 
     application_settings_ = std::move(updated_settings);
-    emit beta_changed();
+    if (beta_was_changed) {
+        emit beta_changed();
+    }
+    if (connectivity_was_changed) {
+        emit connectivity_changed();
+    }
 }
 
 void SegmentationViewModel::dispatch_completion(
