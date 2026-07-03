@@ -12,6 +12,7 @@
 #include <optional>
 #include <span>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <Eigen/Core>
@@ -31,6 +32,8 @@ namespace random_walker::graph {
         };
 
         using GridBuildStepOutcome = std::optional<domain::Cancelled>;
+        using LocalContrastScaleOutcome =
+            std::variant<LocalContrastScaleMap, domain::Cancelled>;
 
         constexpr std::array<ForwardGridDirection, 2> kFourConnectedDirections = {
             ForwardGridDirection::Right
@@ -74,10 +77,20 @@ namespace random_walker::graph {
         [[nodiscard]] double graph_build_progress(
             int row
             , int height
+            , double start = 0.0
+            , double finish = 1.0
         ) noexcept {
             assert(row >= 0);
             assert(height > 0);
-            return static_cast<double>(row + 1) / static_cast<double>(height);
+            assert(std::isfinite(start));
+            assert(std::isfinite(finish));
+            assert(start >= 0.0);
+            assert(finish <= 1.0);
+            assert(start <= finish);
+
+            const double local_progress =
+                static_cast<double>(row + 1) / static_cast<double>(height);
+            return start + (finish - start) * local_progress;
         }
 
         [[nodiscard]] GridGraphBuilder make_grid_graph_builder(
@@ -217,11 +230,20 @@ namespace random_walker::graph {
                     );
                 assert(target_index.value >= 0);
                 assert(target_index.value < pixel_count);
-                const double weight = edge_weight(
-                    source_intensity
-                    , image.at(neighbor_row, neighbor_column)
-                    , edge_distance(direction)
-                );
+                const EdgeWeightInput edge_weight_input {
+                    .first_intensity = source_intensity
+                    , .second_intensity = image.at(neighbor_row, neighbor_column)
+                    , .first_position = {
+                        .row = row
+                        , .column = column
+                    }
+                    , .second_position = {
+                        .row = neighbor_row
+                        , .column = neighbor_column
+                    }
+                    , .distance = edge_distance(direction)
+                };
+                const double weight = edge_weight(edge_weight_input);
 
                 add_undirected_edge(builder, source_index, target_index, weight);
             }
@@ -235,11 +257,19 @@ namespace random_walker::graph {
             , const WeightFunction& edge_weight
             , const domain::CancellationToken& cancellation
             , const domain::ProgressReporter& progress
+            , double progress_start = 0.0
+            , double progress_finish = 1.0
         ) {
             const int height = image.height();
             const int width = image.width();
+            assert(progress_start >= 0.0);
+            assert(progress_finish <= 1.0);
+            assert(progress_start <= progress_finish);
 
-            progress.report(domain::SegmentationStage::BuildingGraph, 0.0);
+            progress.report(
+                domain::SegmentationStage::BuildingGraph
+                , progress_start
+            );
             for (int row = 0; row < height; ++row) {
                 if (cancellation.stop_requested()) {
                     return domain::Cancelled {};
@@ -266,11 +296,74 @@ namespace random_walker::graph {
 
                 progress.report(
                     domain::SegmentationStage::BuildingGraph
-                    , graph_build_progress(row, height)
+                    , graph_build_progress(
+                        row
+                        , height
+                        , progress_start
+                        , progress_finish
+                    )
                 );
             }
 
             return std::nullopt;
+        }
+
+        [[nodiscard]] LocalContrastScaleOutcome build_local_contrast_scale_map(
+            const domain::GrayImage& image
+            , const domain::LocalContrastScaleParameters& parameters
+            , const domain::CancellationToken& cancellation
+            , const domain::ProgressReporter& progress
+            , double progress_start
+            , double progress_finish
+        ) {
+            assert(!image.empty());
+            assert(domain::is_valid(parameters));
+            assert(progress_start >= 0.0);
+            assert(progress_finish <= 1.0);
+            assert(progress_start <= progress_finish);
+
+            const int height = image.height();
+            const int width = image.width();
+            Eigen::MatrixXd variances(height, width);
+
+            progress.report(
+                domain::SegmentationStage::BuildingGraph
+                , progress_start
+            );
+            for (int row = 0; row < height; ++row) {
+                if (cancellation.stop_requested()) {
+                    return domain::Cancelled {};
+                }
+
+                for (int column = 0; column < width; ++column) {
+                    if (algorithm::should_poll_cancellation(
+                            static_cast<std::size_t>(column)
+                        )
+                        && cancellation.stop_requested()
+                    ) {
+                        return domain::Cancelled {};
+                    }
+
+                    variances(row, column) = local_window_variance(
+                        image
+                        , row
+                        , column
+                        , parameters
+                    );
+                }
+
+                progress.report(
+                    domain::SegmentationStage::BuildingGraph
+                    , graph_build_progress(
+                        row
+                        , height
+                        , progress_start
+                        , progress_finish
+                    )
+                );
+            }
+
+            return LocalContrastScaleMap(std::move(variances));
         }
 
         [[nodiscard]] GridBuildStepOutcome add_laplacian_diagonal(
@@ -317,6 +410,129 @@ namespace random_walker::graph {
             assert(laplacian.cols() == pixel_count);
             return laplacian;
         }
+
+        template<EdgeWeightFunction WeightFunction>
+        [[nodiscard]] GridLaplacianOutcome build_grid_laplacian_with_weight(
+            const domain::GrayImage& image
+            , const domain::RandomWalkerParameters& parameters
+            , const WeightFunction& edge_weight
+            , const domain::CancellationToken& cancellation
+            , const domain::ProgressReporter& progress
+            , double progress_start = 0.0
+            , double progress_finish = 1.0
+        ) {
+            assert_grid_laplacian_preconditions(image, parameters);
+
+            const int height = image.height();
+            const int width = image.width();
+            const int pixel_count = grid_pixel_count(width, height);
+            GridGraphBuilder builder = make_grid_graph_builder(
+                pixel_count
+                , parameters.connectivity
+            );
+
+            if (const auto cancelled = add_grid_edges(
+                    builder
+                    , image
+                    , parameters.connectivity
+                    , edge_weight
+                    , cancellation
+                    , progress
+                    , progress_start
+                    , progress_finish
+                ); cancelled.has_value()
+            ) {
+                return *cancelled;
+            }
+
+            if (const auto cancelled = add_laplacian_diagonal(
+                    builder
+                    , cancellation
+                ); cancelled.has_value()
+            ) {
+                return *cancelled;
+            }
+
+            if (cancellation.stop_requested()) {
+                return domain::Cancelled {};
+            }
+
+            Eigen::SparseMatrix<double> laplacian = assemble_laplacian(
+                builder
+                , pixel_count
+            );
+
+            if (cancellation.stop_requested()) {
+                return domain::Cancelled {};
+            }
+
+            progress.report(domain::SegmentationStage::BuildingGraph, 1.0);
+            return laplacian;
+        }
+
+        [[nodiscard]] GridLaplacianOutcome build_global_beta_grid_laplacian(
+            const domain::GrayImage& image
+            , const domain::RandomWalkerParameters& parameters
+            , const domain::CancellationToken& cancellation
+            , const domain::ProgressReporter& progress
+        ) {
+            assert(parameters.edge_weight_model == domain::EdgeWeightModel::GlobalBeta);
+            const GlobalBetaEdgeWeight edge_weight {
+                .parameters = global_beta_edge_weight_parameters_from(parameters)
+            };
+            return build_grid_laplacian_with_weight(
+                image
+                , parameters
+                , edge_weight
+                , cancellation
+                , progress
+            );
+        }
+
+        [[nodiscard]] GridLaplacianOutcome build_local_variance_grid_laplacian(
+            const domain::GrayImage& image
+            , const domain::RandomWalkerParameters& parameters
+            , const domain::CancellationToken& cancellation
+            , const domain::ProgressReporter& progress
+        ) {
+            assert(parameters.edge_weight_model
+                == domain::EdgeWeightModel::LocalVarianceNormalized);
+            if (cancellation.stop_requested()) {
+                return domain::Cancelled {};
+            }
+
+            constexpr double kLocalContrastProgressFinish = 0.25;
+            const LocalContrastScaleOutcome contrast_scale_outcome =
+                build_local_contrast_scale_map(
+                    image
+                    , parameters.local_contrast_scale
+                    , cancellation
+                    , progress
+                    , 0.0
+                    , kLocalContrastProgressFinish
+                );
+            if (std::holds_alternative<domain::Cancelled>(contrast_scale_outcome)) {
+                return domain::Cancelled {};
+            }
+            const LocalContrastScaleMap& contrast_scale =
+                std::get<LocalContrastScaleMap>(contrast_scale_outcome);
+
+            const LocalVarianceNormalizedEdgeWeight edge_weight {
+                .contrast_scale = contrast_scale
+                , .parameters = local_variance_normalized_edge_weight_parameters_from(
+                    parameters
+                )
+            };
+            return build_grid_laplacian_with_weight(
+                image
+                , parameters
+                , edge_weight
+                , cancellation
+                , progress
+                , kLocalContrastProgressFinish
+                , 1.0
+            );
+        }
     }
 
     GridLaplacianOutcome build_grid_laplacian(
@@ -327,51 +543,24 @@ namespace random_walker::graph {
     ) {
         assert_grid_laplacian_preconditions(image, parameters);
 
-        const int height = image.height();
-        const int width = image.width();
-        const int pixel_count = grid_pixel_count(width, height);
-        GridGraphBuilder builder = make_grid_graph_builder(
-            pixel_count
-            , parameters.connectivity
-        );
-        const ExponentialDistanceEdgeWeight edge_weight {
-            .parameters = edge_weight_parameters_from(parameters)
-        };
-
-        if (const auto cancelled = add_grid_edges(
-                builder
-                , image
-                , parameters.connectivity
-                , edge_weight
+        switch (parameters.edge_weight_model) {
+        case domain::EdgeWeightModel::GlobalBeta:
+            return build_global_beta_grid_laplacian(
+                image
+                , parameters
                 , cancellation
                 , progress
-            ); cancelled.has_value()
-        ) {
-            return *cancelled;
-        }
-
-        if (const auto cancelled = add_laplacian_diagonal(
-                builder
+            );
+        case domain::EdgeWeightModel::LocalVarianceNormalized:
+            return build_local_variance_grid_laplacian(
+                image
+                , parameters
                 , cancellation
-            ); cancelled.has_value()
-        ) {
-            return *cancelled;
+                , progress
+            );
         }
 
-        if (cancellation.stop_requested()) {
-            return domain::Cancelled {};
-        }
-
-        Eigen::SparseMatrix<double> laplacian = assemble_laplacian(
-            builder
-            , pixel_count
-        );
-
-        if (cancellation.stop_requested()) {
-            return domain::Cancelled {};
-        }
-
-        progress.report(domain::SegmentationStage::BuildingGraph, 1.0);
-        return laplacian;
+        assert(false && "Unhandled edge weight model");
+        return domain::Cancelled {};
     }
 }

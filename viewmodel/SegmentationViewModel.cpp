@@ -67,6 +67,36 @@ namespace {
             return std::nullopt;
         }
     }
+
+    [[nodiscard]] int view_edge_weight_model(
+        random_walker::domain::EdgeWeightModel model
+    ) noexcept {
+        switch (model) {
+        case random_walker::domain::EdgeWeightModel::GlobalBeta:
+            return SegmentationViewModel::GlobalBetaWeight;
+        case random_walker::domain::EdgeWeightModel::LocalVarianceNormalized:
+            return SegmentationViewModel::LocalVarianceNormalizedWeight;
+        }
+
+        Q_ASSERT_X(
+            false
+            , "view_edge_weight_model"
+            , "Unhandled edge weight model"
+        );
+        return SegmentationViewModel::GlobalBetaWeight;
+    }
+
+    [[nodiscard]] std::optional<random_walker::domain::EdgeWeightModel>
+    domain_edge_weight_model(int model) noexcept {
+        switch (model) {
+        case SegmentationViewModel::GlobalBetaWeight:
+            return random_walker::domain::EdgeWeightModel::GlobalBeta;
+        case SegmentationViewModel::LocalVarianceNormalizedWeight:
+            return random_walker::domain::EdgeWeightModel::LocalVarianceNormalized;
+        default:
+            return std::nullopt;
+        }
+    }
     [[nodiscard]] std::optional<random_walker::domain::PixelRectangle>
     clipped_seed_rectangle(
         int x
@@ -217,6 +247,22 @@ double SegmentationViewModel::distance_power() const noexcept {
     return application_settings_.random_walker.distance_power;
 }
 
+int SegmentationViewModel::edge_weight_model() const noexcept {
+    return view_edge_weight_model(
+        application_settings_.random_walker.edge_weight_model
+    );
+}
+
+int SegmentationViewModel::local_contrast_radius() const noexcept {
+    return application_settings_.random_walker.local_contrast_scale.radius;
+}
+
+double SegmentationViewModel::local_contrast_minimum_variance() const noexcept {
+    return application_settings_.random_walker
+        .local_contrast_scale
+        .minimum_variance;
+}
+
 double SegmentationViewModel::beta_slider_position() const noexcept {
     const double exponent =
         std::log10(application_settings_.random_walker.beta);
@@ -321,6 +367,36 @@ void SegmentationViewModel::set_distance_power(double value) {
 
     auto updated_parameters = application_settings_.random_walker;
     updated_parameters.distance_power = value;
+    update_random_walker_parameters(updated_parameters);
+}
+
+void SegmentationViewModel::set_edge_weight_model(int model) {
+    assert_ui_thread();
+
+    const std::optional<DomainEdgeWeightModel> updated_model =
+        domain_edge_weight_model(model);
+    if (!updated_model.has_value()) {
+        return;
+    }
+
+    auto updated_parameters = application_settings_.random_walker;
+    updated_parameters.edge_weight_model = *updated_model;
+    update_random_walker_parameters(updated_parameters);
+}
+
+void SegmentationViewModel::set_local_contrast_radius(int radius) {
+    assert_ui_thread();
+
+    auto updated_parameters = application_settings_.random_walker;
+    updated_parameters.local_contrast_scale.radius = radius;
+    update_random_walker_parameters(updated_parameters);
+}
+
+void SegmentationViewModel::set_local_contrast_minimum_variance(double value) {
+    assert_ui_thread();
+
+    auto updated_parameters = application_settings_.random_walker;
+    updated_parameters.local_contrast_scale.minimum_variance = value;
     update_random_walker_parameters(updated_parameters);
 }
 
@@ -513,6 +589,18 @@ void SegmentationViewModel::run_segmentation() {
             + std::to_string(connectivity())
             + ", distance_power="
             + std::to_string(application_settings_.random_walker.distance_power)
+            + ", edge_weight_model="
+            + std::to_string(edge_weight_model())
+            + ", local_contrast_radius="
+            + std::to_string(
+                application_settings_.random_walker.local_contrast_scale.radius
+            )
+            + ", local_contrast_minimum_variance="
+            + std::to_string(
+                application_settings_.random_walker
+                    .local_contrast_scale
+                    .minimum_variance
+            )
     );
 
     active_request_id_ = request_id;
@@ -564,6 +652,12 @@ void SegmentationViewModel::update_random_walker_parameters(
     const bool distance_power_was_changed =
         parameters.distance_power
             != application_settings_.random_walker.distance_power;
+    const bool edge_weight_model_was_changed =
+        parameters.edge_weight_model
+            != application_settings_.random_walker.edge_weight_model;
+    const bool local_contrast_was_changed =
+        parameters.local_contrast_scale
+            != application_settings_.random_walker.local_contrast_scale;
 
     auto updated_settings = application_settings_;
     updated_settings.random_walker = parameters;
@@ -587,6 +681,22 @@ void SegmentationViewModel::update_random_walker_parameters(
             )
             + ", distance_power="
             + std::to_string(updated_settings.random_walker.distance_power)
+            + ", edge_weight_model="
+            + std::to_string(
+                view_edge_weight_model(
+                    updated_settings.random_walker.edge_weight_model
+                )
+            )
+            + ", local_contrast_radius="
+            + std::to_string(
+                updated_settings.random_walker.local_contrast_scale.radius
+            )
+            + ", local_contrast_minimum_variance="
+            + std::to_string(
+                updated_settings.random_walker
+                    .local_contrast_scale
+                    .minimum_variance
+            )
     );
 
     cancel_active_request();
@@ -602,6 +712,12 @@ void SegmentationViewModel::update_random_walker_parameters(
     }
     if (distance_power_was_changed) {
         emit distance_power_changed();
+    }
+    if (edge_weight_model_was_changed) {
+        emit edge_weight_model_changed();
+    }
+    if (local_contrast_was_changed) {
+        emit local_contrast_changed();
     }
 }
 

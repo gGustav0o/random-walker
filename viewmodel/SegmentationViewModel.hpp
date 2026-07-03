@@ -42,7 +42,10 @@ class SegmentationViewModel final : public QObject {
     Q_PROPERTY(double  beta                   READ beta                 WRITE set_beta                 NOTIFY beta_changed)
     Q_PROPERTY(double  beta_slider_position   READ beta_slider_position WRITE set_beta_slider_position NOTIFY beta_changed)
     Q_PROPERTY(int     connectivity           READ connectivity         WRITE set_connectivity         NOTIFY connectivity_changed)
-    Q_PROPERTY(double  distance_power        READ distance_power      WRITE set_distance_power      NOTIFY distance_power_changed)
+    Q_PROPERTY(double  distance_power         READ distance_power       WRITE set_distance_power       NOTIFY distance_power_changed)
+    Q_PROPERTY(int     edge_weight_model      READ edge_weight_model    WRITE set_edge_weight_model    NOTIFY edge_weight_model_changed)
+    Q_PROPERTY(int     local_contrast_radius  READ local_contrast_radius WRITE set_local_contrast_radius NOTIFY local_contrast_changed)
+    Q_PROPERTY(double  local_contrast_minimum_variance READ local_contrast_minimum_variance WRITE set_local_contrast_minimum_variance NOTIFY local_contrast_changed)
     Q_PROPERTY(int     selected_label         READ selected_label       WRITE set_selected_label       NOTIFY selected_label_changed)
 
     Q_PROPERTY(QAbstractItemModel* seed_model READ seed_model CONSTANT)
@@ -59,6 +62,12 @@ public:
         , EightConnectivity = 1
     };
     Q_ENUM(GraphConnectivity)
+
+    enum EdgeWeightModel {
+        GlobalBetaWeight = 0
+        , LocalVarianceNormalizedWeight = 1
+    };
+    Q_ENUM(EdgeWeightModel)
 
     enum ProgressStage {
         Idle                         = ProgressState::Idle
@@ -98,6 +107,9 @@ public:
     [[nodiscard]] double beta_slider_position() const noexcept;
     [[nodiscard]] int connectivity() const noexcept;
     [[nodiscard]] double distance_power() const noexcept;
+    [[nodiscard]] int edge_weight_model() const noexcept;
+    [[nodiscard]] int local_contrast_radius() const noexcept;
+    [[nodiscard]] double local_contrast_minimum_variance() const noexcept;
     [[nodiscard]] bool has_result() const noexcept;
     [[nodiscard]] QString result_source() const;
     [[nodiscard]] quint64 result_version() const noexcept;
@@ -111,6 +123,9 @@ public:
     void set_beta_slider_position(double position);
     void set_connectivity(int connectivity);
     void set_distance_power(double value);
+    void set_edge_weight_model(int model);
+    void set_local_contrast_radius(int radius);
+    void set_local_contrast_minimum_variance(double value);
 
     Q_INVOKABLE void open_image(const QString& path);
     Q_INVOKABLE void clear();
@@ -129,6 +144,8 @@ signals:
     void beta_changed();
     void connectivity_changed();
     void distance_power_changed();
+    void edge_weight_model_changed();
+    void local_contrast_changed();
     void result_changed();
     void selected_label_changed();
     void error_message_changed();
@@ -137,6 +154,7 @@ signals:
 private:
     using DomainSeedLabel = random_walker::domain::SeedLabel;
     using DomainConnectivity = random_walker::domain::PixelConnectivity;
+    using DomainEdgeWeightModel = random_walker::domain::EdgeWeightModel;
     struct CompletionDeliveryGate;
 
     [[nodiscard]] DomainSeedLabel domain_seed_label() const noexcept;

@@ -22,6 +22,10 @@ private slots:
     void random_walker_beta_rejects_values_outside_valid_range();
     void random_walker_distance_power_accepts_closed_valid_range();
     void random_walker_distance_power_rejects_values_outside_valid_range();
+    void random_walker_edge_weight_model_accepts_known_values();
+    void random_walker_edge_weight_model_rejects_unknown_values();
+    void local_contrast_scale_parameters_accept_valid_bounds();
+    void local_contrast_scale_parameters_reject_invalid_values();
     void gray_image_reports_empty_default_state();
     void gray_image_reports_dimensions_and_pixel_values();
     void seed_pixel_count_counts_only_requested_label();
@@ -40,6 +44,18 @@ void DomainTests::default_random_walker_parameters_are_valid() {
     QCOMPARE(
         parameters.distance_power
         , domain::kDefaultRandomWalkerDistancePower
+    );
+    QCOMPARE(
+        static_cast<int>(parameters.edge_weight_model)
+        , static_cast<int>(domain::kDefaultEdgeWeightModel)
+    );
+    QCOMPARE(
+        parameters.local_contrast_scale.radius
+        , domain::kDefaultLocalContrastRadius
+    );
+    QCOMPARE(
+        parameters.local_contrast_scale.minimum_variance
+        , domain::kDefaultLocalContrastMinimumVariance
     );
 }
 
@@ -100,6 +116,59 @@ void DomainTests::random_walker_distance_power_rejects_values_outside_valid_rang
     }));
     QVERIFY(!domain::is_valid(domain::RandomWalkerParameters {
         .distance_power = std::numeric_limits<double>::infinity()
+    }));
+}
+
+void DomainTests::random_walker_edge_weight_model_accepts_known_values() {
+    QVERIFY(domain::is_valid(domain::RandomWalkerParameters {
+        .edge_weight_model = domain::EdgeWeightModel::GlobalBeta
+    }));
+    QVERIFY(domain::is_valid(domain::RandomWalkerParameters {
+        .edge_weight_model = domain::EdgeWeightModel::LocalVarianceNormalized
+    }));
+}
+
+void DomainTests::random_walker_edge_weight_model_rejects_unknown_values() {
+    QVERIFY(!domain::is_valid(domain::RandomWalkerParameters {
+        .edge_weight_model = static_cast<domain::EdgeWeightModel>(-1)
+    }));
+}
+
+void DomainTests::local_contrast_scale_parameters_accept_valid_bounds() {
+    QVERIFY(domain::is_valid(domain::LocalContrastScaleParameters {
+        .radius = domain::kMinimumLocalContrastRadius
+        , .minimum_variance = domain::kMinimumLocalContrastVariance
+    }));
+    QVERIFY(domain::is_valid(domain::LocalContrastScaleParameters {
+        .radius = domain::kMaximumLocalContrastRadius
+        , .minimum_variance = domain::kMaximumLocalContrastVariance
+    }));
+}
+
+void DomainTests::local_contrast_scale_parameters_reject_invalid_values() {
+    QVERIFY(!domain::is_valid(domain::LocalContrastScaleParameters {
+        .radius = domain::kMinimumLocalContrastRadius - 1
+    }));
+    QVERIFY(!domain::is_valid(domain::LocalContrastScaleParameters {
+        .radius = domain::kMaximumLocalContrastRadius + 1
+    }));
+    QVERIFY(!domain::is_valid(domain::LocalContrastScaleParameters {
+        .minimum_variance = std::nextafter(
+            domain::kMinimumLocalContrastVariance
+            , 0.0
+        )
+    }));
+    QVERIFY(!domain::is_valid(domain::LocalContrastScaleParameters {
+        .minimum_variance = std::nextafter(
+            domain::kMaximumLocalContrastVariance
+            , domain::kMaximumLocalContrastVariance + 1.0
+        )
+    }));
+    QVERIFY(!domain::is_valid(domain::LocalContrastScaleParameters {
+        .minimum_variance = std::numeric_limits<double>::quiet_NaN()
+    }));
+    QVERIFY(!domain::is_valid(domain::LocalContrastScaleParameters {
+        .minimum_variance = std::numeric_limits<double>::infinity()
     }));
 }
 

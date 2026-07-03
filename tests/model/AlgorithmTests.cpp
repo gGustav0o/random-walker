@@ -90,6 +90,20 @@ namespace {
         };
     }
 
+    [[nodiscard]] graph::EdgeWeightInput edge_weight_input(
+        std::uint8_t first_intensity
+        , std::uint8_t second_intensity
+        , double distance
+    ) noexcept {
+        return {
+            .first_intensity = first_intensity
+            , .second_intensity = second_intensity
+            , .first_position = {.row = 0, .column = 0}
+            , .second_position = {.row = 0, .column = 1}
+            , .distance = distance
+        };
+    }
+
     [[nodiscard]] double probability_value_for_index(int index) noexcept {
         return static_cast<double>((index * 37) % 101) / 100.0;
     }
@@ -205,7 +219,16 @@ private slots:
     void thresholds_probabilities_at_half();
     void thresholds_large_probability_map_deterministically();
     void large_thresholding_honors_cancellation();
-    void edge_weight_parameters_validate_domain_bounds();
+    void global_beta_edge_weight_parameters_validate_domain_bounds();
+    void local_variance_normalized_edge_weight_parameters_validate_domain_bounds();
+    void local_contrast_scale_map_clamps_flat_regions_to_minimum_variance();
+    void local_contrast_scale_map_computes_local_variance();
+    void local_variance_normalized_weight_uses_edge_variance();
+    void local_variance_normalized_weight_averages_endpoint_variances();
+    void local_variance_normalized_weight_is_symmetric();
+    void local_variance_normalized_weight_stays_in_probability_weight_range();
+    void local_variance_normalized_weight_uses_distance_power();
+    void local_variance_normalized_function_object_matches_pure_formula();
     void edge_weight_zero_distance_power_matches_baseline();
     void edge_weight_keeps_orthogonal_edges_independent_of_distance_power();
     void edge_weight_uses_distance_power();
@@ -214,6 +237,10 @@ private slots:
     void grid_laplacian_eight_connectivity_adds_diagonal_edges();
     void grid_laplacian_distance_power_normalizes_diagonal_edges();
     void grid_laplacian_beta_changes_edge_weight();
+    void grid_laplacian_uses_local_variance_normalized_weight_model();
+    void grid_laplacian_local_variance_model_honors_cancellation_while_building_scale_map();
+    void grid_laplacian_local_variance_model_reports_monotonic_progress();
+    void grid_laplacian_local_variance_model_ignores_global_beta();
 };
 
 void AlgorithmTests::parallel_policy_respects_compile_time_flag_and_threshold() {
@@ -573,51 +600,257 @@ void AlgorithmTests::large_thresholding_honors_cancellation() {
     QVERIFY(is_cancelled(outcome));
 }
 
-void AlgorithmTests::edge_weight_parameters_validate_domain_bounds() {
-    QVERIFY(graph::is_valid(graph::EdgeWeightParameters {
+void AlgorithmTests::global_beta_edge_weight_parameters_validate_domain_bounds() {
+    QVERIFY(graph::is_valid(graph::GlobalBetaEdgeWeightParameters {
         .beta = domain::kMinimumRandomWalkerBeta
         , .distance_power = domain::kMinimumRandomWalkerDistancePower
     }));
-    QVERIFY(graph::is_valid(graph::EdgeWeightParameters {
+    QVERIFY(graph::is_valid(graph::GlobalBetaEdgeWeightParameters {
         .beta = domain::kMaximumRandomWalkerBeta
         , .distance_power = domain::kMaximumRandomWalkerDistancePower
     }));
-    QVERIFY(!graph::is_valid(graph::EdgeWeightParameters {
+    QVERIFY(!graph::is_valid(graph::GlobalBetaEdgeWeightParameters {
         .beta = std::nextafter(domain::kMinimumRandomWalkerBeta, 0.0)
     }));
-    QVERIFY(!graph::is_valid(graph::EdgeWeightParameters {
+    QVERIFY(!graph::is_valid(graph::GlobalBetaEdgeWeightParameters {
         .beta = std::numeric_limits<double>::quiet_NaN()
     }));
-    QVERIFY(!graph::is_valid(graph::EdgeWeightParameters {
+    QVERIFY(!graph::is_valid(graph::GlobalBetaEdgeWeightParameters {
         .distance_power = std::nextafter(
             domain::kMinimumRandomWalkerDistancePower
             , -1.0
         )
     }));
-    QVERIFY(!graph::is_valid(graph::EdgeWeightParameters {
+    QVERIFY(!graph::is_valid(graph::GlobalBetaEdgeWeightParameters {
         .distance_power = std::nextafter(
             domain::kMaximumRandomWalkerDistancePower
             , 3.0
         )
     }));
-    QVERIFY(!graph::is_valid(graph::EdgeWeightParameters {
+    QVERIFY(!graph::is_valid(graph::GlobalBetaEdgeWeightParameters {
         .distance_power = std::numeric_limits<double>::quiet_NaN()
     }));
-    QVERIFY(!graph::is_valid(graph::EdgeWeightParameters {
+    QVERIFY(!graph::is_valid(graph::GlobalBetaEdgeWeightParameters {
         .distance_power = std::numeric_limits<double>::infinity()
     }));
 }
 
+void AlgorithmTests::local_variance_normalized_edge_weight_parameters_validate_domain_bounds() {
+    QVERIFY(graph::is_valid(graph::LocalVarianceNormalizedEdgeWeightParameters {
+        .distance_power = domain::kMinimumRandomWalkerDistancePower
+    }));
+    QVERIFY(graph::is_valid(graph::LocalVarianceNormalizedEdgeWeightParameters {
+        .distance_power = domain::kMaximumRandomWalkerDistancePower
+    }));
+    QVERIFY(!graph::is_valid(graph::LocalVarianceNormalizedEdgeWeightParameters {
+        .distance_power = std::nextafter(
+            domain::kMinimumRandomWalkerDistancePower
+            , -1.0
+        )
+    }));
+    QVERIFY(!graph::is_valid(graph::LocalVarianceNormalizedEdgeWeightParameters {
+        .distance_power = std::nextafter(
+            domain::kMaximumRandomWalkerDistancePower
+            , 3.0
+        )
+    }));
+    QVERIFY(!graph::is_valid(graph::LocalVarianceNormalizedEdgeWeightParameters {
+        .distance_power = std::numeric_limits<double>::quiet_NaN()
+    }));
+    QVERIFY(!graph::is_valid(graph::LocalVarianceNormalizedEdgeWeightParameters {
+        .distance_power = std::numeric_limits<double>::infinity()
+    }));
+}
+
+void AlgorithmTests::local_contrast_scale_map_clamps_flat_regions_to_minimum_variance() {
+    const domain::GrayImage image = make_image(2, 2, {10, 10, 10, 10});
+    const domain::LocalContrastScaleParameters parameters {
+        .radius = 1
+        , .minimum_variance = 2.5
+    };
+
+    const graph::LocalContrastScaleMap contrast_scale =
+        graph::build_local_contrast_scale_map(image, parameters);
+
+    QCOMPARE(contrast_scale.width(), 2);
+    QCOMPARE(contrast_scale.height(), 2);
+    QCOMPARE(
+        contrast_scale.variance_at({.row = 0, .column = 0})
+        , parameters.minimum_variance
+    );
+    QCOMPARE(
+        contrast_scale.variance_at({.row = 1, .column = 1})
+        , parameters.minimum_variance
+    );
+}
+
+void AlgorithmTests::local_contrast_scale_map_computes_local_variance() {
+    const domain::GrayImage image = make_image(1, 3, {0, 10, 20});
+    const domain::LocalContrastScaleParameters parameters {
+        .radius = 1
+        , .minimum_variance = 1.0
+    };
+
+    const graph::LocalContrastScaleMap contrast_scale =
+        graph::build_local_contrast_scale_map(image, parameters);
+
+    QVERIFY(std::abs(contrast_scale.variance_at({.row = 0, .column = 1})
+        - (200.0 / 3.0)) < 1e-12);
+}
+
+void AlgorithmTests::local_variance_normalized_weight_uses_edge_variance() {
+    Eigen::MatrixXd weak_variances(1, 2);
+    weak_variances << 50.0, 50.0;
+    Eigen::MatrixXd strong_variances(1, 2);
+    strong_variances << 200.0, 200.0;
+    const graph::LocalContrastScaleMap weak_contrast_scale(
+        std::move(weak_variances)
+    );
+    const graph::LocalContrastScaleMap strong_contrast_scale(
+        std::move(strong_variances)
+    );
+    const graph::LocalVarianceNormalizedEdgeWeightParameters parameters {
+        .distance_power = 0.0
+    };
+
+    const graph::EdgeWeightInput input = edge_weight_input(0, 10, 1.0);
+    const double weak_weight = graph::compute_local_variance_normalized_edge_weight(
+        input
+        , weak_contrast_scale
+        , parameters
+    );
+    const double strong_weight = graph::compute_local_variance_normalized_edge_weight(
+        input
+        , strong_contrast_scale
+        , parameters
+    );
+
+    QVERIFY(weak_weight < strong_weight);
+    QVERIFY(std::abs(weak_weight - std::exp(-1.0)) < 1e-12);
+    QVERIFY(std::abs(strong_weight - std::exp(-0.25)) < 1e-12);
+}
+
+void AlgorithmTests::local_variance_normalized_weight_averages_endpoint_variances() {
+    Eigen::MatrixXd variances(1, 2);
+    variances << 50.0, 150.0;
+    const graph::LocalContrastScaleMap contrast_scale(std::move(variances));
+    const graph::LocalVarianceNormalizedEdgeWeightParameters parameters {
+        .distance_power = 0.0
+    };
+
+    const double weight = graph::compute_local_variance_normalized_edge_weight(
+        edge_weight_input(0, 10, 1.0)
+        , contrast_scale
+        , parameters
+    );
+
+    QVERIFY(std::abs(weight - std::exp(-0.5)) < 1e-12);
+}
+
+void AlgorithmTests::local_variance_normalized_weight_is_symmetric() {
+    Eigen::MatrixXd variances(1, 2);
+    variances << 50.0, 150.0;
+    const graph::LocalContrastScaleMap contrast_scale(std::move(variances));
+    const graph::LocalVarianceNormalizedEdgeWeightParameters parameters {
+        .distance_power = 1.0
+    };
+    const graph::EdgeWeightInput forward = edge_weight_input(
+        0
+        , 10
+        , std::sqrt(2.0)
+    );
+    const graph::EdgeWeightInput backward {
+        .first_intensity = forward.second_intensity
+        , .second_intensity = forward.first_intensity
+        , .first_position = forward.second_position
+        , .second_position = forward.first_position
+        , .distance = forward.distance
+    };
+
+    const double forward_weight = graph::compute_local_variance_normalized_edge_weight(
+        forward
+        , contrast_scale
+        , parameters
+    );
+    const double backward_weight = graph::compute_local_variance_normalized_edge_weight(
+        backward
+        , contrast_scale
+        , parameters
+    );
+
+    QVERIFY(std::abs(forward_weight - backward_weight) < 1e-12);
+}
+
+void AlgorithmTests::local_variance_normalized_weight_stays_in_probability_weight_range() {
+    Eigen::MatrixXd variances(1, 2);
+    variances << 1.0, 1.0;
+    const graph::LocalContrastScaleMap contrast_scale(std::move(variances));
+    const graph::LocalVarianceNormalizedEdgeWeightParameters parameters {
+        .distance_power = 2.0
+    };
+
+    for (const std::uint8_t first_intensity : {std::uint8_t {0}, std::uint8_t {128}}) {
+        for (const std::uint8_t second_intensity : {std::uint8_t {0}, std::uint8_t {255}}) {
+            const double weight = graph::compute_local_variance_normalized_edge_weight(
+                edge_weight_input(first_intensity, second_intensity, std::sqrt(2.0))
+                , contrast_scale
+                , parameters
+            );
+
+            QVERIFY(std::isfinite(weight));
+            QVERIFY(weight >= 0.0);
+            QVERIFY(weight <= 1.0);
+        }
+    }
+}
+void AlgorithmTests::local_variance_normalized_weight_uses_distance_power() {
+    Eigen::MatrixXd variances(1, 2);
+    variances << 50.0, 50.0;
+    const graph::LocalContrastScaleMap contrast_scale(std::move(variances));
+    const graph::LocalVarianceNormalizedEdgeWeightParameters parameters {
+        .distance_power = 1.0
+    };
+
+    const double weight = graph::compute_local_variance_normalized_edge_weight(
+        edge_weight_input(0, 10, std::sqrt(2.0))
+        , contrast_scale
+        , parameters
+    );
+
+    QVERIFY(std::abs(weight - std::exp(-1.0) / std::sqrt(2.0)) < 1e-12);
+}
+
+void AlgorithmTests::local_variance_normalized_function_object_matches_pure_formula() {
+    Eigen::MatrixXd variances(1, 2);
+    variances << 50.0, 50.0;
+    const graph::LocalContrastScaleMap contrast_scale(std::move(variances));
+    const graph::LocalVarianceNormalizedEdgeWeightParameters parameters {
+        .distance_power = 1.0
+    };
+    const graph::LocalVarianceNormalizedEdgeWeight edge_weight {
+        .contrast_scale = contrast_scale
+        , .parameters = parameters
+    };
+    const graph::EdgeWeightInput input = edge_weight_input(0, 10, std::sqrt(2.0));
+
+    const double direct_weight = graph::compute_local_variance_normalized_edge_weight(
+        input
+        , contrast_scale
+        , parameters
+    );
+    const double function_object_weight = edge_weight(input);
+
+    QVERIFY(std::abs(function_object_weight - direct_weight) < 1e-12);
+}
+
 void AlgorithmTests::edge_weight_zero_distance_power_matches_baseline() {
-    const graph::EdgeWeightParameters parameters {
+    const graph::GlobalBetaEdgeWeightParameters parameters {
         .beta = 0.01
         , .distance_power = 0.0
     };
 
-    const double diagonal_weight = graph::compute_edge_weight(
-        0
-        , 10
-        , std::sqrt(2.0)
+    const double diagonal_weight = graph::compute_global_beta_edge_weight(
+        edge_weight_input(0, 10, std::sqrt(2.0))
         , parameters
     );
 
@@ -625,25 +858,21 @@ void AlgorithmTests::edge_weight_zero_distance_power_matches_baseline() {
 }
 
 void AlgorithmTests::edge_weight_keeps_orthogonal_edges_independent_of_distance_power() {
-    const graph::EdgeWeightParameters weak_distance_penalty {
+    const graph::GlobalBetaEdgeWeightParameters weak_distance_penalty {
         .beta = 0.01
         , .distance_power = 0.0
     };
-    const graph::EdgeWeightParameters strong_distance_penalty {
+    const graph::GlobalBetaEdgeWeightParameters strong_distance_penalty {
         .beta = 0.01
         , .distance_power = 2.0
     };
 
-    const double baseline = graph::compute_edge_weight(
-        0
-        , 10
-        , 1.0
+    const double baseline = graph::compute_global_beta_edge_weight(
+        edge_weight_input(0, 10, 1.0)
         , weak_distance_penalty
     );
-    const double normalized = graph::compute_edge_weight(
-        0
-        , 10
-        , 1.0
+    const double normalized = graph::compute_global_beta_edge_weight(
+        edge_weight_input(0, 10, 1.0)
         , strong_distance_penalty
     );
 
@@ -652,25 +881,21 @@ void AlgorithmTests::edge_weight_keeps_orthogonal_edges_independent_of_distance_
 }
 
 void AlgorithmTests::edge_weight_uses_distance_power() {
-    const graph::EdgeWeightParameters linear_distance_penalty =
-        graph::edge_weight_parameters_from(
+    const graph::GlobalBetaEdgeWeightParameters linear_distance_penalty =
+        graph::global_beta_edge_weight_parameters_from(
             random_walker_parameters(0.01, domain::PixelConnectivity::Eight, 1.0)
         );
-    const graph::EdgeWeightParameters quadratic_distance_penalty =
-        graph::edge_weight_parameters_from(
+    const graph::GlobalBetaEdgeWeightParameters quadratic_distance_penalty =
+        graph::global_beta_edge_weight_parameters_from(
             random_walker_parameters(0.01, domain::PixelConnectivity::Eight, 2.0)
         );
 
-    const double linear_diagonal_weight = graph::compute_edge_weight(
-        0
-        , 10
-        , std::sqrt(2.0)
+    const double linear_diagonal_weight = graph::compute_global_beta_edge_weight(
+        edge_weight_input(0, 10, std::sqrt(2.0))
         , linear_distance_penalty
     );
-    const double quadratic_diagonal_weight = graph::compute_edge_weight(
-        0
-        , 10
-        , std::sqrt(2.0)
+    const double quadratic_diagonal_weight = graph::compute_global_beta_edge_weight(
+        edge_weight_input(0, 10, std::sqrt(2.0))
         , quadratic_distance_penalty
     );
 
@@ -684,24 +909,20 @@ void AlgorithmTests::edge_weight_uses_distance_power() {
 }
 
 void AlgorithmTests::edge_weight_function_object_matches_pure_formula() {
-    const graph::EdgeWeightParameters parameters {
+    const graph::GlobalBetaEdgeWeightParameters parameters {
         .beta = 0.01
         , .distance_power = 1.0
     };
-    const graph::ExponentialDistanceEdgeWeight edge_weight {
+    const graph::GlobalBetaEdgeWeight edge_weight {
         .parameters = parameters
     };
 
-    const double direct_weight = graph::compute_edge_weight(
-        0
-        , 10
-        , std::sqrt(2.0)
+    const double direct_weight = graph::compute_global_beta_edge_weight(
+        edge_weight_input(0, 10, std::sqrt(2.0))
         , parameters
     );
     const double function_object_weight = edge_weight(
-        0
-        , 10
-        , std::sqrt(2.0)
+        edge_weight_input(0, 10, std::sqrt(2.0))
     );
 
     QVERIFY(std::abs(function_object_weight - direct_weight) < 1e-12);
@@ -828,6 +1049,157 @@ void AlgorithmTests::grid_laplacian_beta_changes_edge_weight() {
     QVERIFY(weak_weight > strong_weight);
     QVERIFY(std::abs(weak_weight - std::exp(-0.001 * 100.0)) < 1e-12);
     QVERIFY(std::abs(strong_weight - std::exp(-0.01 * 100.0)) < 1e-12);
+}
+
+void AlgorithmTests::grid_laplacian_uses_local_variance_normalized_weight_model() {
+    const domain::GrayImage image = make_image(1, 2, {0, 10});
+    const domain::RandomWalkerParameters parameters {
+        .beta = 0.01
+        , .distance_power = 0.0
+        , .connectivity = domain::PixelConnectivity::Four
+        , .edge_weight_model = domain::EdgeWeightModel::LocalVarianceNormalized
+        , .local_contrast_scale = {
+            .radius = 1
+            , .minimum_variance = 50.0
+        }
+    };
+
+    const auto outcome = graph::build_grid_laplacian(
+        image
+        , parameters
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<Eigen::SparseMatrix<double>>(outcome));
+    const auto& laplacian = std::get<Eigen::SparseMatrix<double>>(outcome);
+    const double expected_weight = std::exp(-1.0);
+
+    QVERIFY(std::abs(coefficient(laplacian, 0, 0) - expected_weight) < 1e-12);
+    QVERIFY(std::abs(coefficient(laplacian, 1, 1) - expected_weight) < 1e-12);
+    QVERIFY(std::abs(coefficient(laplacian, 0, 1) + expected_weight) < 1e-12);
+    QVERIFY(std::abs(coefficient(laplacian, 1, 0) + expected_weight) < 1e-12);
+}
+
+void AlgorithmTests::grid_laplacian_local_variance_model_honors_cancellation_while_building_scale_map() {
+    const domain::GrayImage image = make_image(2, 2, {0, 10, 20, 30});
+    const domain::RandomWalkerParameters parameters {
+        .beta = 0.01
+        , .distance_power = 0.0
+        , .connectivity = domain::PixelConnectivity::Four
+        , .edge_weight_model = domain::EdgeWeightModel::LocalVarianceNormalized
+        , .local_contrast_scale = {
+            .radius = 1
+            , .minimum_variance = 1.0
+        }
+    };
+    std::stop_source stop_source;
+    const domain::ProgressReporter progress {
+        7
+        , [&stop_source](domain::SegmentationProgress) {
+            stop_source.request_stop();
+        }
+    };
+
+    const auto outcome = graph::build_grid_laplacian(
+        image
+        , parameters
+        , domain::CancellationToken {stop_source.get_token()}
+        , progress
+    );
+
+    QVERIFY(is_cancelled(outcome));
+}
+
+void AlgorithmTests::grid_laplacian_local_variance_model_reports_monotonic_progress() {
+    const domain::GrayImage image = make_image(1, 2, {0, 10});
+    const domain::RandomWalkerParameters parameters {
+        .beta = 0.01
+        , .distance_power = 0.0
+        , .connectivity = domain::PixelConnectivity::Four
+        , .edge_weight_model = domain::EdgeWeightModel::LocalVarianceNormalized
+        , .local_contrast_scale = {
+            .radius = 1
+            , .minimum_variance = 50.0
+        }
+    };
+    ProgressLog progress_log;
+
+    const auto outcome = graph::build_grid_laplacian(
+        image
+        , parameters
+        , domain::CancellationToken {}
+        , progress_log.reporter()
+    );
+
+    QVERIFY(std::holds_alternative<Eigen::SparseMatrix<double>>(outcome));
+    QVERIFY(progress_log.entries.size() >= std::size_t {4});
+    QCOMPARE(progress_log.entries.front().stage, domain::SegmentationStage::BuildingGraph);
+    QVERIFY(progress_log.entries.front().fraction.has_value());
+    QCOMPARE(*progress_log.entries.front().fraction, 0.0);
+    QCOMPARE(progress_log.entries.back().stage, domain::SegmentationStage::BuildingGraph);
+    QVERIFY(progress_log.entries.back().fraction.has_value());
+    QCOMPARE(*progress_log.entries.back().fraction, 1.0);
+
+    double previous_fraction = 0.0;
+    bool saw_scale_boundary = false;
+    for (const domain::SegmentationProgress& entry : progress_log.entries) {
+        QCOMPARE(entry.stage, domain::SegmentationStage::BuildingGraph);
+        QVERIFY(entry.fraction.has_value());
+        QVERIFY(*entry.fraction >= previous_fraction);
+        if (*entry.fraction == 0.25) {
+            saw_scale_boundary = true;
+        }
+        previous_fraction = *entry.fraction;
+    }
+    QVERIFY(saw_scale_boundary);
+}
+
+void AlgorithmTests::grid_laplacian_local_variance_model_ignores_global_beta() {
+    const domain::GrayImage image = make_image(1, 2, {0, 10});
+    const domain::RandomWalkerParameters weak_beta_parameters {
+        .beta = 0.001
+        , .distance_power = 0.0
+        , .connectivity = domain::PixelConnectivity::Four
+        , .edge_weight_model = domain::EdgeWeightModel::LocalVarianceNormalized
+        , .local_contrast_scale = {
+            .radius = 1
+            , .minimum_variance = 50.0
+        }
+    };
+    const domain::RandomWalkerParameters strong_beta_parameters {
+        .beta = 0.01
+        , .distance_power = 0.0
+        , .connectivity = domain::PixelConnectivity::Four
+        , .edge_weight_model = domain::EdgeWeightModel::LocalVarianceNormalized
+        , .local_contrast_scale = {
+            .radius = 1
+            , .minimum_variance = 50.0
+        }
+    };
+
+    const auto weak_beta_outcome = graph::build_grid_laplacian(
+        image
+        , weak_beta_parameters
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+    const auto strong_beta_outcome = graph::build_grid_laplacian(
+        image
+        , strong_beta_parameters
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<Eigen::SparseMatrix<double>>(weak_beta_outcome));
+    QVERIFY(std::holds_alternative<Eigen::SparseMatrix<double>>(strong_beta_outcome));
+    const auto& weak_beta = std::get<Eigen::SparseMatrix<double>>(weak_beta_outcome);
+    const auto& strong_beta = std::get<Eigen::SparseMatrix<double>>(strong_beta_outcome);
+
+    QCOMPARE(coefficient(weak_beta, 0, 0), coefficient(strong_beta, 0, 0));
+    QCOMPARE(coefficient(weak_beta, 0, 1), coefficient(strong_beta, 0, 1));
+    QCOMPARE(coefficient(weak_beta, 1, 0), coefficient(strong_beta, 1, 0));
+    QCOMPARE(coefficient(weak_beta, 1, 1), coefficient(strong_beta, 1, 1));
 }
 
 QTEST_GUILESS_MAIN(AlgorithmTests)

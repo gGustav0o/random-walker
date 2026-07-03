@@ -11,8 +11,13 @@ namespace {
     constexpr auto kRandomWalkerBetaKey = "randomWalker/beta";
     constexpr auto kRandomWalkerConnectivityKey = "randomWalker/connectivity";
     constexpr auto kRandomWalkerDistancePowerKey = "randomWalker/distancePower";
+    constexpr auto kRandomWalkerEdgeWeightModelKey = "randomWalker/edgeWeightModel";
+    constexpr auto kRandomWalkerLocalContrastRadiusKey =
+        "randomWalker/localContrast/radius";
+    constexpr auto kRandomWalkerLocalContrastMinimumVarianceKey =
+        "randomWalker/localContrast/minimumVariance";
     constexpr auto kLegacyBetaKey = "beta";
-    constexpr int kCurrentSchemaVersion = 3;
+    constexpr int kCurrentSchemaVersion = 4;
 
     class InMemorySettingsRepository final
         : public random_walker::application::SettingsRepository {
@@ -67,6 +72,7 @@ private slots:
     void migrates_legacy_schema();
     void migrates_schema_one_with_default_connectivity();
     void migrates_schema_two_with_default_distance_power();
+    void migrates_schema_three_with_default_edge_weight_settings();
     void rejects_invalid_settings_on_save();
     void reports_settings_save_failure();
 };
@@ -90,6 +96,18 @@ void SettingsTests::loads_default_values() {
         settings.random_walker.distance_power
         , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
+    QCOMPARE(
+        static_cast<int>(settings.random_walker.edge_weight_model)
+        , static_cast<int>(random_walker::domain::kDefaultEdgeWeightModel)
+    );
+    QCOMPARE(
+        settings.random_walker.local_contrast_scale.radius
+        , random_walker::domain::kDefaultLocalContrastRadius
+    );
+    QCOMPARE(
+        settings.random_walker.local_contrast_scale.minimum_variance
+        , random_walker::domain::kDefaultLocalContrastMinimumVariance
+    );
     QVERIFY(repository.stored == settings);
     QVERIFY(!load_result.repair_required);
     QCOMPARE(repository.save_count, 0);
@@ -103,6 +121,13 @@ void SettingsTests::repairs_corrupted_values() {
     write_value(path, kRandomWalkerBetaKey, QStringLiteral("invalid"));
     write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
     write_value(path, kRandomWalkerDistancePowerKey, QStringLiteral("invalid"));
+    write_value(path, kRandomWalkerEdgeWeightModelKey, QStringLiteral("invalid"));
+    write_value(path, kRandomWalkerLocalContrastRadiusKey, QStringLiteral("invalid"));
+    write_value(
+        path
+        , kRandomWalkerLocalContrastMinimumVarianceKey
+        , QStringLiteral("invalid")
+    );
 
     random_walker::infrastructure::QtSettingsRepository repository(
         path
@@ -153,6 +178,18 @@ void SettingsTests::repairs_corrupted_values() {
         repaired.value(kRandomWalkerDistancePowerKey).toDouble()
         , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
+    QCOMPARE(
+        repaired.value(kRandomWalkerEdgeWeightModelKey).toString()
+        , QStringLiteral("globalBeta")
+    );
+    QCOMPARE(
+        repaired.value(kRandomWalkerLocalContrastRadiusKey).toInt()
+        , random_walker::domain::kDefaultLocalContrastRadius
+    );
+    QCOMPARE(
+        repaired.value(kRandomWalkerLocalContrastMinimumVarianceKey).toDouble()
+        , random_walker::domain::kDefaultLocalContrastMinimumVariance
+    );
 }
 
 void SettingsTests::loads_persisted_parameters() {
@@ -163,6 +200,13 @@ void SettingsTests::loads_persisted_parameters() {
     write_value(path, kRandomWalkerBetaKey, 0.005);
     write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
     write_value(path, kRandomWalkerDistancePowerKey, 1.5);
+    write_value(
+        path
+        , kRandomWalkerEdgeWeightModelKey
+        , QStringLiteral("localVarianceNormalized")
+    );
+    write_value(path, kRandomWalkerLocalContrastRadiusKey, 3);
+    write_value(path, kRandomWalkerLocalContrastMinimumVarianceKey, 4.5);
 
     random_walker::infrastructure::QtSettingsRepository repository(
         path
@@ -178,6 +222,14 @@ void SettingsTests::loads_persisted_parameters() {
         , static_cast<int>(random_walker::domain::PixelConnectivity::Eight)
     );
     QCOMPARE(settings.random_walker.distance_power, 1.5);
+    QCOMPARE(
+        static_cast<int>(settings.random_walker.edge_weight_model)
+        , static_cast<int>(
+            random_walker::domain::EdgeWeightModel::LocalVarianceNormalized
+        )
+    );
+    QCOMPARE(settings.random_walker.local_contrast_scale.radius, 3);
+    QCOMPARE(settings.random_walker.local_contrast_scale.minimum_variance, 4.5);
     QVERIFY(!load_result.repair_required);
 }
 
@@ -189,6 +241,13 @@ void SettingsTests::ignores_unknown_newer_schema() {
     write_value(path, kRandomWalkerBetaKey, 0.005);
     write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
     write_value(path, kRandomWalkerDistancePowerKey, 1.5);
+    write_value(
+        path
+        , kRandomWalkerEdgeWeightModelKey
+        , QStringLiteral("localVarianceNormalized")
+    );
+    write_value(path, kRandomWalkerLocalContrastRadiusKey, 3);
+    write_value(path, kRandomWalkerLocalContrastMinimumVarianceKey, 4.5);
 
     random_walker::infrastructure::QtSettingsRepository repository(
         path
@@ -340,6 +399,45 @@ void SettingsTests::migrates_schema_two_with_default_distance_power() {
     QVERIFY(load_result.repair_required);
 }
 
+
+void SettingsTests::migrates_schema_three_with_default_edge_weight_settings() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString path = settings_path(directory);
+    constexpr double stored_beta = 0.006;
+    write_value(path, kSchemaVersionKey, 3);
+    write_value(path, kRandomWalkerBetaKey, stored_beta);
+    write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
+    write_value(path, kRandomWalkerDistancePowerKey, 1.5);
+
+    random_walker::infrastructure::QtSettingsRepository repository(
+        path
+        , QSettings::IniFormat
+    );
+
+    const auto load_result = repository.load();
+    const auto settings = load_result.settings;
+
+    QCOMPARE(settings.random_walker.beta, stored_beta);
+    QCOMPARE(
+        static_cast<int>(settings.random_walker.connectivity)
+        , static_cast<int>(random_walker::domain::PixelConnectivity::Eight)
+    );
+    QCOMPARE(settings.random_walker.distance_power, 1.5);
+    QCOMPARE(
+        static_cast<int>(settings.random_walker.edge_weight_model)
+        , static_cast<int>(random_walker::domain::kDefaultEdgeWeightModel)
+    );
+    QCOMPARE(
+        settings.random_walker.local_contrast_scale.radius
+        , random_walker::domain::kDefaultLocalContrastRadius
+    );
+    QCOMPARE(
+        settings.random_walker.local_contrast_scale.minimum_variance
+        , random_walker::domain::kDefaultLocalContrastMinimumVariance
+    );
+    QVERIFY(load_result.repair_required);
+}
 void SettingsTests::rejects_invalid_settings_on_save() {
     InMemorySettingsRepository repository;
     random_walker::application::SettingsService service(repository);

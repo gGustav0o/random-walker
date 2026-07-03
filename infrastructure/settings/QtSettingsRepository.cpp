@@ -9,13 +9,18 @@
 
 namespace {
 
-    constexpr int kCurrentSchemaVersion = 3;
+    constexpr int kCurrentSchemaVersion = 4;
 
     constexpr auto kSettingsGroup = "applicationSettings";
     constexpr auto kSchemaVersionKey = "schemaVersion";
     constexpr auto kRandomWalkerBetaKey = "randomWalker/beta";
     constexpr auto kRandomWalkerConnectivityKey = "randomWalker/connectivity";
     constexpr auto kRandomWalkerDistancePowerKey = "randomWalker/distancePower";
+    constexpr auto kRandomWalkerEdgeWeightModelKey = "randomWalker/edgeWeightModel";
+    constexpr auto kRandomWalkerLocalContrastRadiusKey =
+        "randomWalker/localContrast/radius";
+    constexpr auto kRandomWalkerLocalContrastMinimumVarianceKey =
+        "randomWalker/localContrast/minimumVariance";
     constexpr auto kLegacyBetaKey = "beta";
 
     [[nodiscard]] double stored_double(
@@ -33,6 +38,26 @@ namespace {
                 << settings.fileName()
                 << "; defaults will be used if validation fails";
             return std::numeric_limits<double>::quiet_NaN();
+        }
+
+        return value;
+    }
+
+    [[nodiscard]] int stored_int(
+        const QSettings& settings
+        , const char* key
+    ) {
+        bool converted = false;
+        const QVariant stored_value = settings.value(key);
+        const int value = stored_value.toInt(&converted);
+        if (!converted) {
+            qWarning()
+                << "Failed to read integer settings value"
+                << key
+                << "from"
+                << settings.fileName()
+                << "; defaults will be used if validation fails";
+            return std::numeric_limits<int>::min();
         }
 
         return value;
@@ -82,6 +107,56 @@ namespace {
         }
 
         return *connectivity;
+    }
+
+    [[nodiscard]] std::optional<random_walker::domain::EdgeWeightModel>
+    edge_weight_model_from_storage(const QString& value) noexcept {
+        if (value == QStringLiteral("globalBeta")) {
+            return random_walker::domain::EdgeWeightModel::GlobalBeta;
+        }
+        if (value == QStringLiteral("localVarianceNormalized")) {
+            return random_walker::domain::EdgeWeightModel::LocalVarianceNormalized;
+        }
+
+        return std::nullopt;
+    }
+
+    [[nodiscard]] QString edge_weight_model_to_storage(
+        random_walker::domain::EdgeWeightModel model
+    ) noexcept {
+        switch (model) {
+        case random_walker::domain::EdgeWeightModel::GlobalBeta:
+            return QStringLiteral("globalBeta");
+        case random_walker::domain::EdgeWeightModel::LocalVarianceNormalized:
+            return QStringLiteral("localVarianceNormalized");
+        }
+
+        Q_ASSERT_X(
+            false
+            , "edge_weight_model_to_storage"
+            , "Unhandled edge weight model"
+        );
+        return QStringLiteral("globalBeta");
+    }
+
+    [[nodiscard]] random_walker::domain::EdgeWeightModel stored_edge_weight_model(
+        const QSettings& settings
+        , const char* key
+    ) {
+        const QVariant stored_value = settings.value(key);
+        const std::optional<random_walker::domain::EdgeWeightModel> model =
+            edge_weight_model_from_storage(stored_value.toString());
+        if (!model.has_value()) {
+            qWarning()
+                << "Failed to read edge weight model settings value"
+                << key
+                << "from"
+                << settings.fileName()
+                << "; settings will be repaired";
+            return static_cast<random_walker::domain::EdgeWeightModel>(-1);
+        }
+
+        return *model;
     }
 }
 
@@ -139,7 +214,6 @@ namespace random_walker::infrastructure {
                 << "is newer than supported version"
                 << kCurrentSchemaVersion
                 << "; settings will be ignored";
-            // A newer schema must not be interpreted by an older binary.
             result.settings = {};
         }
 
@@ -171,6 +245,19 @@ namespace random_walker::infrastructure {
             settings_
             , kRandomWalkerDistancePowerKey
         );
+        result.random_walker.edge_weight_model = stored_edge_weight_model(
+            settings_
+            , kRandomWalkerEdgeWeightModelKey
+        );
+        result.random_walker.local_contrast_scale.radius = stored_int(
+            settings_
+            , kRandomWalkerLocalContrastRadiusKey
+        );
+        result.random_walker.local_contrast_scale.minimum_variance =
+            stored_double(
+                settings_
+                , kRandomWalkerLocalContrastMinimumVarianceKey
+            );
         return result;
     }
 
@@ -193,6 +280,18 @@ namespace random_walker::infrastructure {
             result.random_walker.connectivity = stored_connectivity(
                 settings_
                 , kRandomWalkerConnectivityKey
+            );
+            return result;
+        case 3:
+            result.random_walker.beta =
+                stored_double(settings_, kRandomWalkerBetaKey);
+            result.random_walker.connectivity = stored_connectivity(
+                settings_
+                , kRandomWalkerConnectivityKey
+            );
+            result.random_walker.distance_power = stored_double(
+                settings_
+                , kRandomWalkerDistancePowerKey
             );
             return result;
         default:
@@ -221,6 +320,22 @@ namespace random_walker::infrastructure {
         settings_.setValue(
             kRandomWalkerDistancePowerKey
             , application_settings.random_walker.distance_power
+        );
+        settings_.setValue(
+            kRandomWalkerEdgeWeightModelKey
+            , edge_weight_model_to_storage(
+                application_settings.random_walker.edge_weight_model
+            )
+        );
+        settings_.setValue(
+            kRandomWalkerLocalContrastRadiusKey
+            , application_settings.random_walker.local_contrast_scale.radius
+        );
+        settings_.setValue(
+            kRandomWalkerLocalContrastMinimumVarianceKey
+            , application_settings.random_walker
+                .local_contrast_scale
+                .minimum_variance
         );
         settings_.setValue(kSchemaVersionKey, kCurrentSchemaVersion);
     }

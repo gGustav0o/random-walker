@@ -84,6 +84,8 @@ namespace {
             last_beta = request.parameters().beta;
             last_connectivity = request.parameters().connectivity;
             last_distance_power = request.parameters().distance_power;
+            last_edge_weight_model = request.parameters().edge_weight_model;
+            last_local_contrast = request.parameters().local_contrast_scale;
             progress_handler_ = std::move(progress_handler);
             completion_handler_ = std::move(completion_handler);
             ++submit_count;
@@ -114,6 +116,9 @@ namespace {
         domain::PixelConnectivity last_connectivity =
             domain::PixelConnectivity::Four;
         double last_distance_power = 0.0;
+        domain::EdgeWeightModel last_edge_weight_model =
+            domain::EdgeWeightModel::GlobalBeta;
+        domain::LocalContrastScaleParameters last_local_contrast;
 
     private:
         executor::SegmentationProgressHandler progress_handler_;
@@ -169,6 +174,8 @@ private slots:
     void set_beta_saves_settings_and_emits_change();
     void set_connectivity_saves_settings_and_emits_change();
     void set_distance_power_saves_settings_and_emits_change();
+    void set_edge_weight_model_saves_settings_and_emits_change();
+    void set_local_contrast_saves_settings_and_emits_change();
     void open_image_updates_image_state_and_cache();
     void add_seed_rectangles_updates_counts_and_can_run();
     void run_segmentation_submits_request_and_updates_progress();
@@ -187,6 +194,18 @@ void SegmentationViewModelTests::initializes_from_settings() {
     QCOMPARE(
         fixture.view_model.distance_power()
         , domain::kDefaultRandomWalkerDistancePower
+    );
+    QCOMPARE(
+        fixture.view_model.edge_weight_model()
+        , static_cast<int>(SegmentationViewModel::GlobalBetaWeight)
+    );
+    QCOMPARE(
+        fixture.view_model.local_contrast_radius()
+        , domain::kDefaultLocalContrastRadius
+    );
+    QCOMPARE(
+        fixture.view_model.local_contrast_minimum_variance()
+        , domain::kDefaultLocalContrastMinimumVariance
     );
     QVERIFY(!fixture.view_model.image_loaded());
     QVERIFY(!fixture.view_model.can_run());
@@ -244,6 +263,56 @@ void SegmentationViewModelTests::set_distance_power_saves_settings_and_emits_cha
     QCOMPARE(distance_power_changed.count(), 1);
 }
 
+
+void SegmentationViewModelTests::set_edge_weight_model_saves_settings_and_emits_change() {
+    ViewModelFixture fixture;
+    QSignalSpy edge_weight_model_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::edge_weight_model_changed
+    );
+
+    fixture.view_model.set_edge_weight_model(
+        SegmentationViewModel::LocalVarianceNormalizedWeight
+    );
+
+    QCOMPARE(
+        fixture.view_model.edge_weight_model()
+        , static_cast<int>(SegmentationViewModel::LocalVarianceNormalizedWeight)
+    );
+    QCOMPARE(fixture.repository.save_count, 1);
+    QCOMPARE(
+        static_cast<int>(fixture.repository.stored.random_walker.edge_weight_model)
+        , static_cast<int>(domain::EdgeWeightModel::LocalVarianceNormalized)
+    );
+    QCOMPARE(edge_weight_model_changed.count(), 1);
+}
+
+void SegmentationViewModelTests::set_local_contrast_saves_settings_and_emits_change() {
+    ViewModelFixture fixture;
+    QSignalSpy local_contrast_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::local_contrast_changed
+    );
+
+    fixture.view_model.set_local_contrast_radius(3);
+    fixture.view_model.set_local_contrast_minimum_variance(4.5);
+
+    QCOMPARE(fixture.view_model.local_contrast_radius(), 3);
+    QCOMPARE(fixture.view_model.local_contrast_minimum_variance(), 4.5);
+    QCOMPARE(fixture.repository.save_count, 2);
+    QCOMPARE(
+        fixture.repository.stored.random_walker.local_contrast_scale.radius
+        , 3
+    );
+    QCOMPARE(
+        fixture.repository.stored.random_walker
+            .local_contrast_scale
+            .minimum_variance
+        , 4.5
+    );
+    QCOMPARE(local_contrast_changed.count(), 2);
+}
+
 void SegmentationViewModelTests::open_image_updates_image_state_and_cache() {
     ViewModelFixture fixture;
     QTemporaryDir directory;
@@ -290,6 +359,11 @@ void SegmentationViewModelTests::run_segmentation_submits_request_and_updates_pr
     fixture.view_model.add_seed_rectangle(2, 1, 1, 1);
     fixture.view_model.set_connectivity(SegmentationViewModel::EightConnectivity);
     fixture.view_model.set_distance_power(1.5);
+    fixture.view_model.set_edge_weight_model(
+        SegmentationViewModel::LocalVarianceNormalizedWeight
+    );
+    fixture.view_model.set_local_contrast_radius(3);
+    fixture.view_model.set_local_contrast_minimum_variance(4.5);
     QSignalSpy busy_changed(&fixture.view_model, &SegmentationViewModel::busy_changed);
     QSignalSpy progress_changed(
         &fixture.view_model
@@ -310,6 +384,12 @@ void SegmentationViewModelTests::run_segmentation_submits_request_and_updates_pr
         , static_cast<int>(domain::PixelConnectivity::Eight)
     );
     QCOMPARE(fixture.executor.last_distance_power, 1.5);
+    QCOMPARE(
+        static_cast<int>(fixture.executor.last_edge_weight_model)
+        , static_cast<int>(domain::EdgeWeightModel::LocalVarianceNormalized)
+    );
+    QCOMPARE(fixture.executor.last_local_contrast.radius, 3);
+    QCOMPARE(fixture.executor.last_local_contrast.minimum_variance, 4.5);
     QVERIFY(fixture.view_model.busy());
     QCOMPARE(busy_changed.count(), 1);
 
