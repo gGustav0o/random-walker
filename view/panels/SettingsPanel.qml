@@ -65,6 +65,29 @@ Rectangle {
                 spacing: 14
 
                 SettingsSection {
+                    title: "Markers"
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Button {
+                            Layout.fillWidth: true
+                            text: "Auto markers"
+                            enabled: root.vm.image_loaded && !root.vm.busy
+                            onClicked: root.vm.propose_markers()
+                        }
+
+                        Button {
+                            Layout.fillWidth: true
+                            text: "Clear auto"
+                            enabled: root.vm.has_automatic_markers && !root.vm.busy
+                            onClicked: root.vm.clear_automatic_markers()
+                        }
+                    }
+                }
+                SettingsSection {
+                    id: randomWalkerSection
                     title: "Random Walker"
                     readonly property bool globalBetaWeightSelected:
                         root.vm.edge_weight_model === 0
@@ -117,8 +140,8 @@ Rectangle {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10
-                        enabled: parent.globalBetaWeightSelected && !root.vm.busy
-                        opacity: parent.globalBetaWeightSelected ? 1.0 : 0.45
+                        enabled: randomWalkerSection.globalBetaWeightSelected && !root.vm.busy
+                        opacity: randomWalkerSection.globalBetaWeightSelected ? 1.0 : 0.45
 
                         Label {
                             Layout.fillWidth: true
@@ -177,8 +200,8 @@ Rectangle {
                         Layout.fillWidth: true
                         from: 0
                         to: 1
-                        enabled: parent.globalBetaWeightSelected && !root.vm.busy
-                        opacity: parent.globalBetaWeightSelected ? 1.0 : 0.45
+                        enabled: randomWalkerSection.globalBetaWeightSelected && !root.vm.busy
+                        opacity: randomWalkerSection.globalBetaWeightSelected ? 1.0 : 0.45
                         value: root.vm.beta_slider_position
                         onMoved: root.vm.beta_slider_position = value
                     }
@@ -232,7 +255,7 @@ Rectangle {
 
                             Connections {
                                 target: root.vm
-                                function onDistance_powerChanged() {
+                                function onDistance_power_changed() {
                                     distancePowerField.syncFromViewModel()
                                 }
                             }
@@ -322,7 +345,7 @@ Rectangle {
 
                             Connections {
                                 target: root.vm
-                                function onLocal_contrastChanged() {
+                                function onLocal_contrast_changed() {
                                     localContrastMinimumVarianceField
                                         .syncFromViewModel()
                                 }

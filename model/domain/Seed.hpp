@@ -18,6 +18,24 @@ namespace random_walker::domain {
         , Object
     };
 
+    enum class SeedSource {
+        User
+        , Automatic
+    };
+
+
+    [[nodiscard]] constexpr bool is_user_seed(
+        SeedSource source
+    ) noexcept {
+        return source == SeedSource::User;
+    }
+
+    [[nodiscard]] constexpr bool is_automatic_seed(
+        SeedSource source
+    ) noexcept {
+        return source == SeedSource::Automatic;
+    }
+
     struct PixelRectangle {
         int x = 0;
         int y = 0;
@@ -30,11 +48,19 @@ namespace random_walker::domain {
     struct SeedRegion {
         PixelRectangle area;
         SeedLabel label = SeedLabel::Background;
+        SeedSource source = SeedSource::User;
+        double confidence = 1.0;
+
+        bool operator==(const SeedRegion&) const = default;
     };
 
     struct Seed {
         PixelCoordinate position;
         SeedLabel label = SeedLabel::Background;
+        SeedSource source = SeedSource::User;
+        double confidence = 1.0;
+
+        bool operator==(const Seed&) const = default;
     };
 
     [[nodiscard]] inline bool has_seed_label(

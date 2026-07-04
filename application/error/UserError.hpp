@@ -18,10 +18,17 @@ namespace random_walker::application {
         , SaveFailed
     };
 
+    enum class AutoMarkerError {
+        EmptyImage
+        , InvalidParameters
+        , ProposalFailed
+    };
+
     using UserError = std::variant<
         ApplicationError
         , ImageLoadError
         , SettingsError
+        , AutoMarkerError
         , domain::SegmentationError
     >;
 }

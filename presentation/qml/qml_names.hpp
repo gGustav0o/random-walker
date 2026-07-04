@@ -4,6 +4,9 @@
 
 namespace qml_names {
 
+    inline const auto kAutoMarkerImageProvider =
+        QStringLiteral("AutoMarkerImageProvider");
+
     inline const auto kBaseImageProvider =
         QStringLiteral("BaseImageProvider");
 

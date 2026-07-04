@@ -4,6 +4,7 @@
 
 #include <QQmlApplicationEngine>
 
+#include "application/markers/AutoMarkerService.hpp"
 #include "application/settings/SettingsService.hpp"
 #include "infrastructure/settings/QtSettingsRepository.hpp"
 #include "model/executor/JThreadSegmentationExecutor.hpp"
@@ -26,6 +27,8 @@ private:
         settings_repository_;
 
     random_walker::application::SettingsService settings_service_;
+
+    random_walker::application::AutoMarkerService auto_marker_service_;
 
     std::unique_ptr<SegmentationViewModel> segmentation_view_model_;
 };

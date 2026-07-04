@@ -25,13 +25,22 @@ Rectangle {
         smooth: true
     }
 
-    ResultOverlay {
+    AutoMarkerOverlay {
         vm: root.vm
         x: root.contentX
         y: root.contentY
         width: image.paintedWidth
         height: image.paintedHeight
         z: 1
+    }
+
+    ResultOverlay {
+        vm: root.vm
+        x: root.contentX
+        y: root.contentY
+        width: image.paintedWidth
+        height: image.paintedHeight
+        z: 2
     }
 
     SeedLayer {
@@ -44,7 +53,7 @@ Rectangle {
         imageHeight: image.paintedHeight
         sourceWidth: vm.image_width
         sourceHeight: vm.image_height
-        z: 2
+        z: 3
     }
 
     RectSeedMouseArea {
@@ -57,7 +66,7 @@ Rectangle {
         sourceWidth: vm.image_width
         sourceHeight: vm.image_height
         selectedLabel: vm.selected_label
-        z: 3
+        z: 4
 
         onRectangleCreated: function(x, y, width, height) {
             vm.add_seed_rectangle(x, y, width, height)

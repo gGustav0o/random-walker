@@ -2,16 +2,19 @@
 
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include <QAbstractItemModel>
 #include <QObject>
 #include <QString>
 #include <QtGlobal>
 
+#include "application/markers/AutoMarkerService.hpp"
 #include "application/settings/SettingsService.hpp"
 #include "presentation/image/PresentationImageCache.hpp"
 #include "model/domain/Segmentation.hpp"
 #include "model/executor/SegmentationExecutor.hpp"
+#include "viewmodel/AutomaticMarkerState.hpp"
 #include "viewmodel/ErrorState.hpp"
 #include "viewmodel/ImageState.hpp"
 #include "viewmodel/ProgressState.hpp"
@@ -35,9 +38,13 @@ class SegmentationViewModel final : public QObject {
     Q_PROPERTY(bool    has_result             READ has_result             NOTIFY result_changed)
     Q_PROPERTY(QString result_source          READ result_source          NOTIFY result_changed)
     Q_PROPERTY(quint64 result_version         READ result_version         NOTIFY result_changed)
+    Q_PROPERTY(bool    has_automatic_markers  READ has_automatic_markers  NOTIFY automatic_markers_changed)
+    Q_PROPERTY(QString automatic_marker_source READ automatic_marker_source NOTIFY automatic_markers_changed)
+    Q_PROPERTY(quint64 automatic_marker_version READ automatic_marker_version NOTIFY automatic_markers_changed)
     Q_PROPERTY(QString error_message          READ error_message          NOTIFY error_message_changed)
     Q_PROPERTY(int     background_seed_count  READ background_seed_count  NOTIFY seeds_changed)
     Q_PROPERTY(int     object_seed_count      READ object_seed_count      NOTIFY seeds_changed)
+    Q_PROPERTY(int     automatic_marker_count READ automatic_marker_count NOTIFY seeds_changed)
 
     Q_PROPERTY(double  beta                   READ beta                 WRITE set_beta                 NOTIFY beta_changed)
     Q_PROPERTY(double  beta_slider_position   READ beta_slider_position WRITE set_beta_slider_position NOTIFY beta_changed)
@@ -86,7 +93,9 @@ public:
     explicit SegmentationViewModel(
         random_walker::executor::SegmentationExecutor& segmentation_executor
         , random_walker::application::SettingsService& settings_service
+        , random_walker::application::AutoMarkerService& auto_marker_service
         , PresentationImageCache& base_image_cache
+        , PresentationImageCache& auto_marker_image_cache
         , PresentationImageCache& result_image_cache
         , QObject* parent = nullptr
     );
@@ -113,11 +122,15 @@ public:
     [[nodiscard]] bool has_result() const noexcept;
     [[nodiscard]] QString result_source() const;
     [[nodiscard]] quint64 result_version() const noexcept;
+    [[nodiscard]] bool has_automatic_markers() const noexcept;
+    [[nodiscard]] QString automatic_marker_source() const;
+    [[nodiscard]] quint64 automatic_marker_version() const noexcept;
     [[nodiscard]] QAbstractItemModel* seed_model() noexcept;
     [[nodiscard]] int selected_label() const noexcept;
     [[nodiscard]] QString error_message() const;
     [[nodiscard]] int background_seed_count() const noexcept;
     [[nodiscard]] int object_seed_count() const noexcept;
+    [[nodiscard]] int automatic_marker_count() const noexcept;
     void set_selected_label(int label);
     void set_beta(double value);
     void set_beta_slider_position(double position);
@@ -130,6 +143,8 @@ public:
     Q_INVOKABLE void open_image(const QString& path);
     Q_INVOKABLE void clear();
     Q_INVOKABLE void clear_seeds();
+    Q_INVOKABLE void clear_automatic_markers();
+    Q_INVOKABLE void propose_markers();
     Q_INVOKABLE void add_seed_rectangle(int x, int y, int width, int height);
     Q_INVOKABLE void run_segmentation();
 
@@ -147,6 +162,7 @@ signals:
     void edge_weight_model_changed();
     void local_contrast_changed();
     void result_changed();
+    void automatic_markers_changed();
     void selected_label_changed();
     void error_message_changed();
     void seeds_changed();
@@ -158,6 +174,10 @@ private:
     struct CompletionDeliveryGate;
 
     [[nodiscard]] DomainSeedLabel domain_seed_label() const noexcept;
+    [[nodiscard]] int background_constraint_count() const noexcept;
+    [[nodiscard]] int object_constraint_count() const noexcept;
+    [[nodiscard]] std::vector<random_walker::domain::SeedRegion>
+    segmentation_seed_regions() const;
 
     void update_random_walker_parameters(
         random_walker::domain::RandomWalkerParameters parameters
@@ -190,8 +210,10 @@ private:
 
     random_walker::executor::SegmentationExecutor& segmentation_executor_;
     random_walker::application::SettingsService& settings_service_;
+    random_walker::application::AutoMarkerService& auto_marker_service_;
     ImageState image_state_;
     ResultState result_state_;
+    AutomaticMarkerState automatic_marker_state_;
     SeedRegionState seed_state_;
     SeedListModel seed_model_;
     ErrorState error_state_;

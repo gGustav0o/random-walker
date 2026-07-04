@@ -13,6 +13,7 @@ namespace random_walker::application {
 
     namespace log_category {
         inline constexpr std::string_view application = "application";
+        inline constexpr std::string_view auto_markers = "auto-markers";
         inline constexpr std::string_view bootstrap = "bootstrap";
         inline constexpr std::string_view diagnostics = "diagnostics";
         inline constexpr std::string_view settings = "settings";

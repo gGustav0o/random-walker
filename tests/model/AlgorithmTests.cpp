@@ -266,6 +266,7 @@ void AlgorithmTests::expands_seed_regions_in_row_major_order() {
         domain::SeedRegion {
             .area = {.x = 1, .y = 2, .width = 2, .height = 2},
             .label = domain::SeedLabel::Object
+            , .source = domain::SeedSource::Automatic
         },
         domain::SeedRegion {
             .area = {.x = 0, .y = 0, .width = 1, .height = 1},
@@ -291,7 +292,10 @@ void AlgorithmTests::expands_seed_regions_in_row_major_order() {
     QCOMPARE(seeds[3].position.x, 2);
     QCOMPARE(seeds[3].position.y, 3);
     QCOMPARE(static_cast<int>(seeds[0].label), static_cast<int>(domain::SeedLabel::Object));
+    QCOMPARE(static_cast<int>(seeds[0].source), static_cast<int>(domain::SeedSource::Automatic));
+    QCOMPARE(seeds[0].confidence, 1.0);
     QCOMPARE(static_cast<int>(seeds[4].label), static_cast<int>(domain::SeedLabel::Background));
+    QCOMPARE(static_cast<int>(seeds[4].source), static_cast<int>(domain::SeedSource::User));
 }
 
 void AlgorithmTests::seed_expansion_honors_cancellation() {

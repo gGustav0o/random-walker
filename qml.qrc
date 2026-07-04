@@ -5,6 +5,7 @@
         <file>view/panels/SettingsSection.qml</file>
         <file>view/views/MainView.qml</file>
         <file>view/views/BaseImageView.qml</file>
+        <file>view/views/AutoMarkerOverlay.qml</file>
         <file>view/views/ResultOverlay.qml</file>
         <file>view/views/SeedLayer.qml</file>
         <file>view/views/RectSeedMouseArea.qml</file>

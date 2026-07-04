@@ -5,6 +5,7 @@
 #include <QQmlContext>
 
 #include "application/diagnostics/Logging.hpp"
+#include "presentation/image/AutoMarkerImageProvider.hpp"
 #include "presentation/image/BaseImageProvider.hpp"
 #include "presentation/image/ResultImageProvider.hpp"
 #include "presentation/qml/qml_names.hpp"
@@ -22,12 +23,15 @@ AppContext::AppContext(QQmlApplicationEngine& engine)
     );
 
     auto base_image_provider = std::make_unique<BaseImageProvider>();
+    auto auto_marker_image_provider = std::make_unique<AutoMarkerImageProvider>();
     auto result_image_provider = std::make_unique<ResultImageProvider>();
 
     segmentation_view_model_ = std::make_unique<SegmentationViewModel>(
         segmentation_executor_
         , settings_service_
+        , auto_marker_service_
         , *base_image_provider
+        , *auto_marker_image_provider
         , *result_image_provider
     );
 
@@ -39,6 +43,10 @@ AppContext::AppContext(QQmlApplicationEngine& engine)
     engine.addImageProvider(
         qml_names::kBaseImageProvider
         , base_image_provider.release()
+    );
+    engine.addImageProvider(
+        qml_names::kAutoMarkerImageProvider
+        , auto_marker_image_provider.release()
     );
     engine.addImageProvider(
         qml_names::kResultImageProvider

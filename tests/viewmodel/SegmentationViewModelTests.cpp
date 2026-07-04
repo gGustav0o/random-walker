@@ -2,6 +2,7 @@
 #include <utility>
 #include <variant>
 
+#include <QColor>
 #include <QCoreApplication>
 #include <QEvent>
 #include <QEventLoop>
@@ -10,6 +11,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include "application/markers/AutoMarkerService.hpp"
 #include "application/settings/SettingsRepository.hpp"
 #include "application/settings/SettingsService.hpp"
 #include "model/domain/Segmentation.hpp"
@@ -128,13 +130,17 @@ namespace {
     struct ViewModelFixture {
         InMemorySettingsRepository repository;
         application::SettingsService settings_service {repository};
+        application::AutoMarkerService auto_marker_service;
         FakeSegmentationExecutor executor;
         FakeImageCache base_cache;
+        FakeImageCache auto_marker_cache;
         FakeImageCache result_cache;
         SegmentationViewModel view_model {
             executor
             , settings_service
+            , auto_marker_service
             , base_cache
+            , auto_marker_cache
             , result_cache
         };
     };
@@ -143,6 +149,23 @@ namespace {
         const QString path = directory.filePath(QStringLiteral("input.bmp"));
         QImage image(3, 2, QImage::Format_Grayscale8);
         image.fill(128);
+        const bool saved = image.save(path);
+        Q_ASSERT(saved);
+        return path;
+    }
+
+    [[nodiscard]] QString write_bimodal_test_image(QTemporaryDir& directory) {
+        const QString path = directory.filePath(QStringLiteral("bimodal.bmp"));
+        QImage image(16, 8, QImage::Format_Grayscale8);
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                image.setPixelColor(
+                    x
+                    , y
+                    , x < image.width() / 2 ? QColor(24, 24, 24) : QColor(224, 224, 224)
+                );
+            }
+        }
         const bool saved = image.save(path);
         Q_ASSERT(saved);
         return path;
@@ -178,6 +201,10 @@ private slots:
     void set_local_contrast_saves_settings_and_emits_change();
     void open_image_updates_image_state_and_cache();
     void add_seed_rectangles_updates_counts_and_can_run();
+    void propose_markers_without_image_sets_error();
+    void propose_markers_does_not_inflate_seed_model();
+    void clear_automatic_markers_keeps_manual_regions();
+    void run_segmentation_includes_automatic_marker_constraints();
     void run_segmentation_submits_request_and_updates_progress();
     void completion_with_result_updates_result_state();
     void stale_completion_is_ignored();
@@ -347,6 +374,114 @@ void SegmentationViewModelTests::add_seed_rectangles_updates_counts_and_can_run(
     QCOMPARE(fixture.view_model.object_seed_count(), 2);
     QVERIFY(fixture.view_model.can_run());
     QCOMPARE(can_run_changed.count(), 1);
+}
+
+void SegmentationViewModelTests::propose_markers_without_image_sets_error() {
+    ViewModelFixture fixture;
+    QSignalSpy error_message_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::error_message_changed
+    );
+
+    fixture.view_model.propose_markers();
+
+    QVERIFY(!fixture.view_model.error_message().isEmpty());
+    QCOMPARE(fixture.view_model.automatic_marker_count(), 0);
+    QCOMPARE(fixture.executor.submit_count, 0);
+    QCOMPARE(error_message_changed.count(), 1);
+}
+
+void SegmentationViewModelTests::propose_markers_does_not_inflate_seed_model() {
+    ViewModelFixture fixture;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    fixture.view_model.open_image(write_bimodal_test_image(directory));
+    QSignalSpy automatic_markers_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::automatic_markers_changed
+    );
+    QSignalSpy seeds_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::seeds_changed
+    );
+    QSignalSpy can_run_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::can_run_changed
+    );
+
+    fixture.view_model.propose_markers();
+
+    QVERIFY(fixture.view_model.automatic_marker_count() > 0);
+    QVERIFY(fixture.view_model.has_automatic_markers());
+    QVERIFY(
+        fixture.view_model.automatic_marker_source()
+            .startsWith(QStringLiteral("image://"))
+    );
+    QCOMPARE(fixture.auto_marker_cache.store_count, 1);
+    QVERIFY(!fixture.auto_marker_cache.last_image.isNull());
+    QCOMPARE(fixture.view_model.background_seed_count(), 0);
+    QCOMPARE(fixture.view_model.object_seed_count(), 0);
+    QVERIFY(fixture.view_model.can_run());
+    QCOMPARE(fixture.view_model.seed_model()->rowCount(), 0);
+    QCOMPARE(fixture.executor.submit_count, 0);
+    QCOMPARE(automatic_markers_changed.count(), 1);
+    QCOMPARE(seeds_changed.count(), 1);
+    QCOMPARE(can_run_changed.count(), 1);
+    QVERIFY(fixture.view_model.error_message().isEmpty());
+}
+
+void SegmentationViewModelTests::clear_automatic_markers_keeps_manual_regions() {
+    ViewModelFixture fixture;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    fixture.view_model.open_image(write_bimodal_test_image(directory));
+    fixture.view_model.add_seed_rectangle(0, 0, 1, 1);
+    fixture.view_model.set_selected_label(SegmentationViewModel::Object);
+    fixture.view_model.add_seed_rectangle(15, 7, 1, 1);
+    fixture.view_model.propose_markers();
+    QVERIFY(fixture.view_model.automatic_marker_count() > 0);
+    const int background_before_clear = fixture.view_model.background_seed_count();
+    const int object_before_clear = fixture.view_model.object_seed_count();
+    QSignalSpy automatic_markers_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::automatic_markers_changed
+    );
+    QSignalSpy seeds_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::seeds_changed
+    );
+
+    fixture.view_model.clear_automatic_markers();
+
+    QCOMPARE(fixture.view_model.automatic_marker_count(), 0);
+    QVERIFY(!fixture.view_model.has_automatic_markers());
+    QCOMPARE(fixture.auto_marker_cache.clear_count, 1);
+    QCOMPARE(fixture.view_model.background_seed_count(), 1);
+    QCOMPARE(fixture.view_model.object_seed_count(), 1);
+    QCOMPARE(background_before_clear, fixture.view_model.background_seed_count());
+    QCOMPARE(object_before_clear, fixture.view_model.object_seed_count());
+    QCOMPARE(automatic_markers_changed.count(), 1);
+    QCOMPARE(seeds_changed.count(), 1);
+}
+
+void SegmentationViewModelTests::run_segmentation_includes_automatic_marker_constraints() {
+    ViewModelFixture fixture;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    fixture.view_model.open_image(write_bimodal_test_image(directory));
+    fixture.view_model.propose_markers();
+
+    fixture.view_model.run_segmentation();
+
+    QCOMPARE(fixture.executor.submit_count, 1);
+    QVERIFY(fixture.executor.last_background_seed_pixels > 0);
+    QVERIFY(fixture.executor.last_object_seed_pixels > 0);
+    QCOMPARE(
+        fixture.executor.last_background_seed_pixels
+        + fixture.executor.last_object_seed_pixels
+        , fixture.view_model.automatic_marker_count()
+    );
+    QCOMPARE(fixture.view_model.seed_model()->rowCount(), 0);
 }
 
 void SegmentationViewModelTests::run_segmentation_submits_request_and_updates_progress() {

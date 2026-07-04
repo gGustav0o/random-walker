@@ -6,6 +6,7 @@
 
 #include <QtTest>
 
+#include "model/domain/AutoMarkers.hpp"
 #include "model/domain/GrayImage.hpp"
 #include "model/domain/RandomWalkerParameters.hpp"
 #include "model/domain/Seed.hpp"
@@ -26,6 +27,10 @@ private slots:
     void random_walker_edge_weight_model_rejects_unknown_values();
     void local_contrast_scale_parameters_accept_valid_bounds();
     void local_contrast_scale_parameters_reject_invalid_values();
+    void auto_marker_parameters_accept_defaults_and_bounds();
+    void auto_marker_parameters_reject_invalid_values();
+    void marker_label_mask_stores_labels_and_counts_seeds();
+    void marker_label_mask_converts_to_automatic_seed_regions();
     void gray_image_reports_empty_default_state();
     void gray_image_reports_dimensions_and_pixel_values();
     void seed_pixel_count_counts_only_requested_label();
@@ -172,6 +177,123 @@ void DomainTests::local_contrast_scale_parameters_reject_invalid_values() {
     }));
 }
 
+void DomainTests::auto_marker_parameters_accept_defaults_and_bounds() {
+    const domain::AutoMarkerParameters defaults;
+    QVERIFY(domain::is_valid(defaults));
+
+    QVERIFY(domain::is_valid(domain::AutoMarkerParameters {
+        .gmm = {
+            .component_count = domain::kGmmIntensityComponentCount
+            , .max_iterations = domain::kMinimumGmmIterations
+            , .convergence_tolerance = domain::kMinimumGmmConvergenceTolerance
+            , .minimum_variance = domain::kMinimumGmmVariance
+        }
+        , .confidence_threshold = domain::kMinimumAutoMarkerConfidenceThreshold
+        , .minimum_component_area = domain::kMinimumAutoMarkerComponentArea
+        , .erosion_radius = domain::kMinimumAutoMarkerErosionRadius
+        , .foreground_polarity = domain::ForegroundPolarity::DarkObject
+    }));
+    QVERIFY(domain::is_valid(domain::AutoMarkerParameters {
+        .gmm = {
+            .component_count = domain::kGmmIntensityComponentCount
+            , .max_iterations = domain::kMaximumGmmIterations
+            , .convergence_tolerance = domain::kMaximumGmmConvergenceTolerance
+            , .minimum_variance = domain::kMaximumGmmVariance
+        }
+        , .confidence_threshold = domain::kMaximumAutoMarkerConfidenceThreshold
+        , .minimum_component_area = domain::kMaximumAutoMarkerComponentArea
+        , .erosion_radius = domain::kMaximumAutoMarkerErosionRadius
+        , .foreground_polarity = domain::ForegroundPolarity::BrightObject
+    }));
+}
+
+void DomainTests::auto_marker_parameters_reject_invalid_values() {
+    QVERIFY(!domain::is_valid(domain::GmmParameters {
+        .component_count = domain::kGmmIntensityComponentCount + 1
+    }));
+    QVERIFY(!domain::is_valid(domain::GmmParameters {
+        .max_iterations = domain::kMinimumGmmIterations - 1
+    }));
+    QVERIFY(!domain::is_valid(domain::GmmParameters {
+        .convergence_tolerance = std::numeric_limits<double>::quiet_NaN()
+    }));
+    QVERIFY(!domain::is_valid(domain::GmmParameters {
+        .minimum_variance = std::nextafter(domain::kMinimumGmmVariance, 0.0)
+    }));
+    QVERIFY(!domain::is_valid(domain::AutoMarkerParameters {
+        .confidence_threshold = std::nextafter(
+            domain::kMinimumAutoMarkerConfidenceThreshold
+            , 0.0
+        )
+    }));
+    QVERIFY(!domain::is_valid(domain::AutoMarkerParameters {
+        .minimum_component_area = domain::kMinimumAutoMarkerComponentArea - 1
+    }));
+    QVERIFY(!domain::is_valid(domain::AutoMarkerParameters {
+        .erosion_radius = domain::kMaximumAutoMarkerErosionRadius + 1
+    }));
+    QVERIFY(!domain::is_valid(domain::AutoMarkerParameters {
+        .foreground_polarity = static_cast<domain::ForegroundPolarity>(-1)
+    }));
+}
+
+void DomainTests::marker_label_mask_stores_labels_and_counts_seeds() {
+    domain::MarkerLabelMask mask(3, 2);
+
+    QVERIFY(!mask.empty());
+    QCOMPARE(mask.width(), 3);
+    QCOMPARE(mask.height(), 2);
+    QCOMPARE(mask.size(), std::size_t {6});
+    QCOMPARE(mask.seed_count(), std::size_t {0});
+
+    mask.set(0, 1, domain::MarkerLabel::Background);
+    mask.set(1, 2, domain::MarkerLabel::Object);
+
+    QCOMPARE(
+        static_cast<int>(mask.at(0, 1))
+        , static_cast<int>(domain::MarkerLabel::Background)
+    );
+    QCOMPARE(
+        static_cast<int>(mask.at(1, 2))
+        , static_cast<int>(domain::MarkerLabel::Object)
+    );
+    QCOMPARE(mask.count(domain::MarkerLabel::Background), std::size_t {1});
+    QCOMPARE(mask.count(domain::MarkerLabel::Object), std::size_t {1});
+    QCOMPARE(mask.seed_count(), std::size_t {2});
+}
+
+void DomainTests::marker_label_mask_converts_to_automatic_seed_regions() {
+    domain::MarkerLabelMask mask(3, 2);
+    mask.set(0, 1, domain::MarkerLabel::Background);
+    mask.set(1, 2, domain::MarkerLabel::Object);
+
+    const std::vector<domain::SeedRegion> regions =
+        domain::seed_regions_from_marker_mask(mask);
+
+    QCOMPARE(regions.size(), std::size_t {2});
+    QCOMPARE(regions[0].area.x, 1);
+    QCOMPARE(regions[0].area.y, 0);
+    QCOMPARE(regions[0].area.width, 1);
+    QCOMPARE(regions[0].area.height, 1);
+    QCOMPARE(
+        static_cast<int>(regions[0].label)
+        , static_cast<int>(domain::SeedLabel::Background)
+    );
+    QCOMPARE(
+        static_cast<int>(regions[0].source)
+        , static_cast<int>(domain::SeedSource::Automatic)
+    );
+    QCOMPARE(regions[1].area.x, 2);
+    QCOMPARE(regions[1].area.y, 1);
+    QCOMPARE(
+        static_cast<int>(regions[1].label)
+        , static_cast<int>(domain::SeedLabel::Object)
+    );
+    QCOMPARE(
+        static_cast<int>(regions[1].source)
+        , static_cast<int>(domain::SeedSource::Automatic)
+    );
+}
 void DomainTests::gray_image_reports_empty_default_state() {
     const domain::GrayImage image;
 

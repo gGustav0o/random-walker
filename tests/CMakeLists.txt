@@ -18,6 +18,7 @@ function(add_random_walker_test target_name)
     )
 
     add_test(NAME ${target_name} COMMAND ${target_name})
+    set_property(GLOBAL APPEND PROPERTY RANDOM_WALKER_TEST_TARGETS ${target_name})
 endfunction()
 
 add_random_walker_test(model_domain_tests
@@ -41,6 +42,20 @@ add_random_walker_test(model_algorithm_tests
         random_walker_algorithm_options
 )
 
+add_random_walker_test(model_gmm_intensity_tests
+    SOURCES
+        model/GmmIntensityTests.cpp
+    LIBRARIES
+        Eigen3::Eigen
+)
+
+add_random_walker_test(model_gmm_marker_proposal_tests
+    SOURCES
+        model/GmmMarkerProposalTests.cpp
+    LIBRARIES
+        Eigen3::Eigen
+)
+
 add_random_walker_test(model_service_tests
     SOURCES
         model/SegmentationServiceTests.cpp
@@ -58,6 +73,15 @@ add_random_walker_test(model_service_tests
         random_walker_algorithm_options
 )
 
+add_random_walker_test(application_auto_marker_service_tests
+    SOURCES
+        application/AutoMarkerServiceTests.cpp
+        ${PROJECT_SOURCE_DIR}/application/diagnostics/Logging.cpp
+        ${PROJECT_SOURCE_DIR}/application/markers/AutoMarkerService.cpp
+    LIBRARIES
+        Eigen3::Eigen
+)
+
 add_random_walker_test(application_diagnostics_tests
     SOURCES
         application/DiagnosticsLoggingTests.cpp
@@ -73,14 +97,24 @@ add_random_walker_test(infrastructure_logging_tests
         spdlog::spdlog
 )
 
+add_random_walker_test(presentation_auto_marker_mask_renderer_tests
+    SOURCES
+        presentation/AutoMarkerMaskRendererTests.cpp
+        ${PROJECT_SOURCE_DIR}/presentation/adapter/AutoMarkerMaskRenderer.cpp
+    LIBRARIES
+        Qt6::Gui
+)
 add_random_walker_test(viewmodel_tests
     SOURCES
         viewmodel/SegmentationViewModelTests.cpp
         ${PROJECT_SOURCE_DIR}/application/diagnostics/Logging.cpp
+        ${PROJECT_SOURCE_DIR}/application/markers/AutoMarkerService.cpp
         ${PROJECT_SOURCE_DIR}/application/settings/SettingsService.cpp
+        ${PROJECT_SOURCE_DIR}/presentation/adapter/AutoMarkerMaskRenderer.cpp
         ${PROJECT_SOURCE_DIR}/presentation/adapter/MaskRenderer.cpp
         ${PROJECT_SOURCE_DIR}/presentation/error/ErrorPresenter.cpp
         ${PROJECT_SOURCE_DIR}/presentation/image/ImageLoader.cpp
+        ${PROJECT_SOURCE_DIR}/viewmodel/AutomaticMarkerState.cpp
         ${PROJECT_SOURCE_DIR}/viewmodel/ErrorState.cpp
         ${PROJECT_SOURCE_DIR}/viewmodel/ImageState.cpp
         ${PROJECT_SOURCE_DIR}/viewmodel/ProgressState.cpp
@@ -101,3 +135,11 @@ add_random_walker_test(settings_tests
     LIBRARIES
         Eigen3::Eigen
 )
+
+get_property(RANDOM_WALKER_TEST_TARGETS GLOBAL PROPERTY RANDOM_WALKER_TEST_TARGETS)
+if(RANDOM_WALKER_TEST_TARGETS)
+    add_custom_target(random_walker_tests
+        DEPENDS ${RANDOM_WALKER_TEST_TARGETS}
+    )
+    add_dependencies(${PROJECT_NAME} random_walker_tests)
+endif()

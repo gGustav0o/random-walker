@@ -81,6 +81,8 @@ namespace random_walker::algorithm {
                     result.push_back({
                         .position = { .x = column, .y = row }
                         , .label = region.label
+                        , .source = region.source
+                        , .confidence = region.confidence
                     });
                     ++expanded_count;
                 }

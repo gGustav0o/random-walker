@@ -63,6 +63,28 @@ namespace random_walker::presentation {
             return QStringLiteral("Unknown settings error.");
         }
 
+
+        [[nodiscard]] QString auto_marker_error_message(
+            application::AutoMarkerError error
+        ) {
+            using Error = application::AutoMarkerError;
+
+            switch (error) {
+            case Error::EmptyImage:
+                return QStringLiteral("No image is loaded.");
+            case Error::InvalidParameters:
+                return QStringLiteral("Automatic marker parameters are invalid.");
+            case Error::ProposalFailed:
+                return QStringLiteral("Failed to propose automatic markers.");
+            }
+
+            Q_ASSERT_X(
+                false
+                , "auto_marker_error_message"
+                , "Unhandled auto marker error"
+            );
+            return QStringLiteral("Unknown automatic marker error.");
+        }
         [[nodiscard]] QString segmentation_error_message(
             domain::SegmentationError error
         ) {
@@ -117,6 +139,12 @@ namespace random_walker::presentation {
                 std::get_if<application::SettingsError>(&error)
         ) {
             return settings_error_message(*settings_error);
+        }
+
+        if (const auto* auto_marker_error =
+                std::get_if<application::AutoMarkerError>(&error)
+        ) {
+            return auto_marker_error_message(*auto_marker_error);
         }
 
         if (const auto* segmentation_error =

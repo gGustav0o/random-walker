@@ -48,12 +48,14 @@ qt_add_resources(qml_resources qml.qrc)
 set(HEADERS
     application/error/UserError.hpp
     application/diagnostics/Logging.hpp
+    application/markers/AutoMarkerService.hpp
     application/settings/ApplicationSettings.hpp
     application/settings/SettingsRepository.hpp
     application/settings/SettingsService.hpp
     bootstrap/AppContext.hpp
     infrastructure/settings/QtSettingsRepository.hpp
     infrastructure/logging/Logging.hpp
+    model/domain/AutoMarkers.hpp
     model/domain/Cancellation.hpp
     model/domain/GrayImage.hpp
     model/domain/ProgressReporter.hpp
@@ -75,15 +77,20 @@ set(HEADERS
     model/graph/EdgeWeight.hpp
     model/graph/LocalContrastScale.hpp
     model/graph/GridLaplacian.hpp
+    model/markers/GmmIntensity.hpp
+    model/markers/GmmMarkerProposal.hpp
     model/service/SegmentationService.hpp
+    presentation/adapter/AutoMarkerMaskRenderer.hpp
     presentation/adapter/MaskRenderer.hpp
     presentation/adapter/QImageAdapter.hpp
     presentation/image/ImageLoader.hpp
     presentation/error/ErrorPresenter.hpp
+    presentation/image/AutoMarkerImageProvider.hpp
     presentation/image/BaseImageProvider.hpp
     presentation/image/PresentationImageCache.hpp
     presentation/image/ResultImageProvider.hpp
     presentation/qml/qml_names.hpp
+    viewmodel/AutomaticMarkerState.hpp
     viewmodel/ErrorState.hpp
     viewmodel/ImageState.hpp
     viewmodel/ProgressState.hpp
@@ -96,6 +103,7 @@ set(SOURCES
     main.cpp
     bootstrap/AppContext.cpp
     application/diagnostics/Logging.cpp
+    application/markers/AutoMarkerService.cpp
     application/settings/SettingsService.cpp
     infrastructure/settings/QtSettingsRepository.cpp
     infrastructure/logging/Logging.cpp
@@ -110,11 +118,14 @@ set(SOURCES
     model/executor/JThreadSegmentationExecutor.cpp
     model/graph/GridLaplacian.cpp
     model/service/SegmentationService.cpp
+    presentation/adapter/AutoMarkerMaskRenderer.cpp
     presentation/adapter/MaskRenderer.cpp
     presentation/image/ImageLoader.cpp
     presentation/error/ErrorPresenter.cpp
+    presentation/image/AutoMarkerImageProvider.cpp
     presentation/image/BaseImageProvider.cpp
     presentation/image/ResultImageProvider.cpp
+    viewmodel/AutomaticMarkerState.cpp
     viewmodel/ErrorState.cpp
     viewmodel/ImageState.cpp
     viewmodel/ProgressState.cpp
