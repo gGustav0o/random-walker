@@ -91,6 +91,10 @@ Rectangle {
                     title: "Random Walker"
                     readonly property bool globalBetaWeightSelected:
                         root.vm.edge_weight_model === 0
+                    readonly property bool localVarianceWeightSelected:
+                        root.vm.edge_weight_model === 1
+                    readonly property bool manualMinimumVarianceSelected:
+                        root.vm.local_contrast_minimum_variance_mode === 0
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -300,8 +304,35 @@ Rectangle {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10
-                        enabled: root.vm.edge_weight_model === 1 && !root.vm.busy
-                        opacity: root.vm.edge_weight_model === 1 ? 1.0 : 0.45
+                        enabled: randomWalkerSection.localVarianceWeightSelected && !root.vm.busy
+                        opacity: randomWalkerSection.localVarianceWeightSelected ? 1.0 : 0.45
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: "Variance floor"
+                            color: "#ddd"
+                            elide: Text.ElideRight
+                        }
+
+                        ComboBox {
+                            Layout.preferredWidth: 150
+                            model: ["Manual", "Auto"]
+                            currentIndex: root.vm.local_contrast_minimum_variance_mode
+                            onActivated: function(index) {
+                                root.vm.local_contrast_minimum_variance_mode = index
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        enabled: randomWalkerSection.localVarianceWeightSelected
+                            && randomWalkerSection.manualMinimumVarianceSelected
+                            && !root.vm.busy
+                        opacity: randomWalkerSection.localVarianceWeightSelected
+                            && randomWalkerSection.manualMinimumVarianceSelected
+                            ? 1.0 : 0.45
 
                         Label {
                             Layout.fillWidth: true
@@ -347,6 +378,66 @@ Rectangle {
                                 target: root.vm
                                 function onLocal_contrast_changed() {
                                     localContrastMinimumVarianceField
+                                        .syncFromViewModel()
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        enabled: randomWalkerSection.localVarianceWeightSelected
+                            && !randomWalkerSection.manualMinimumVarianceSelected
+                            && !root.vm.busy
+                        opacity: randomWalkerSection.localVarianceWeightSelected
+                            && !randomWalkerSection.manualMinimumVarianceSelected
+                            ? 1.0 : 0.45
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: "Auto quantile"
+                            color: "#ddd"
+                            elide: Text.ElideRight
+                        }
+
+                        TextField {
+                            id: localContrastAutoQuantileField
+                            Layout.preferredWidth: 108
+                            horizontalAlignment: Text.AlignRight
+                            selectByMouse: true
+                            validator: DoubleValidator {
+                                bottom: 0.01
+                                top: 0.5
+                                notation: DoubleValidator.StandardNotation
+                                locale: Qt.locale().name
+                            }
+
+                            function syncFromViewModel() {
+                                if (!activeFocus)
+                                    forceSyncFromViewModel()
+                            }
+
+                            function forceSyncFromViewModel() {
+                                text = Number(
+                                    root.vm.local_contrast_auto_quantile
+                                ).toLocaleString(Qt.locale(), "f", 2)
+                            }
+
+                            Component.onCompleted: forceSyncFromViewModel()
+
+                            onEditingFinished: {
+                                if (acceptableInput) {
+                                    root.vm.local_contrast_auto_quantile =
+                                        Number.fromLocaleString(Qt.locale(), text)
+                                }
+                                forceSyncFromViewModel()
+                            }
+
+                            Connections {
+                                target: root.vm
+                                function onLocal_contrast_changed() {
+                                    localContrastAutoQuantileField
                                         .syncFromViewModel()
                                 }
                             }

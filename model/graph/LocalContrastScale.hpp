@@ -5,8 +5,10 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cmath>
 #include <utility>
+#include <vector>
 
 #include <Eigen/Core>
 
@@ -69,28 +71,26 @@ namespace random_walker::graph {
         Eigen::MatrixXd local_variances_;
     };
 
-    [[nodiscard]] inline double local_window_variance(
+    [[nodiscard]] inline double raw_local_window_variance(
         const domain::GrayImage& image
         , int center_row
         , int center_column
-        , const domain::LocalContrastScaleParameters& parameters
+        , int radius
     ) noexcept {
         assert(!image.empty());
-        assert(domain::is_valid(parameters));
+        assert(radius >= domain::kMinimumLocalContrastRadius);
+        assert(radius <= domain::kMaximumLocalContrastRadius);
         assert(center_row >= 0);
         assert(center_column >= 0);
         assert(center_row < image.height());
         assert(center_column < image.width());
 
-        const int first_row = std::max(0, center_row - parameters.radius);
-        const int last_row = std::min(
-            image.height() - 1
-            , center_row + parameters.radius
-        );
-        const int first_column = std::max(0, center_column - parameters.radius);
+        const int first_row = std::max(0, center_row - radius);
+        const int last_row = std::min(image.height() - 1, center_row + radius);
+        const int first_column = std::max(0, center_column - radius);
         const int last_column = std::min(
             image.width() - 1
-            , center_column + parameters.radius
+            , center_column + radius
         );
 
         double sum = 0.0;
@@ -110,8 +110,25 @@ namespace random_walker::graph {
         const double mean = sum / static_cast<double>(count);
         const double variance =
             squared_sum / static_cast<double>(count) - mean * mean;
+        assert(std::isfinite(variance));
+        return std::max(0.0, variance);
+    }
+
+    [[nodiscard]] inline double local_window_variance(
+        const domain::GrayImage& image
+        , int center_row
+        , int center_column
+        , const domain::EffectiveLocalContrastScale& scale
+    ) noexcept {
+        assert(domain::is_valid(scale));
+        const double variance = raw_local_window_variance(
+            image
+            , center_row
+            , center_column
+            , scale.radius
+        );
         const double clamped_variance = std::max(
-            parameters.minimum_variance
+            scale.minimum_variance
             , variance
         );
         assert(std::isfinite(clamped_variance));
@@ -119,12 +136,89 @@ namespace random_walker::graph {
         return clamped_variance;
     }
 
-    [[nodiscard]] inline LocalContrastScaleMap build_local_contrast_scale_map(
+    [[nodiscard]] inline double local_variance_quantile(
+        std::vector<double> variances
+        , double quantile
+    ) {
+        assert(!variances.empty());
+        assert(std::isfinite(quantile));
+        assert(quantile >= domain::kMinimumLocalContrastAutoQuantile);
+        assert(quantile <= domain::kMaximumLocalContrastAutoQuantile);
+
+        std::sort(variances.begin(), variances.end());
+        const double position =
+            quantile * static_cast<double>(variances.size() - std::size_t {1});
+        const auto lower_index = static_cast<std::size_t>(std::floor(position));
+        const auto upper_index = static_cast<std::size_t>(std::ceil(position));
+        assert(lower_index < variances.size());
+        assert(upper_index < variances.size());
+        const double weight = position - static_cast<double>(lower_index);
+        return variances[lower_index] * (1.0 - weight)
+            + variances[upper_index] * weight;
+    }
+
+    [[nodiscard]] inline double estimate_minimum_variance(
         const domain::GrayImage& image
         , const domain::LocalContrastScaleParameters& parameters
     ) {
         assert(!image.empty());
         assert(domain::is_valid(parameters));
+
+        std::vector<double> variances;
+        variances.reserve(
+            static_cast<std::size_t>(image.width())
+            * static_cast<std::size_t>(image.height())
+        );
+        for (int row = 0; row < image.height(); ++row) {
+            for (int column = 0; column < image.width(); ++column) {
+                variances.push_back(raw_local_window_variance(
+                    image
+                    , row
+                    , column
+                    , parameters.radius
+                ));
+            }
+        }
+
+        return std::clamp(
+            local_variance_quantile(
+                std::move(variances)
+                , parameters.auto_minimum_variance_quantile
+            )
+            , domain::kMinimumLocalContrastVariance
+            , domain::kMaximumLocalContrastVariance
+        );
+    }
+
+    [[nodiscard]] inline domain::EffectiveLocalContrastScale
+    effective_local_contrast_scale(
+        const domain::GrayImage& image
+        , const domain::LocalContrastScaleParameters& parameters
+    ) {
+        assert(domain::is_valid(parameters));
+        switch (parameters.minimum_variance_mode) {
+        case domain::MinimumVarianceMode::Manual:
+            return domain::manual_effective_scale(parameters);
+        case domain::MinimumVarianceMode::Auto:
+            return {
+                .radius = parameters.radius
+                , .minimum_variance = estimate_minimum_variance(
+                    image
+                    , parameters
+                )
+            };
+        }
+
+        assert(false);
+        return domain::manual_effective_scale(parameters);
+    }
+
+    [[nodiscard]] inline LocalContrastScaleMap build_local_contrast_scale_map(
+        const domain::GrayImage& image
+        , const domain::EffectiveLocalContrastScale& scale
+    ) {
+        assert(!image.empty());
+        assert(domain::is_valid(scale));
 
         Eigen::MatrixXd variances(image.height(), image.width());
         for (int row = 0; row < image.height(); ++row) {
@@ -133,11 +227,22 @@ namespace random_walker::graph {
                     image
                     , row
                     , column
-                    , parameters
+                    , scale
                 );
             }
         }
 
         return LocalContrastScaleMap(std::move(variances));
+    }
+
+    [[nodiscard]] inline LocalContrastScaleMap build_local_contrast_scale_map(
+        const domain::GrayImage& image
+        , const domain::LocalContrastScaleParameters& parameters
+    ) {
+        assert(domain::is_valid(parameters));
+        return build_local_contrast_scale_map(
+            image
+            , effective_local_contrast_scale(image, parameters)
+        );
     }
 }

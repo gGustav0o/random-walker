@@ -9,7 +9,7 @@
 
 namespace {
 
-    constexpr int kCurrentSchemaVersion = 4;
+    constexpr int kCurrentSchemaVersion = 5;
 
     constexpr auto kSettingsGroup = "applicationSettings";
     constexpr auto kSchemaVersionKey = "schemaVersion";
@@ -21,6 +21,10 @@ namespace {
         "randomWalker/localContrast/radius";
     constexpr auto kRandomWalkerLocalContrastMinimumVarianceKey =
         "randomWalker/localContrast/minimumVariance";
+    constexpr auto kRandomWalkerLocalContrastMinimumVarianceModeKey =
+        "randomWalker/localContrast/minimumVarianceMode";
+    constexpr auto kRandomWalkerLocalContrastAutoQuantileKey =
+        "randomWalker/localContrast/autoMinimumVarianceQuantile";
     constexpr auto kLegacyBetaKey = "beta";
 
     [[nodiscard]] double stored_double(
@@ -139,6 +143,56 @@ namespace {
         return QStringLiteral("globalBeta");
     }
 
+    [[nodiscard]] std::optional<random_walker::domain::MinimumVarianceMode>
+    minimum_variance_mode_from_storage(const QString& value) noexcept {
+        if (value == QStringLiteral("manual")) {
+            return random_walker::domain::MinimumVarianceMode::Manual;
+        }
+        if (value == QStringLiteral("auto")) {
+            return random_walker::domain::MinimumVarianceMode::Auto;
+        }
+
+        return std::nullopt;
+    }
+
+    [[nodiscard]] QString minimum_variance_mode_to_storage(
+        random_walker::domain::MinimumVarianceMode mode
+    ) noexcept {
+        switch (mode) {
+        case random_walker::domain::MinimumVarianceMode::Manual:
+            return QStringLiteral("manual");
+        case random_walker::domain::MinimumVarianceMode::Auto:
+            return QStringLiteral("auto");
+        }
+
+        Q_ASSERT_X(
+            false
+            , "minimum_variance_mode_to_storage"
+            , "Unhandled minimum variance mode"
+        );
+        return QStringLiteral("manual");
+    }
+
+    [[nodiscard]] random_walker::domain::MinimumVarianceMode
+    stored_minimum_variance_mode(
+        const QSettings& settings
+        , const char* key
+    ) {
+        const QVariant stored_value = settings.value(key);
+        const std::optional<random_walker::domain::MinimumVarianceMode> mode =
+            minimum_variance_mode_from_storage(stored_value.toString());
+        if (!mode.has_value()) {
+            qWarning()
+                << "Failed to read minimum variance mode settings value"
+                << key
+                << "from"
+                << settings.fileName()
+                << "; settings will be repaired";
+            return static_cast<random_walker::domain::MinimumVarianceMode>(-1);
+        }
+
+        return *mode;
+    }
     [[nodiscard]] random_walker::domain::EdgeWeightModel stored_edge_weight_model(
         const QSettings& settings
         , const char* key
@@ -258,6 +312,16 @@ namespace random_walker::infrastructure {
                 settings_
                 , kRandomWalkerLocalContrastMinimumVarianceKey
             );
+        result.random_walker.local_contrast_scale.minimum_variance_mode =
+            stored_minimum_variance_mode(
+                settings_
+                , kRandomWalkerLocalContrastMinimumVarianceModeKey
+            );
+        result.random_walker.local_contrast_scale
+            .auto_minimum_variance_quantile = stored_double(
+                settings_
+                , kRandomWalkerLocalContrastAutoQuantileKey
+            );
         return result;
     }
 
@@ -293,6 +357,31 @@ namespace random_walker::infrastructure {
                 settings_
                 , kRandomWalkerDistancePowerKey
             );
+            return result;
+        case 4:
+            result.random_walker.beta =
+                stored_double(settings_, kRandomWalkerBetaKey);
+            result.random_walker.connectivity = stored_connectivity(
+                settings_
+                , kRandomWalkerConnectivityKey
+            );
+            result.random_walker.distance_power = stored_double(
+                settings_
+                , kRandomWalkerDistancePowerKey
+            );
+            result.random_walker.edge_weight_model = stored_edge_weight_model(
+                settings_
+                , kRandomWalkerEdgeWeightModelKey
+            );
+            result.random_walker.local_contrast_scale.radius = stored_int(
+                settings_
+                , kRandomWalkerLocalContrastRadiusKey
+            );
+            result.random_walker.local_contrast_scale.minimum_variance =
+                stored_double(
+                    settings_
+                    , kRandomWalkerLocalContrastMinimumVarianceKey
+                );
             return result;
         default:
             qWarning()
@@ -336,6 +425,20 @@ namespace random_walker::infrastructure {
             , application_settings.random_walker
                 .local_contrast_scale
                 .minimum_variance
+        );
+        settings_.setValue(
+            kRandomWalkerLocalContrastMinimumVarianceModeKey
+            , minimum_variance_mode_to_storage(
+                application_settings.random_walker
+                    .local_contrast_scale
+                    .minimum_variance_mode
+            )
+        );
+        settings_.setValue(
+            kRandomWalkerLocalContrastAutoQuantileKey
+            , application_settings.random_walker
+                .local_contrast_scale
+                .auto_minimum_variance_quantile
         );
         settings_.setValue(kSchemaVersionKey, kCurrentSchemaVersion);
     }

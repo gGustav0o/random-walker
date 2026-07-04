@@ -27,6 +27,8 @@ private slots:
     void random_walker_edge_weight_model_rejects_unknown_values();
     void local_contrast_scale_parameters_accept_valid_bounds();
     void local_contrast_scale_parameters_reject_invalid_values();
+    void effective_local_contrast_scale_accepts_valid_bounds();
+    void effective_local_contrast_scale_rejects_invalid_values();
     void auto_marker_parameters_accept_defaults_and_bounds();
     void auto_marker_parameters_reject_invalid_values();
     void marker_label_mask_stores_labels_and_counts_seeds();
@@ -61,6 +63,14 @@ void DomainTests::default_random_walker_parameters_are_valid() {
     QCOMPARE(
         parameters.local_contrast_scale.minimum_variance
         , domain::kDefaultLocalContrastMinimumVariance
+    );
+    QCOMPARE(
+        static_cast<int>(parameters.local_contrast_scale.minimum_variance_mode)
+        , static_cast<int>(domain::kDefaultMinimumVarianceMode)
+    );
+    QCOMPARE(
+        parameters.local_contrast_scale.auto_minimum_variance_quantile
+        , domain::kDefaultLocalContrastAutoQuantile
     );
 }
 
@@ -143,10 +153,16 @@ void DomainTests::local_contrast_scale_parameters_accept_valid_bounds() {
     QVERIFY(domain::is_valid(domain::LocalContrastScaleParameters {
         .radius = domain::kMinimumLocalContrastRadius
         , .minimum_variance = domain::kMinimumLocalContrastVariance
+        , .minimum_variance_mode = domain::MinimumVarianceMode::Manual
+        , .auto_minimum_variance_quantile =
+            domain::kMinimumLocalContrastAutoQuantile
     }));
     QVERIFY(domain::is_valid(domain::LocalContrastScaleParameters {
         .radius = domain::kMaximumLocalContrastRadius
         , .minimum_variance = domain::kMaximumLocalContrastVariance
+        , .minimum_variance_mode = domain::MinimumVarianceMode::Auto
+        , .auto_minimum_variance_quantile =
+            domain::kMaximumLocalContrastAutoQuantile
     }));
 }
 
@@ -174,6 +190,64 @@ void DomainTests::local_contrast_scale_parameters_reject_invalid_values() {
     }));
     QVERIFY(!domain::is_valid(domain::LocalContrastScaleParameters {
         .minimum_variance = std::numeric_limits<double>::infinity()
+    }));
+    QVERIFY(!domain::is_valid(domain::LocalContrastScaleParameters {
+        .minimum_variance_mode = static_cast<domain::MinimumVarianceMode>(-1)
+    }));
+    QVERIFY(!domain::is_valid(domain::LocalContrastScaleParameters {
+        .auto_minimum_variance_quantile = std::nextafter(
+            domain::kMinimumLocalContrastAutoQuantile
+            , 0.0
+        )
+    }));
+    QVERIFY(!domain::is_valid(domain::LocalContrastScaleParameters {
+        .auto_minimum_variance_quantile = std::nextafter(
+            domain::kMaximumLocalContrastAutoQuantile
+            , domain::kMaximumLocalContrastAutoQuantile + 1.0
+        )
+    }));
+    QVERIFY(!domain::is_valid(domain::LocalContrastScaleParameters {
+        .auto_minimum_variance_quantile =
+            std::numeric_limits<double>::quiet_NaN()
+    }));
+}
+
+void DomainTests::effective_local_contrast_scale_accepts_valid_bounds() {
+    QVERIFY(domain::is_valid(domain::EffectiveLocalContrastScale {
+        .radius = domain::kMinimumLocalContrastRadius
+        , .minimum_variance = domain::kMinimumLocalContrastVariance
+    }));
+    QVERIFY(domain::is_valid(domain::EffectiveLocalContrastScale {
+        .radius = domain::kMaximumLocalContrastRadius
+        , .minimum_variance = domain::kMaximumLocalContrastVariance
+    }));
+
+    const domain::LocalContrastScaleParameters parameters {
+        .radius = 2
+        , .minimum_variance = 3.0
+        , .minimum_variance_mode = domain::MinimumVarianceMode::Manual
+    };
+    const domain::EffectiveLocalContrastScale scale =
+        domain::manual_effective_scale(parameters);
+    QCOMPARE(scale.radius, parameters.radius);
+    QCOMPARE(scale.minimum_variance, parameters.minimum_variance);
+}
+
+void DomainTests::effective_local_contrast_scale_rejects_invalid_values() {
+    QVERIFY(!domain::is_valid(domain::EffectiveLocalContrastScale {
+        .radius = domain::kMinimumLocalContrastRadius - 1
+    }));
+    QVERIFY(!domain::is_valid(domain::EffectiveLocalContrastScale {
+        .radius = domain::kMaximumLocalContrastRadius + 1
+    }));
+    QVERIFY(!domain::is_valid(domain::EffectiveLocalContrastScale {
+        .minimum_variance = std::nextafter(
+            domain::kMinimumLocalContrastVariance
+            , 0.0
+        )
+    }));
+    QVERIFY(!domain::is_valid(domain::EffectiveLocalContrastScale {
+        .minimum_variance = std::numeric_limits<double>::quiet_NaN()
     }));
 }
 

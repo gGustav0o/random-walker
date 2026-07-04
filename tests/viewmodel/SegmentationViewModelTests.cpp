@@ -255,6 +255,7 @@ private slots:
     void propose_markers_without_image_sets_error();
     void propose_markers_does_not_inflate_seed_model();
     void clear_automatic_markers_keeps_manual_regions();
+    void clear_seeds_clears_manual_and_automatic_markers();
     void run_segmentation_includes_automatic_marker_constraints();
     void run_segmentation_is_ignored_while_auto_markers_are_running();
     void run_segmentation_submits_request_and_updates_progress();
@@ -285,6 +286,14 @@ void SegmentationViewModelTests::initializes_from_settings() {
     QCOMPARE(
         fixture.view_model.local_contrast_minimum_variance()
         , domain::kDefaultLocalContrastMinimumVariance
+    );
+    QCOMPARE(
+        fixture.view_model.local_contrast_minimum_variance_mode()
+        , static_cast<int>(SegmentationViewModel::ManualMinimumVariance)
+    );
+    QCOMPARE(
+        fixture.view_model.local_contrast_auto_quantile()
+        , domain::kDefaultLocalContrastAutoQuantile
     );
     QVERIFY(!fixture.view_model.image_loaded());
     QVERIFY(!fixture.view_model.can_run());
@@ -375,10 +384,19 @@ void SegmentationViewModelTests::set_local_contrast_saves_settings_and_emits_cha
 
     fixture.view_model.set_local_contrast_radius(3);
     fixture.view_model.set_local_contrast_minimum_variance(4.5);
+    fixture.view_model.set_local_contrast_minimum_variance_mode(
+        SegmentationViewModel::AutoMinimumVariance
+    );
+    fixture.view_model.set_local_contrast_auto_quantile(0.25);
 
     QCOMPARE(fixture.view_model.local_contrast_radius(), 3);
     QCOMPARE(fixture.view_model.local_contrast_minimum_variance(), 4.5);
-    QCOMPARE(fixture.repository.save_count, 2);
+    QCOMPARE(
+        fixture.view_model.local_contrast_minimum_variance_mode()
+        , static_cast<int>(SegmentationViewModel::AutoMinimumVariance)
+    );
+    QCOMPARE(fixture.view_model.local_contrast_auto_quantile(), 0.25);
+    QCOMPARE(fixture.repository.save_count, 4);
     QCOMPARE(
         fixture.repository.stored.random_walker.local_contrast_scale.radius
         , 3
@@ -389,7 +407,20 @@ void SegmentationViewModelTests::set_local_contrast_saves_settings_and_emits_cha
             .minimum_variance
         , 4.5
     );
-    QCOMPARE(local_contrast_changed.count(), 2);
+    QCOMPARE(
+        static_cast<int>(
+            fixture.repository.stored.random_walker
+                .local_contrast_scale
+                .minimum_variance_mode
+        )
+        , static_cast<int>(domain::MinimumVarianceMode::Auto)
+    );
+    QCOMPARE(
+        fixture.repository.stored.random_walker
+            .local_contrast_scale
+            .auto_minimum_variance_quantile
+        , 0.25
+    );    QCOMPARE(local_contrast_changed.count(), 4);
 }
 
 void SegmentationViewModelTests::open_image_updates_image_state_and_cache() {
@@ -535,6 +566,44 @@ void SegmentationViewModelTests::clear_automatic_markers_keeps_manual_regions() 
     QCOMPARE(seeds_changed.count(), 1);
 }
 
+void SegmentationViewModelTests::clear_seeds_clears_manual_and_automatic_markers() {
+    ViewModelFixture fixture;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    fixture.view_model.open_image(write_bimodal_test_image(directory));
+    fixture.view_model.add_seed_rectangle(0, 0, 1, 1);
+    fixture.view_model.set_selected_label(SegmentationViewModel::Object);
+    fixture.view_model.add_seed_rectangle(15, 7, 1, 1);
+    fixture.view_model.propose_markers();
+    fixture.auto_marker_executor.deliver_service_result();
+    process_queued_viewmodel_events();
+    QVERIFY(fixture.view_model.automatic_marker_count() > 0);
+    QVERIFY(fixture.view_model.has_automatic_markers());
+    QCOMPARE(fixture.view_model.background_seed_count(), 1);
+    QCOMPARE(fixture.view_model.object_seed_count(), 1);
+
+    QSignalSpy automatic_markers_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::automatic_markers_changed
+    );
+    QSignalSpy seeds_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::seeds_changed
+    );
+
+    fixture.view_model.clear_seeds();
+
+    QCOMPARE(fixture.view_model.background_seed_count(), 0);
+    QCOMPARE(fixture.view_model.object_seed_count(), 0);
+    QCOMPARE(fixture.view_model.automatic_marker_count(), 0);
+    QVERIFY(!fixture.view_model.has_automatic_markers());
+    QCOMPARE(fixture.view_model.seed_model()->rowCount(), 0);
+    QCOMPARE(fixture.auto_marker_cache.clear_count, 1);
+    QCOMPARE(automatic_markers_changed.count(), 1);
+    QCOMPARE(seeds_changed.count(), 1);
+    QVERIFY(!fixture.view_model.can_run());
+}
+
 void SegmentationViewModelTests::run_segmentation_includes_automatic_marker_constraints() {
     ViewModelFixture fixture;
     QTemporaryDir directory;
@@ -543,6 +612,21 @@ void SegmentationViewModelTests::run_segmentation_includes_automatic_marker_cons
     fixture.view_model.propose_markers();
     fixture.auto_marker_executor.deliver_service_result();
     process_queued_viewmodel_events();
+    const int automatic_marker_count_before_run =
+        fixture.view_model.automatic_marker_count();
+    QVERIFY(automatic_marker_count_before_run > 0);
+    QSignalSpy automatic_markers_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::automatic_markers_changed
+    );
+    QSignalSpy seeds_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::seeds_changed
+    );
+    QSignalSpy can_run_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::can_run_changed
+    );
 
     fixture.view_model.run_segmentation();
 
@@ -552,9 +636,16 @@ void SegmentationViewModelTests::run_segmentation_includes_automatic_marker_cons
     QCOMPARE(
         fixture.executor.last_background_seed_pixels
         + fixture.executor.last_object_seed_pixels
-        , fixture.view_model.automatic_marker_count()
+        , automatic_marker_count_before_run
     );
+    QCOMPARE(fixture.view_model.automatic_marker_count(), 0);
+    QVERIFY(!fixture.view_model.has_automatic_markers());
+    QCOMPARE(fixture.auto_marker_cache.clear_count, 1);
     QCOMPARE(fixture.view_model.seed_model()->rowCount(), 0);
+    QCOMPARE(automatic_markers_changed.count(), 1);
+    QCOMPARE(seeds_changed.count(), 1);
+    QCOMPARE(can_run_changed.count(), 1);
+    QVERIFY(!fixture.view_model.can_run());
 }
 
 void SegmentationViewModelTests::run_segmentation_is_ignored_while_auto_markers_are_running() {
@@ -591,6 +682,10 @@ void SegmentationViewModelTests::run_segmentation_submits_request_and_updates_pr
     );
     fixture.view_model.set_local_contrast_radius(3);
     fixture.view_model.set_local_contrast_minimum_variance(4.5);
+    fixture.view_model.set_local_contrast_minimum_variance_mode(
+        SegmentationViewModel::AutoMinimumVariance
+    );
+    fixture.view_model.set_local_contrast_auto_quantile(0.25);
     QSignalSpy busy_changed(&fixture.view_model, &SegmentationViewModel::busy_changed);
     QSignalSpy progress_changed(
         &fixture.view_model
@@ -617,6 +712,16 @@ void SegmentationViewModelTests::run_segmentation_submits_request_and_updates_pr
     );
     QCOMPARE(fixture.executor.last_local_contrast.radius, 3);
     QCOMPARE(fixture.executor.last_local_contrast.minimum_variance, 4.5);
+    QCOMPARE(
+        static_cast<int>(
+            fixture.executor.last_local_contrast.minimum_variance_mode
+        )
+        , static_cast<int>(domain::MinimumVarianceMode::Auto)
+    );
+    QCOMPARE(
+        fixture.executor.last_local_contrast.auto_minimum_variance_quantile
+        , 0.25
+    );
     QVERIFY(fixture.view_model.busy());
     QCOMPARE(busy_changed.count(), 1);
 

@@ -4,6 +4,7 @@
 #include "model/algorithm/IndexTypes.hpp"
 #include "model/algorithm/IterationPolicy.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -34,6 +35,8 @@ namespace random_walker::graph {
         using GridBuildStepOutcome = std::optional<domain::Cancelled>;
         using LocalContrastScaleOutcome =
             std::variant<LocalContrastScaleMap, domain::Cancelled>;
+        using EffectiveLocalContrastScaleOutcome =
+            std::variant<domain::EffectiveLocalContrastScale, domain::Cancelled>;
 
         constexpr std::array<ForwardGridDirection, 2> kFourConnectedDirections = {
             ForwardGridDirection::Right
@@ -308,6 +311,83 @@ namespace random_walker::graph {
             return std::nullopt;
         }
 
+        [[nodiscard]] EffectiveLocalContrastScaleOutcome
+        build_effective_local_contrast_scale(
+            const domain::GrayImage& image
+            , const domain::LocalContrastScaleParameters& parameters
+            , const domain::CancellationToken& cancellation
+            , const domain::ProgressReporter& progress
+            , double progress_start
+            , double progress_finish
+        ) {
+            assert(!image.empty());
+            assert(domain::is_valid(parameters));
+            assert(progress_start >= 0.0);
+            assert(progress_finish <= 1.0);
+            assert(progress_start <= progress_finish);
+
+            switch (parameters.minimum_variance_mode) {
+            case domain::MinimumVarianceMode::Manual:
+                return domain::manual_effective_scale(parameters);
+            case domain::MinimumVarianceMode::Auto:
+                break;
+            }
+
+            std::vector<double> variances;
+            variances.reserve(
+                static_cast<std::size_t>(image.width())
+                * static_cast<std::size_t>(image.height())
+            );
+            progress.report(
+                domain::SegmentationStage::BuildingGraph
+                , progress_start
+            );
+            for (int row = 0; row < image.height(); ++row) {
+                if (cancellation.stop_requested()) {
+                    return domain::Cancelled {};
+                }
+
+                for (int column = 0; column < image.width(); ++column) {
+                    if (algorithm::should_poll_cancellation(
+                            static_cast<std::size_t>(column)
+                        )
+                        && cancellation.stop_requested()
+                    ) {
+                        return domain::Cancelled {};
+                    }
+
+                    variances.push_back(raw_local_window_variance(
+                        image
+                        , row
+                        , column
+                        , parameters.radius
+                    ));
+                }
+
+                progress.report(
+                    domain::SegmentationStage::BuildingGraph
+                    , graph_build_progress(
+                        row
+                        , image.height()
+                        , progress_start
+                        , progress_finish
+                    )
+                );
+            }
+
+            return domain::EffectiveLocalContrastScale {
+                .radius = parameters.radius
+                , .minimum_variance = std::clamp(
+                    local_variance_quantile(
+                        std::move(variances)
+                        , parameters.auto_minimum_variance_quantile
+                    )
+                    , domain::kMinimumLocalContrastVariance
+                    , domain::kMaximumLocalContrastVariance
+                )
+            };
+        }
+
         [[nodiscard]] LocalContrastScaleOutcome build_local_contrast_scale_map(
             const domain::GrayImage& image
             , const domain::LocalContrastScaleParameters& parameters
@@ -322,13 +402,33 @@ namespace random_walker::graph {
             assert(progress_finish <= 1.0);
             assert(progress_start <= progress_finish);
 
+            const double scale_progress_finish =
+                parameters.minimum_variance_mode == domain::MinimumVarianceMode::Auto
+                    ? progress_start + (progress_finish - progress_start) * 0.4
+                    : progress_start;
+            const EffectiveLocalContrastScaleOutcome scale_outcome =
+                build_effective_local_contrast_scale(
+                    image
+                    , parameters
+                    , cancellation
+                    , progress
+                    , progress_start
+                    , scale_progress_finish
+                );
+            if (std::holds_alternative<domain::Cancelled>(scale_outcome)) {
+                return domain::Cancelled {};
+            }
+            const domain::EffectiveLocalContrastScale scale =
+                std::get<domain::EffectiveLocalContrastScale>(scale_outcome);
+            assert(domain::is_valid(scale));
+
             const int height = image.height();
             const int width = image.width();
             Eigen::MatrixXd variances(height, width);
 
             progress.report(
                 domain::SegmentationStage::BuildingGraph
-                , progress_start
+                , scale_progress_finish
             );
             for (int row = 0; row < height; ++row) {
                 if (cancellation.stop_requested()) {
@@ -348,7 +448,7 @@ namespace random_walker::graph {
                         image
                         , row
                         , column
-                        , parameters
+                        , scale
                     );
                 }
 
@@ -357,7 +457,7 @@ namespace random_walker::graph {
                     , graph_build_progress(
                         row
                         , height
-                        , progress_start
+                        , scale_progress_finish
                         , progress_finish
                     )
                 );

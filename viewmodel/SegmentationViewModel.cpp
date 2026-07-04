@@ -115,6 +115,35 @@ namespace {
             return std::nullopt;
         }
     }
+    [[nodiscard]] int view_minimum_variance_mode(
+        random_walker::domain::MinimumVarianceMode mode
+    ) noexcept {
+        switch (mode) {
+        case random_walker::domain::MinimumVarianceMode::Manual:
+            return SegmentationViewModel::ManualMinimumVariance;
+        case random_walker::domain::MinimumVarianceMode::Auto:
+            return SegmentationViewModel::AutoMinimumVariance;
+        }
+
+        Q_ASSERT_X(
+            false
+            , "view_minimum_variance_mode"
+            , "Unhandled minimum variance mode"
+        );
+        return SegmentationViewModel::ManualMinimumVariance;
+    }
+
+    [[nodiscard]] std::optional<random_walker::domain::MinimumVarianceMode>
+    domain_minimum_variance_mode(int mode) noexcept {
+        switch (mode) {
+        case SegmentationViewModel::ManualMinimumVariance:
+            return random_walker::domain::MinimumVarianceMode::Manual;
+        case SegmentationViewModel::AutoMinimumVariance:
+            return random_walker::domain::MinimumVarianceMode::Auto;
+        default:
+            return std::nullopt;
+        }
+    }
     [[nodiscard]] std::optional<random_walker::domain::PixelRectangle>
     clipped_seed_rectangle(
         int x
@@ -286,6 +315,19 @@ double SegmentationViewModel::local_contrast_minimum_variance() const noexcept {
         .local_contrast_scale
         .minimum_variance;
 }
+int SegmentationViewModel::local_contrast_minimum_variance_mode() const noexcept {
+    return view_minimum_variance_mode(
+        application_settings_.random_walker
+            .local_contrast_scale
+            .minimum_variance_mode
+    );
+}
+
+double SegmentationViewModel::local_contrast_auto_quantile() const noexcept {
+    return application_settings_.random_walker
+        .local_contrast_scale
+        .auto_minimum_variance_quantile;
+}
 
 double SegmentationViewModel::beta_slider_position() const noexcept {
     const double exponent =
@@ -439,6 +481,29 @@ void SegmentationViewModel::set_local_contrast_minimum_variance(double value) {
     updated_parameters.local_contrast_scale.minimum_variance = value;
     update_random_walker_parameters(updated_parameters);
 }
+void SegmentationViewModel::set_local_contrast_minimum_variance_mode(int mode) {
+    assert_ui_thread();
+
+    const std::optional<DomainMinimumVarianceMode> updated_mode =
+        domain_minimum_variance_mode(mode);
+    if (!updated_mode.has_value()) {
+        return;
+    }
+
+    auto updated_parameters = application_settings_.random_walker;
+    updated_parameters.local_contrast_scale.minimum_variance_mode =
+        *updated_mode;
+    update_random_walker_parameters(updated_parameters);
+}
+
+void SegmentationViewModel::set_local_contrast_auto_quantile(double value) {
+    assert_ui_thread();
+
+    auto updated_parameters = application_settings_.random_walker;
+    updated_parameters.local_contrast_scale.auto_minimum_variance_quantile =
+        value;
+    update_random_walker_parameters(updated_parameters);
+}
 
 void SegmentationViewModel::open_image(const QString& path) {
     assert_ui_thread();
@@ -535,7 +600,7 @@ void SegmentationViewModel::clear() {
 void SegmentationViewModel::clear_seeds() {
     assert_ui_thread();
 
-    if (seed_state_.empty()) {
+    if (seed_state_.empty() && !automatic_marker_state_.has_markers()) {
         return;
     }
 
@@ -547,9 +612,13 @@ void SegmentationViewModel::clear_seeds() {
     cancel_active_request();
     cancel_active_auto_marker_request();
     clear_seed_regions();
+    const bool automatic_markers_were_cleared = automatic_marker_state_.clear();
     invalidate_result();
     clear_error();
 
+    if (automatic_markers_were_cleared) {
+        emit automatic_markers_changed();
+    }
     emit seeds_changed();
     notify_can_run_if_changed(previous_can_run);
 }
@@ -692,14 +761,30 @@ void SegmentationViewModel::run_segmentation() {
         application_settings_.random_walker
     ));
 
+    const bool previous_can_run = can_run();
     const random_walker::domain::SegmentationRequestId request_id =
         next_request_id_++;
+    std::vector<random_walker::domain::SeedRegion> seed_regions =
+        segmentation_seed_regions();
+    const int background_constraints =
+        random_walker::domain::seed_pixel_count(
+            seed_regions
+            , DomainSeedLabel::Background
+        );
+    const int object_constraints =
+        random_walker::domain::seed_pixel_count(
+            seed_regions
+            , DomainSeedLabel::Object
+        );
+    Q_ASSERT(background_constraints > 0);
+    Q_ASSERT(object_constraints > 0);
     random_walker::domain::SegmentationRequest request(
         request_id
         , image_state_.image()
-        , segmentation_seed_regions()
+        , std::move(seed_regions)
         , application_settings_.random_walker
     );
+    const bool automatic_markers_were_cleared = automatic_marker_state_.clear();
 
     random_walker::application::log_info(
         random_walker::application::log_category::viewmodel
@@ -710,9 +795,9 @@ void SegmentationViewModel::run_segmentation() {
             + "x"
             + std::to_string(image_state_.height())
             + ", background_seed_pixels="
-            + std::to_string(background_constraint_count())
+            + std::to_string(background_constraints)
             + ", object_seed_pixels="
-            + std::to_string(object_constraint_count())
+            + std::to_string(object_constraints)
             + ", beta="
             + std::to_string(application_settings_.random_walker.beta)
             + ", connectivity="
@@ -737,6 +822,11 @@ void SegmentationViewModel::run_segmentation() {
     reset_progress();
     set_busy(true);
     clear_error();
+    if (automatic_markers_were_cleared) {
+        emit automatic_markers_changed();
+        emit seeds_changed();
+    }
+    notify_can_run_if_changed(previous_can_run);
 
     const std::shared_ptr<CompletionDeliveryGate> delivery_gate =
         completion_delivery_;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cmath>
 
 namespace random_walker::domain {
@@ -16,6 +17,9 @@ namespace random_walker::domain {
     inline constexpr double kMinimumLocalContrastVariance = 1e-6;
     inline constexpr double kMaximumLocalContrastVariance = 255.0 * 255.0;
     inline constexpr double kDefaultLocalContrastMinimumVariance = 1.0;
+    inline constexpr double kMinimumLocalContrastAutoQuantile = 0.01;
+    inline constexpr double kMaximumLocalContrastAutoQuantile = 0.50;
+    inline constexpr double kDefaultLocalContrastAutoQuantile = 0.10;
 
     enum class PixelConnectivity {
         Four
@@ -25,6 +29,11 @@ namespace random_walker::domain {
     enum class EdgeWeightModel {
         GlobalBeta
         , LocalVarianceNormalized
+    };
+
+    enum class MinimumVarianceMode {
+        Manual
+        , Auto
     };
 
     inline constexpr PixelConnectivity kDefaultPixelConnectivity =
@@ -56,10 +65,34 @@ namespace random_walker::domain {
         return false;
     }
 
+    [[nodiscard]] constexpr bool is_valid(
+        MinimumVarianceMode mode
+    ) noexcept {
+        switch (mode) {
+        case MinimumVarianceMode::Manual:
+        case MinimumVarianceMode::Auto:
+            return true;
+        }
+
+        return false;
+    }
+
+    inline constexpr MinimumVarianceMode kDefaultMinimumVarianceMode =
+        MinimumVarianceMode::Manual;
+
     struct LocalContrastScaleParameters {
         int radius = kDefaultLocalContrastRadius;
         double minimum_variance = kDefaultLocalContrastMinimumVariance;
+        MinimumVarianceMode minimum_variance_mode = kDefaultMinimumVarianceMode;
+        double auto_minimum_variance_quantile =
+            kDefaultLocalContrastAutoQuantile;
         bool operator==(const LocalContrastScaleParameters&) const = default;
+    };
+
+    struct EffectiveLocalContrastScale {
+        int radius = kDefaultLocalContrastRadius;
+        double minimum_variance = kDefaultLocalContrastMinimumVariance;
+        bool operator==(const EffectiveLocalContrastScale&) const = default;
     };
 
     [[nodiscard]] inline bool is_valid(
@@ -69,7 +102,33 @@ namespace random_walker::domain {
             && parameters.radius <= kMaximumLocalContrastRadius
             && std::isfinite(parameters.minimum_variance)
             && parameters.minimum_variance >= kMinimumLocalContrastVariance
-            && parameters.minimum_variance <= kMaximumLocalContrastVariance;
+            && parameters.minimum_variance <= kMaximumLocalContrastVariance
+            && is_valid(parameters.minimum_variance_mode)
+            && std::isfinite(parameters.auto_minimum_variance_quantile)
+            && parameters.auto_minimum_variance_quantile
+                >= kMinimumLocalContrastAutoQuantile
+            && parameters.auto_minimum_variance_quantile
+                <= kMaximumLocalContrastAutoQuantile;
+    }
+
+    [[nodiscard]] inline bool is_valid(
+        const EffectiveLocalContrastScale& scale
+    ) noexcept {
+        return scale.radius >= kMinimumLocalContrastRadius
+            && scale.radius <= kMaximumLocalContrastRadius
+            && std::isfinite(scale.minimum_variance)
+            && scale.minimum_variance >= kMinimumLocalContrastVariance
+            && scale.minimum_variance <= kMaximumLocalContrastVariance;
+    }
+
+    [[nodiscard]] inline EffectiveLocalContrastScale manual_effective_scale(
+        const LocalContrastScaleParameters& parameters
+    ) noexcept {
+        assert(is_valid(parameters));
+        return {
+            .radius = parameters.radius
+            , .minimum_variance = parameters.minimum_variance
+        };
     }
 
     struct RandomWalkerParameters {

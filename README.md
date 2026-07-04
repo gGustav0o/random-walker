@@ -110,7 +110,13 @@ $
 Локальная дисперсия сначала оценивается для каждого пикселя в окне радиуса `localContrastRadius`:
 
 $
-\sigma_i^2 = \max(\sigma^2_{min}, Var(W_i))
+\hat\sigma_i^2 = Var(W_i)
+$
+
+Затем применяется регуляризующий нижний порог:
+
+$
+\sigma_i^2 = \max(\sigma^2_{floor}, \hat\sigma_i^2)
 $
 
 Для ребра используется симметричное среднее:
@@ -119,7 +125,18 @@ $
 \sigma_{ij}^2 = \frac{\sigma_i^2 + \sigma_j^2}{2}
 $
 
-Эта форма сохраняет положительность и симметрию весов, поэтому лапласиан остается корректным симметричным графовым лапласианом. Нижняя граница `localContrastMinimumVariance` защищает от деления на ноль и чрезмерно жестких весов на почти константных областях.
+Эта форма сохраняет положительность и симметрию весов, поэтому лапласиан остается корректным симметричным графовым лапласианом. Нижний порог `sigmaFloor` защищает от деления на ноль и чрезмерно жестких весов на почти константных областях.
+
+Порог может задаваться двумя способами:
+
+- `Manual` — используется сохраненное пользовательское значение `localContrastMinimumVariance`;
+- `Auto` — значение вычисляется при построении графа как квантиль распределения локальных дисперсий изображения:
+
+$
+\sigma^2_{floor} = clamp(Q_q(\{\hat\sigma_i^2\}), \sigma^2_{min}, \sigma^2_{max})
+$
+
+где `q` — параметр `localContrastAutoQuantile`. Вычисленное effective-значение не сохраняется в настройках: сохраняются только режим и параметры оценки.
 
 ---
 
@@ -132,9 +149,11 @@ $
 - `Beta` — параметр $\beta$ для модели `Global beta`;
 - `Distance p` — степень геометрической нормировки $p$;
 - `Window radius` — радиус окна локальной дисперсии для `Local variance`;
-- `Min variance` — нижняя граница локальной дисперсии для `Local variance`.
+- `Variance floor` — режим нижнего порога локальной дисперсии: `Manual` или `Auto`;
+- `Min variance` — ручная нижняя граница локальной дисперсии, используется только в режиме `Manual`;
+- `Auto quantile` — квантиль локальных дисперсий для автоматической оценки порога в режиме `Auto`.
 
-Параметры хранятся в настройках приложения и передаются в математическое ядро через:
+Параметры хранятся в настройках приложения и передаются в математическое ядро через следующие слои. Настройки хранят пользовательские параметры, но не сохраняют вычисленное effective-значение auto-порога:
 
 - `viewmodel/SegmentationViewModel.hpp/cpp` — MVVM-состояние и команды UI;
 - `application/settings/ApplicationSettings.hpp` — настройки приложения;
@@ -148,7 +167,9 @@ $
 - для $\beta$: `kMinimumRandomWalkerBeta` ... `kMaximumRandomWalkerBeta`, значение по умолчанию `kDefaultRandomWalkerBeta`;
 - для $p$: `kMinimumRandomWalkerDistancePower` ... `kMaximumRandomWalkerDistancePower`, значение по умолчанию `kDefaultRandomWalkerDistancePower`;
 - для радиуса локального окна: `kMinimumLocalContrastRadius` ... `kMaximumLocalContrastRadius`, значение по умолчанию `kDefaultLocalContrastRadius`;
-- для минимальной дисперсии: `kMinimumLocalContrastVariance` ... `kMaximumLocalContrastVariance`, значение по умолчанию `kDefaultLocalContrastMinimumVariance`.
+- для минимальной дисперсии: `kMinimumLocalContrastVariance` ... `kMaximumLocalContrastVariance`, значение по умолчанию `kDefaultLocalContrastMinimumVariance`;
+- для auto-quantile: `kMinimumLocalContrastAutoQuantile` ... `kMaximumLocalContrastAutoQuantile`, значение по умолчанию `kDefaultLocalContrastAutoQuantile`;
+- режим нижнего порога задается enum-значением `MinimumVarianceMode`: `Manual` или `Auto`, значение по умолчанию `kDefaultMinimumVarianceMode` (`Manual`).
 
 Связность задается enum-значением `PixelConnectivity`:
 

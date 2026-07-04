@@ -1,7 +1,5 @@
 # C++ Code Style Guide
 
-This style guide defines conventions used in this repository for C++20 development with Qt 6 and Eigen. It emphasizes functional purity, immutability, composability, and clarity.
-
 ---
 
 ## 1. General Principles
@@ -37,7 +35,7 @@ This style guide defines conventions used in this repository for C++20 developme
   explicit.
 - Express each function property independently with standard C++ syntax:
   ```cpp
-  [[nodiscard]] constexpr int add(int a, int b) noexcept {
+  constexpr int add(int a, int b) noexcept {
       return a + b;
   }
   ```
@@ -103,32 +101,14 @@ auto filter(
 
 ---
 
-## 7. Eigen Integration
-
-- Treat Eigen expressions as lazy and pure.
-- Avoid in-place modifications; return new expressions.
-- Use `Map<const MatrixXd>` for efficient reference without copy.
-- Combine with `std::ranges`:
-
-```cpp
-std::ranges::for_each(
-    std::views::iota(0, vec.size())
-    , [&](int i) {
-        result[i] = transform(vec[i]);
-    }
-);
-```
-
----
-
-## 8. Error Handling
+## 7. Error Handling
 
 - Use `std::optional`, `std::variant`, or `std::expected`.
 - Avoid exceptions for control flow.
 
 ---
 
-## 9. Function and Type Annotations
+## 8. Function and Type Annotations
 
 Use standard C++ keywords and attributes directly:
 
@@ -139,7 +119,7 @@ public:
     Worker& operator=(const Worker&) = delete;
 };
 
-[[nodiscard]] constexpr int answer() noexcept {
+constexpr int answer() noexcept {
     return 42;
 }
 ```
@@ -147,22 +127,10 @@ public:
 Do not introduce macros that combine unrelated properties such as linkage,
 constant evaluation, exception guarantees, or optimization hints.
 
----
-
-## 10. Directory Structure
-
-- `model/` contains the mathematical domain, algorithms, and execution ports.
-- `application/` contains application use cases and services.
-- `infrastructure/` contains implementations of external persistence and
-  platform ports.
-- `presentation/` contains Qt adapters, image providers, and QML integration.
-- `viewmodel/` contains MVVM presentation state and commands.
-- `bootstrap/` contains the composition root and dependency wiring.
-- Dependencies must point toward domain and application abstractions.
 
 ---
 
-## 11. Formatting
+## 9. Formatting
 
 - Indent with **4 spaces**.
 - Opening braces on the **same line**.
@@ -205,7 +173,7 @@ enum class Mode {
     - project headers.
 ---
 
-## 12. Precision and Output
+## 10. Precision and Output
 
 - Use `std::ostringstream` with `std::fixed` and `std::setprecision` when
   stream-based numeric formatting is appropriate.
@@ -221,7 +189,7 @@ inline constexpr int kDefaultPrecision = 4;
 
 ```cpp
 template <typename T>
-[[nodiscard]] std::string toString(
+std::string toString(
     const Eigen::MatrixBase<T>& obj
     , int precision = kDefaultPrecision
 ) {
