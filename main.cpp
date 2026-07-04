@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <exception>
 #include <memory>
 #include <string>
 
@@ -21,6 +23,41 @@ namespace {
             random_walker::infrastructure::shutdown_logging();
         }
     };
+    std::terminate_handler previous_terminate_handler = nullptr;
+
+    [[noreturn]] void handle_terminate() noexcept {
+        random_walker::application::log_error(
+            random_walker::application::log_category::application
+            , "Application terminated unexpectedly"
+        );
+        random_walker::infrastructure::flush_logging();
+
+        if (previous_terminate_handler != nullptr
+            && previous_terminate_handler != handle_terminate) {
+            previous_terminate_handler();
+        }
+
+        std::abort();
+    }
+
+    class TerminateGuard final {
+    public:
+        TerminateGuard() noexcept
+            : previous_handler_(std::set_terminate(handle_terminate)) {
+            previous_terminate_handler = previous_handler_;
+        }
+
+        ~TerminateGuard() {
+            std::set_terminate(previous_handler_);
+            previous_terminate_handler = nullptr;
+        }
+
+        TerminateGuard(const TerminateGuard&) = delete;
+        TerminateGuard& operator=(const TerminateGuard&) = delete;
+
+    private:
+        std::terminate_handler previous_handler_ = nullptr;
+    };
 
     void setup_high_dpi() {
 #if defined(Q_OS_WIN) && QT_VERSION_CHECK(5, 6, 0) <= QT_VERSION && QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
@@ -37,6 +74,7 @@ int main(int argc, char* argv[]) {
         random_walker::infrastructure::initialize_logging();
 
     const LoggingShutdownGuard logging_shutdown_guard;
+    const TerminateGuard terminate_guard;
     if (logging_error.has_value()) {
         qWarning().noquote()
             << QStringLiteral("Failed to initialize logging:")
@@ -54,6 +92,7 @@ int main(int argc, char* argv[]) {
             random_walker::application::log_category::application
             , "Application startup"
         );
+        random_walker::infrastructure::flush_logging();
     }
 
     int exit_code = kExitSuccess;
@@ -73,17 +112,20 @@ int main(int argc, char* argv[]) {
                 random_walker::application::log_category::application
                 , "QML root object creation failed"
             );
+            random_walker::infrastructure::flush_logging();
             exit_code = kExitQmlLoadFailure;
         } else {
             random_walker::application::log_info(
                 random_walker::application::log_category::application
                 , "QML root object loaded"
             );
+            random_walker::infrastructure::flush_logging();
             exit_code = app.exec();
             random_walker::application::log_info(
                 random_walker::application::log_category::application
                 , "Application event loop finished"
             );
+            random_walker::infrastructure::flush_logging();
         }
     }
 
@@ -91,5 +133,6 @@ int main(int argc, char* argv[]) {
         random_walker::application::log_category::application
         , "Application shutdown"
     );
+    random_walker::infrastructure::flush_logging();
     return exit_code;
 }

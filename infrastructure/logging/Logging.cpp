@@ -119,7 +119,7 @@ namespace random_walker::infrastructure {
             logger->set_pattern(
                 "[%Y-%m-%d %H:%M:%S.%e] [%t] [%n] [%^%l%$] %v"
             );
-            logger->flush_on(spdlog::level::warn);
+            logger->flush_on(to_spdlog_level(config.flush_level));
             return logger;
         }
 
@@ -202,7 +202,7 @@ namespace random_walker::infrastructure {
 
             std::lock_guard lock(logging_mutex);
             spdlog::set_default_logger(std::move(logger));
-            spdlog::flush_on(spdlog::level::warn);
+            spdlog::flush_on(to_spdlog_level(config.flush_level));
             active_file_path = log_file_path;
             logging_initialized = true;
             application::set_log_sink(write_log_message);
@@ -217,9 +217,23 @@ namespace random_walker::infrastructure {
         return std::nullopt;
     }
 
+    void flush_logging() noexcept {
+        try {
+            std::lock_guard lock(logging_mutex);
+            if (!logging_initialized) {
+                return;
+            }
+
+            spdlog::default_logger()->flush();
+        } catch (...) {
+            qWarning().noquote() << "Failed to flush logging";
+        }
+    }
+
     void shutdown_logging() noexcept {
         try {
             application::clear_log_sink();
+            flush_logging();
             {
                 std::lock_guard lock(logging_mutex);
                 logging_initialized = false;

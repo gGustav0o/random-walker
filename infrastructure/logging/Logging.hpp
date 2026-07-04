@@ -31,6 +31,7 @@ namespace random_walker::infrastructure {
         // Single application-wide minimum level. Per-category and per-sink
         // overrides are intentionally not modeled yet.
         LogLevel level = LogLevel::Info;
+        LogLevel flush_level = LogLevel::Info;
     };
 
     [[nodiscard]] std::string
@@ -43,6 +44,7 @@ namespace random_walker::infrastructure {
         const LoggingConfig& config = default_logging_config()
     ) noexcept;
 
+    void flush_logging() noexcept;
     void shutdown_logging() noexcept;
 
     [[nodiscard]] std::filesystem::path active_log_file_path();
