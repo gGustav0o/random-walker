@@ -4,7 +4,7 @@
 
 #include <QQmlApplicationEngine>
 
-#include "application/markers/AutoMarkerService.hpp"
+#include "application/markers/JThreadAutoMarkerExecutor.hpp"
 #include "application/settings/SettingsService.hpp"
 #include "infrastructure/settings/QtSettingsRepository.hpp"
 #include "model/executor/JThreadSegmentationExecutor.hpp"
@@ -17,8 +17,8 @@ public:
 
 private:
     // Dependencies are declared before their consumers. Reverse destruction
-    // therefore guarantees:
-    // ViewModel -> SettingsService -> SettingsRepository.
+    // therefore guarantees that ViewModel releases executor callbacks and
+    // services before their backing dependencies are destroyed.
 
     random_walker::executor::JThreadSegmentationExecutor
         segmentation_executor_;
@@ -28,7 +28,8 @@ private:
 
     random_walker::application::SettingsService settings_service_;
 
-    random_walker::application::AutoMarkerService auto_marker_service_;
+    random_walker::application::JThreadAutoMarkerExecutor
+        auto_marker_executor_;
 
     std::unique_ptr<SegmentationViewModel> segmentation_view_model_;
 };

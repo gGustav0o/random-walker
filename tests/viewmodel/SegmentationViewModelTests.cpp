@@ -11,6 +11,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include "application/markers/AutoMarkerExecutor.hpp"
 #include "application/markers/AutoMarkerService.hpp"
 #include "application/settings/SettingsRepository.hpp"
 #include "application/settings/SettingsService.hpp"
@@ -127,18 +128,68 @@ namespace {
         executor::SegmentationCompletionHandler completion_handler_;
     };
 
+    class FakeAutoMarkerExecutor final : public application::AutoMarkerExecutor {
+    public:
+        void submit(
+            application::AutoMarkerRequest request
+            , application::AutoMarkerCompletionHandler completion_handler
+        ) override {
+            last_request_id = request.request_id();
+            last_image_width = request.image().width();
+            last_image_height = request.image().height();
+            last_manual_seed_region_count =
+                static_cast<int>(request.manual_seed_regions().size());
+            pending_request.emplace(std::move(request));
+            completion_handler_ = std::move(completion_handler);
+            ++submit_count;
+        }
+
+        void cancel() noexcept override {
+            pending_request.reset();
+            completion_handler_ = {};
+            ++cancel_count;
+        }
+
+        void deliver_completion(application::AutoMarkerProposalOutcome outcome) const {
+            completion_handler_({
+                .request_id = *last_request_id
+                , .outcome = std::move(outcome)
+            });
+        }
+
+        void deliver_service_result() const {
+            const application::AutoMarkerService service;
+            deliver_completion(service.propose(
+                pending_request->image()
+                , pending_request->parameters()
+                , pending_request->manual_seed_regions()
+            ));
+        }
+
+        int submit_count = 0;
+        int cancel_count = 0;
+        int last_image_width = 0;
+        int last_image_height = 0;
+        int last_manual_seed_region_count = 0;
+        std::optional<application::AutoMarkerRequestId> last_request_id;
+        std::optional<application::AutoMarkerRequest> pending_request;
+
+    private:
+        mutable application::AutoMarkerCompletionHandler completion_handler_;
+    };
+
     struct ViewModelFixture {
         InMemorySettingsRepository repository;
         application::SettingsService settings_service {repository};
-        application::AutoMarkerService auto_marker_service;
         FakeSegmentationExecutor executor;
+        FakeAutoMarkerExecutor auto_marker_executor;
         FakeImageCache base_cache;
         FakeImageCache auto_marker_cache;
         FakeImageCache result_cache;
         SegmentationViewModel view_model {
             executor
             , settings_service
-            , auto_marker_service
+            , auto_marker_executor
             , base_cache
             , auto_marker_cache
             , result_cache
@@ -205,6 +256,7 @@ private slots:
     void propose_markers_does_not_inflate_seed_model();
     void clear_automatic_markers_keeps_manual_regions();
     void run_segmentation_includes_automatic_marker_constraints();
+    void run_segmentation_is_ignored_while_auto_markers_are_running();
     void run_segmentation_submits_request_and_updates_progress();
     void completion_with_result_updates_result_state();
     void stale_completion_is_ignored();
@@ -408,8 +460,23 @@ void SegmentationViewModelTests::propose_markers_does_not_inflate_seed_model() {
         &fixture.view_model
         , &SegmentationViewModel::can_run_changed
     );
+    QSignalSpy busy_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::busy_changed
+    );
 
     fixture.view_model.propose_markers();
+
+    QCOMPARE(fixture.auto_marker_executor.submit_count, 1);
+    QCOMPARE(fixture.auto_marker_executor.last_image_width, 16);
+    QCOMPARE(fixture.auto_marker_executor.last_image_height, 8);
+    QCOMPARE(fixture.auto_marker_executor.last_manual_seed_region_count, 0);
+    QVERIFY(fixture.view_model.busy());
+    QCOMPARE(fixture.view_model.automatic_marker_count(), 0);
+    QCOMPARE(fixture.view_model.seed_model()->rowCount(), 0);
+
+    fixture.auto_marker_executor.deliver_service_result();
+    process_queued_viewmodel_events();
 
     QVERIFY(fixture.view_model.automatic_marker_count() > 0);
     QVERIFY(fixture.view_model.has_automatic_markers());
@@ -422,11 +489,13 @@ void SegmentationViewModelTests::propose_markers_does_not_inflate_seed_model() {
     QCOMPARE(fixture.view_model.background_seed_count(), 0);
     QCOMPARE(fixture.view_model.object_seed_count(), 0);
     QVERIFY(fixture.view_model.can_run());
+    QVERIFY(!fixture.view_model.busy());
     QCOMPARE(fixture.view_model.seed_model()->rowCount(), 0);
     QCOMPARE(fixture.executor.submit_count, 0);
     QCOMPARE(automatic_markers_changed.count(), 1);
     QCOMPARE(seeds_changed.count(), 1);
     QCOMPARE(can_run_changed.count(), 1);
+    QCOMPARE(busy_changed.count(), 2);
     QVERIFY(fixture.view_model.error_message().isEmpty());
 }
 
@@ -439,6 +508,8 @@ void SegmentationViewModelTests::clear_automatic_markers_keeps_manual_regions() 
     fixture.view_model.set_selected_label(SegmentationViewModel::Object);
     fixture.view_model.add_seed_rectangle(15, 7, 1, 1);
     fixture.view_model.propose_markers();
+    fixture.auto_marker_executor.deliver_service_result();
+    process_queued_viewmodel_events();
     QVERIFY(fixture.view_model.automatic_marker_count() > 0);
     const int background_before_clear = fixture.view_model.background_seed_count();
     const int object_before_clear = fixture.view_model.object_seed_count();
@@ -470,6 +541,8 @@ void SegmentationViewModelTests::run_segmentation_includes_automatic_marker_cons
     QVERIFY(directory.isValid());
     fixture.view_model.open_image(write_bimodal_test_image(directory));
     fixture.view_model.propose_markers();
+    fixture.auto_marker_executor.deliver_service_result();
+    process_queued_viewmodel_events();
 
     fixture.view_model.run_segmentation();
 
@@ -482,6 +555,25 @@ void SegmentationViewModelTests::run_segmentation_includes_automatic_marker_cons
         , fixture.view_model.automatic_marker_count()
     );
     QCOMPARE(fixture.view_model.seed_model()->rowCount(), 0);
+}
+
+void SegmentationViewModelTests::run_segmentation_is_ignored_while_auto_markers_are_running() {
+    ViewModelFixture fixture;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    fixture.view_model.open_image(write_test_image(directory));
+    fixture.view_model.add_seed_rectangle(0, 0, 1, 1);
+    fixture.view_model.set_selected_label(SegmentationViewModel::Object);
+    fixture.view_model.add_seed_rectangle(2, 1, 1, 1);
+    QVERIFY(fixture.view_model.can_run());
+
+    fixture.view_model.propose_markers();
+    fixture.view_model.run_segmentation();
+
+    QCOMPARE(fixture.auto_marker_executor.submit_count, 1);
+    QCOMPARE(fixture.auto_marker_executor.last_manual_seed_region_count, 2);
+    QVERIFY(fixture.view_model.busy());
+    QCOMPARE(fixture.executor.submit_count, 0);
 }
 
 void SegmentationViewModelTests::run_segmentation_submits_request_and_updates_progress() {

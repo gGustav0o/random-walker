@@ -9,7 +9,7 @@
 #include <QString>
 #include <QtGlobal>
 
-#include "application/markers/AutoMarkerService.hpp"
+#include "application/markers/AutoMarkerExecutor.hpp"
 #include "application/settings/SettingsService.hpp"
 #include "presentation/image/PresentationImageCache.hpp"
 #include "model/domain/Segmentation.hpp"
@@ -93,7 +93,7 @@ public:
     explicit SegmentationViewModel(
         random_walker::executor::SegmentationExecutor& segmentation_executor
         , random_walker::application::SettingsService& settings_service
-        , random_walker::application::AutoMarkerService& auto_marker_service
+        , random_walker::application::AutoMarkerExecutor& auto_marker_executor
         , PresentationImageCache& base_image_cache
         , PresentationImageCache& auto_marker_image_cache
         , PresentationImageCache& result_image_cache
@@ -191,14 +191,22 @@ private:
         const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
         , random_walker::domain::SegmentationProgress progress
     );
+    static void dispatch_auto_marker_completion(
+        const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
+        , random_walker::application::AutoMarkerCompletion completion
+    );
     void handle_completion(
         random_walker::executor::SegmentationCompletion completion
+    );
+    void handle_auto_marker_completion(
+        random_walker::application::AutoMarkerCompletion completion
     );
     void handle_progress(
         random_walker::domain::SegmentationProgress progress
     );
     void assert_ui_thread() const;
     void cancel_active_request();
+    void cancel_active_auto_marker_request();
     void clear_seed_regions();
     void add_seed_region(random_walker::domain::SeedRegion region);
     void reset_progress();
@@ -210,7 +218,7 @@ private:
 
     random_walker::executor::SegmentationExecutor& segmentation_executor_;
     random_walker::application::SettingsService& settings_service_;
-    random_walker::application::AutoMarkerService& auto_marker_service_;
+    random_walker::application::AutoMarkerExecutor& auto_marker_executor_;
     ImageState image_state_;
     ResultState result_state_;
     AutomaticMarkerState automatic_marker_state_;
@@ -219,8 +227,12 @@ private:
     ErrorState error_state_;
     ProgressState progress_state_;
     random_walker::domain::SegmentationRequestId next_request_id_ = 1;
+    random_walker::application::AutoMarkerRequestId
+        next_auto_marker_request_id_ = 1;
     std::optional<random_walker::domain::SegmentationRequestId>
         active_request_id_;
+    std::optional<random_walker::application::AutoMarkerRequestId>
+        active_auto_marker_request_id_;
     std::shared_ptr<CompletionDeliveryGate> completion_delivery_;
     int selected_label_ = Background;
     random_walker::application::ApplicationSettings application_settings_;

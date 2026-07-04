@@ -165,7 +165,7 @@ struct SegmentationViewModel::CompletionDeliveryGate {
 SegmentationViewModel::SegmentationViewModel(
     random_walker::executor::SegmentationExecutor& segmentation_executor
     , random_walker::application::SettingsService& settings_service
-    , random_walker::application::AutoMarkerService& auto_marker_service
+    , random_walker::application::AutoMarkerExecutor& auto_marker_executor
     , PresentationImageCache& base_image_cache
     , PresentationImageCache& auto_marker_image_cache
     , PresentationImageCache& result_image_cache
@@ -174,7 +174,7 @@ SegmentationViewModel::SegmentationViewModel(
     : QObject(parent)
     , segmentation_executor_(segmentation_executor)
     , settings_service_(settings_service)
-    , auto_marker_service_(auto_marker_service)
+    , auto_marker_executor_(auto_marker_executor)
     , image_state_(base_image_cache)
     , result_state_(result_image_cache)
     , automatic_marker_state_(auto_marker_image_cache)
@@ -210,6 +210,7 @@ SegmentationViewModel::~SegmentationViewModel() {
     }
 
     segmentation_executor_.cancel();
+    auto_marker_executor_.cancel();
 }
 
 QString SegmentationViewModel::image_source() const {
@@ -467,6 +468,7 @@ void SegmentationViewModel::open_image(const QString& path) {
     const bool was_loaded = image_loaded();
 
     cancel_active_request();
+    cancel_active_auto_marker_request();
     image_state_.set(loaded);
     const bool automatic_markers_were_cleared = automatic_marker_state_.clear();
     random_walker::application::log_info(
@@ -510,6 +512,7 @@ void SegmentationViewModel::clear() {
         , "Clearing image and segmentation state"
     );
     cancel_active_request();
+    cancel_active_auto_marker_request();
     image_state_.clear();
     clear_seed_regions();
     const bool automatic_markers_were_cleared = automatic_marker_state_.clear();
@@ -542,6 +545,7 @@ void SegmentationViewModel::clear_seeds() {
         , "Clearing seed regions"
     );
     cancel_active_request();
+    cancel_active_auto_marker_request();
     clear_seed_regions();
     invalidate_result();
     clear_error();
@@ -564,6 +568,7 @@ void SegmentationViewModel::clear_automatic_markers() {
         , "Clearing automatic markers"
     );
     cancel_active_request();
+    cancel_active_auto_marker_request();
     automatic_marker_state_.clear();
     invalidate_result();
     clear_error();
@@ -576,6 +581,10 @@ void SegmentationViewModel::clear_automatic_markers() {
 void SegmentationViewModel::propose_markers() {
     assert_ui_thread();
 
+    if (busy_) {
+        return;
+    }
+
     if (!image_loaded()) {
         random_walker::application::log_warning(
             random_walker::application::log_category::viewmodel
@@ -585,49 +594,37 @@ void SegmentationViewModel::propose_markers() {
         return;
     }
 
-    random_walker::application::log_info(
-        random_walker::application::log_category::viewmodel
-        , "Automatic marker proposal requested"
+    const random_walker::application::AutoMarkerRequestId request_id =
+        next_auto_marker_request_id_++;
+    random_walker::application::AutoMarkerRequest request(
+        request_id
+        , image_state_.image()
+        , random_walker::domain::AutoMarkerParameters {}
+        , seed_state_.regions()
     );
-
-    const random_walker::application::AutoMarkerProposalOutcome outcome =
-        auto_marker_service_.propose(
-            image_state_.image()
-            , random_walker::domain::AutoMarkerParameters {}
-            , seed_state_.regions()
-        );
-    if (const auto* error =
-            std::get_if<random_walker::application::AutoMarkerError>(&outcome)
-    ) {
-        random_walker::application::log_warning(
-            random_walker::application::log_category::viewmodel
-            , std::string("Automatic marker proposal failed: error=")
-                + auto_marker_error_name(*error)
-        );
-        set_error(*error);
-        return;
-    }
-
-    const random_walker::domain::MarkerProposal& proposal =
-        std::get<random_walker::domain::MarkerProposal>(outcome);
-    const bool previous_can_run = can_run();
-    automatic_marker_state_.set(proposal.mask);
 
     random_walker::application::log_info(
         random_walker::application::log_category::viewmodel
-        , std::string("Automatic marker mask applied: seeds=")
-            + std::to_string(proposal.diagnostics.proposed_seed_count)
-            + ", mask="
-            + std::to_string(proposal.mask.width())
-            + "x"
-            + std::to_string(proposal.mask.height())
+        , std::string("Automatic marker proposal requested: request_id=")
+            + std::to_string(request_id)
     );
-    invalidate_result();
+
+    active_auto_marker_request_id_ = request_id;
+    set_busy(true);
     clear_error();
 
-    emit automatic_markers_changed();
-    emit seeds_changed();
-    notify_can_run_if_changed(previous_can_run);
+    const std::shared_ptr<CompletionDeliveryGate> delivery_gate =
+        completion_delivery_;
+    auto_marker_executor_.submit(
+        std::move(request)
+        , [delivery_gate](
+            random_walker::application::AutoMarkerCompletion completion) {
+            SegmentationViewModel::dispatch_auto_marker_completion(
+                delivery_gate
+                , std::move(completion)
+            );
+        }
+    );
 }
 
 void SegmentationViewModel::add_seed_rectangle(
@@ -659,6 +656,7 @@ void SegmentationViewModel::add_seed_rectangle(
     const DomainSeedLabel label = domain_seed_label();
 
     cancel_active_request();
+    cancel_active_auto_marker_request();
     const bool automatic_markers_were_cleared = automatic_marker_state_.clear();
     random_walker::application::log_debug(
         random_walker::application::log_category::viewmodel
@@ -684,7 +682,7 @@ void SegmentationViewModel::add_seed_rectangle(
 void SegmentationViewModel::run_segmentation() {
     assert_ui_thread();
 
-    if (!can_run()) {
+    if (busy_ || !can_run()) {
         return;
     }
     Q_ASSERT(image_loaded());
@@ -775,6 +773,7 @@ int SegmentationViewModel::background_constraint_count() const noexcept {
 int SegmentationViewModel::object_constraint_count() const noexcept {
     return object_seed_count() + automatic_marker_state_.object_count();
 }
+
 std::vector<random_walker::domain::SeedRegion>
 SegmentationViewModel::segmentation_seed_regions() const {
     std::vector<random_walker::domain::SeedRegion> regions =
@@ -900,6 +899,32 @@ void SegmentationViewModel::dispatch_completion(
     );
 }
 
+void SegmentationViewModel::dispatch_auto_marker_completion(
+    const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
+    , random_walker::application::AutoMarkerCompletion completion
+) {
+    Q_ASSERT(delivery_gate);
+
+    auto payload =
+        std::make_shared<random_walker::application::AutoMarkerCompletion>(
+            std::move(completion)
+        );
+
+    std::lock_guard lock(delivery_gate->mutex);
+    SegmentationViewModel* receiver = delivery_gate->receiver;
+    if (!receiver) {
+        return;
+    }
+
+    QMetaObject::invokeMethod(
+        receiver
+        , [receiver, payload] {
+            receiver->handle_auto_marker_completion(std::move(*payload));
+        }
+        , Qt::QueuedConnection
+    );
+}
+
 void SegmentationViewModel::dispatch_progress(
     const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
     , random_walker::domain::SegmentationProgress progress
@@ -1011,6 +1036,60 @@ void SegmentationViewModel::handle_completion(
     reset_progress();
 }
 
+void SegmentationViewModel::handle_auto_marker_completion(
+    random_walker::application::AutoMarkerCompletion completion
+) {
+    assert_ui_thread();
+
+    if (!active_auto_marker_request_id_.has_value()
+        || *active_auto_marker_request_id_ != completion.request_id) {
+        return;
+    }
+
+    random_walker::application::log_info(
+        random_walker::application::log_category::viewmodel
+        , std::string("Automatic marker completion received: request_id=")
+            + std::to_string(completion.request_id)
+    );
+    active_auto_marker_request_id_.reset();
+    set_busy(false);
+
+    if (const auto* error =
+            std::get_if<random_walker::application::AutoMarkerError>(
+                &completion.outcome
+            )
+    ) {
+        random_walker::application::log_warning(
+            random_walker::application::log_category::viewmodel
+            , std::string("Automatic marker proposal failed: error=")
+                + auto_marker_error_name(*error)
+        );
+        set_error(*error);
+        return;
+    }
+
+    const random_walker::domain::MarkerProposal& proposal =
+        std::get<random_walker::domain::MarkerProposal>(completion.outcome);
+    const bool previous_can_run = can_run();
+    automatic_marker_state_.set(proposal.mask);
+
+    random_walker::application::log_info(
+        random_walker::application::log_category::viewmodel
+        , std::string("Automatic marker mask applied: seeds=")
+            + std::to_string(proposal.diagnostics.proposed_seed_count)
+            + ", mask="
+            + std::to_string(proposal.mask.width())
+            + "x"
+            + std::to_string(proposal.mask.height())
+    );
+    invalidate_result();
+    clear_error();
+
+    emit automatic_markers_changed();
+    emit seeds_changed();
+    notify_can_run_if_changed(previous_can_run);
+}
+
 void SegmentationViewModel::handle_progress(
     random_walker::domain::SegmentationProgress progress) {
     assert_ui_thread();
@@ -1056,6 +1135,18 @@ void SegmentationViewModel::cancel_active_request() {
     active_request_id_.reset();
     set_busy(false);
     reset_progress();
+}
+
+void SegmentationViewModel::cancel_active_auto_marker_request() {
+    assert_ui_thread();
+
+    if (!active_auto_marker_request_id_.has_value()) {
+        return;
+    }
+
+    auto_marker_executor_.cancel();
+    active_auto_marker_request_id_.reset();
+    set_busy(false);
 }
 
 void SegmentationViewModel::reset_progress() {

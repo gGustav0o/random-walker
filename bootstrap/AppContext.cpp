@@ -29,7 +29,7 @@ AppContext::AppContext(QQmlApplicationEngine& engine)
     segmentation_view_model_ = std::make_unique<SegmentationViewModel>(
         segmentation_executor_
         , settings_service_
-        , auto_marker_service_
+        , auto_marker_executor_
         , *base_image_provider
         , *auto_marker_image_provider
         , *result_image_provider

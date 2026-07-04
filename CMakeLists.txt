@@ -48,7 +48,9 @@ qt_add_resources(qml_resources qml.qrc)
 set(HEADERS
     application/error/UserError.hpp
     application/diagnostics/Logging.hpp
+    application/markers/AutoMarkerExecutor.hpp
     application/markers/AutoMarkerService.hpp
+    application/markers/JThreadAutoMarkerExecutor.hpp
     application/settings/ApplicationSettings.hpp
     application/settings/SettingsRepository.hpp
     application/settings/SettingsService.hpp
@@ -104,6 +106,7 @@ set(SOURCES
     bootstrap/AppContext.cpp
     application/diagnostics/Logging.cpp
     application/markers/AutoMarkerService.cpp
+    application/markers/JThreadAutoMarkerExecutor.cpp
     application/settings/SettingsService.cpp
     infrastructure/settings/QtSettingsRepository.cpp
     infrastructure/logging/Logging.cpp
