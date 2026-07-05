@@ -47,11 +47,32 @@ Rectangle {
             }
 
             Button {
-                text: "Clear seeds"
-                enabled: (root.vm.background_seed_count > 0
-                          || root.vm.object_seed_count > 0)
-                         && !root.vm.busy
-                onClicked: root.vm.clear_seeds()
+                text: root.vm.busy ? "Running..." : "Run segmentation"
+                enabled: root.vm.can_run
+                onClicked: root.vm.run_segmentation()
+            }
+
+            Button {
+                text: root.settingsPanelOpen ? "Hide settings" : "Settings"
+                onClicked: root.settingsToggled()
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: root.vm.error_message
+                color: "#ff7777"
+                elide: Text.ElideRight
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 10
+
+            Label {
+                text: "Seeds"
+                color: "#ddd"
+                font.weight: Font.DemiBold
             }
 
             ComboBox {
@@ -65,26 +86,31 @@ Rectangle {
             }
 
             Button {
-                text: root.vm.busy ? "Running..." : "Run segmentation"
-                enabled: root.vm.can_run
-                onClicked: root.vm.run_segmentation()
+                text: "Clear seeds"
+                enabled: (root.vm.background_seed_count > 0
+                          || root.vm.object_seed_count > 0
+                          || root.vm.automatic_marker_count > 0)
+                         && !root.vm.busy
+                onClicked: root.vm.clear_seeds()
             }
 
             Button {
-                text: root.settingsPanelOpen ? "Hide settings" : "Settings"
-                onClicked: root.settingsToggled()
+                text: "Auto markers"
+                enabled: root.vm.image_loaded && !root.vm.busy
+                onClicked: root.vm.propose_markers()
             }
 
-            Label {
-                text: "Background: " + root.vm.background_seed_count
-                    + "  Object: " + root.vm.object_seed_count
-                color: "#ddd"
+            Button {
+                text: "Clear auto"
+                enabled: root.vm.has_automatic_markers && !root.vm.busy
+                onClicked: root.vm.clear_automatic_markers()
             }
 
             Label {
                 Layout.fillWidth: true
-                text: root.vm.error_message
-                color: "#ff7777"
+                text: "Background: " + root.vm.background_seed_count
+                    + "  Object: " + root.vm.object_seed_count
+                color: "#ddd"
                 elide: Text.ElideRight
             }
         }

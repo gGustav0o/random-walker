@@ -65,36 +65,7 @@ Rectangle {
                 spacing: 14
 
                 SettingsSection {
-                    title: "Markers"
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        Button {
-                            Layout.fillWidth: true
-                            text: "Auto markers"
-                            enabled: root.vm.image_loaded && !root.vm.busy
-                            onClicked: root.vm.propose_markers()
-                        }
-
-                        Button {
-                            Layout.fillWidth: true
-                            text: "Clear auto"
-                            enabled: root.vm.has_automatic_markers && !root.vm.busy
-                            onClicked: root.vm.clear_automatic_markers()
-                        }
-                    }
-                }
-                SettingsSection {
-                    id: randomWalkerSection
-                    title: "Random Walker"
-                    readonly property bool globalBetaWeightSelected:
-                        root.vm.edge_weight_model === 0
-                    readonly property bool localVarianceWeightSelected:
-                        root.vm.edge_weight_model === 1
-                    readonly property bool manualMinimumVarianceSelected:
-                        root.vm.local_contrast_minimum_variance_mode === 0
+                    title: "Graph"
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -116,98 +87,6 @@ Rectangle {
                                 root.vm.connectivity = index
                             }
                         }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
-
-                        Label {
-                            Layout.fillWidth: true
-                            text: "Weight"
-                            color: "#ddd"
-                            elide: Text.ElideRight
-                        }
-
-                        ComboBox {
-                            id: edgeWeightModelBox
-                            Layout.preferredWidth: 150
-                            enabled: !root.vm.busy
-                            model: ["Global beta", "Local variance"]
-                            currentIndex: root.vm.edge_weight_model
-                            onActivated: function(index) {
-                                root.vm.edge_weight_model = index
-                            }
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
-                        enabled: randomWalkerSection.globalBetaWeightSelected && !root.vm.busy
-                        opacity: randomWalkerSection.globalBetaWeightSelected ? 1.0 : 0.45
-
-                        Label {
-                            Layout.fillWidth: true
-                            text: "Beta"
-                            color: "#ddd"
-                            elide: Text.ElideRight
-                        }
-
-                        TextField {
-                            id: betaField
-                            Layout.preferredWidth: 108
-                            enabled: parent.enabled
-                            horizontalAlignment: Text.AlignRight
-                            selectByMouse: true
-                            validator: DoubleValidator {
-                                bottom: 0.000001
-                                top: 0.1
-                                notation: DoubleValidator.ScientificNotation
-                                locale: Qt.locale().name
-                            }
-
-                            function syncFromViewModel() {
-                                if (!activeFocus)
-                                    forceSyncFromViewModel()
-                            }
-
-                            function forceSyncFromViewModel() {
-                                text = Number(root.vm.beta).toLocaleString(
-                                    Qt.locale(),
-                                    "g",
-                                    6)
-                            }
-
-                            Component.onCompleted: forceSyncFromViewModel()
-
-                            onEditingFinished: {
-                                if (acceptableInput) {
-                                    root.vm.beta = Number.fromLocaleString(
-                                        Qt.locale(),
-                                        text)
-                                }
-                                forceSyncFromViewModel()
-                            }
-
-                            Connections {
-                                target: root.vm
-                                function onBetaChanged() {
-                                    betaField.syncFromViewModel()
-                                }
-                            }
-                        }
-                    }
-
-                    Slider {
-                        id: betaSlider
-                        Layout.fillWidth: true
-                        from: 0
-                        to: 1
-                        enabled: randomWalkerSection.globalBetaWeightSelected && !root.vm.busy
-                        opacity: randomWalkerSection.globalBetaWeightSelected ? 1.0 : 0.45
-                        value: root.vm.beta_slider_position
-                        onMoved: root.vm.beta_slider_position = value
                     }
 
                     RowLayout {
@@ -276,12 +155,122 @@ Rectangle {
                         value: root.vm.distance_power
                         onMoved: root.vm.distance_power = value
                     }
+                }
+
+                SettingsSection {
+                    id: edgeWeightSection
+                    title: "Edge Weight"
+                    readonly property bool globalBetaWeightSelected:
+                        root.vm.edge_weight_model === 0
+                    readonly property bool localVarianceWeightSelected:
+                        root.vm.edge_weight_model === 1
 
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10
-                        enabled: root.vm.edge_weight_model === 1 && !root.vm.busy
-                        opacity: root.vm.edge_weight_model === 1 ? 1.0 : 0.45
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: "Weight"
+                            color: "#ddd"
+                            elide: Text.ElideRight
+                        }
+
+                        ComboBox {
+                            id: edgeWeightModelBox
+                            Layout.preferredWidth: 150
+                            enabled: !root.vm.busy
+                            model: ["Global beta", "Local variance"]
+                            currentIndex: root.vm.edge_weight_model
+                            onActivated: function(index) {
+                                root.vm.edge_weight_model = index
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        enabled: edgeWeightSection.globalBetaWeightSelected && !root.vm.busy
+                        opacity: edgeWeightSection.globalBetaWeightSelected ? 1.0 : 0.45
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: "Beta"
+                            color: "#ddd"
+                            elide: Text.ElideRight
+                        }
+
+                        TextField {
+                            id: betaField
+                            Layout.preferredWidth: 108
+                            enabled: parent.enabled
+                            horizontalAlignment: Text.AlignRight
+                            selectByMouse: true
+                            validator: DoubleValidator {
+                                bottom: 0.000001
+                                top: 0.1
+                                notation: DoubleValidator.ScientificNotation
+                                locale: Qt.locale().name
+                            }
+
+                            function syncFromViewModel() {
+                                if (!activeFocus)
+                                    forceSyncFromViewModel()
+                            }
+
+                            function forceSyncFromViewModel() {
+                                text = Number(root.vm.beta).toLocaleString(
+                                    Qt.locale(),
+                                    "g",
+                                    6)
+                            }
+
+                            Component.onCompleted: forceSyncFromViewModel()
+
+                            onEditingFinished: {
+                                if (acceptableInput) {
+                                    root.vm.beta = Number.fromLocaleString(
+                                        Qt.locale(),
+                                        text)
+                                }
+                                forceSyncFromViewModel()
+                            }
+
+                            Connections {
+                                target: root.vm
+                                function onBetaChanged() {
+                                    betaField.syncFromViewModel()
+                                }
+                            }
+                        }
+                    }
+
+                    Slider {
+                        id: betaSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 1
+                        enabled: edgeWeightSection.globalBetaWeightSelected && !root.vm.busy
+                        opacity: edgeWeightSection.globalBetaWeightSelected ? 1.0 : 0.45
+                        value: root.vm.beta_slider_position
+                        onMoved: root.vm.beta_slider_position = value
+                    }
+                }
+
+                SettingsSection {
+                    id: localVarianceSection
+                    title: "Local Variance"
+                    readonly property bool selected:
+                        root.vm.edge_weight_model === 1
+                    readonly property bool manualFloorSelected:
+                        root.vm.local_contrast_minimum_variance_mode === 0
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        enabled: localVarianceSection.selected && !root.vm.busy
+                        opacity: localVarianceSection.selected ? 1.0 : 0.45
 
                         Label {
                             Layout.fillWidth: true
@@ -304,8 +293,8 @@ Rectangle {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10
-                        enabled: randomWalkerSection.localVarianceWeightSelected && !root.vm.busy
-                        opacity: randomWalkerSection.localVarianceWeightSelected ? 1.0 : 0.45
+                        enabled: localVarianceSection.selected && !root.vm.busy
+                        opacity: localVarianceSection.selected ? 1.0 : 0.45
 
                         Label {
                             Layout.fillWidth: true
@@ -327,11 +316,11 @@ Rectangle {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10
-                        enabled: randomWalkerSection.localVarianceWeightSelected
-                            && randomWalkerSection.manualMinimumVarianceSelected
+                        enabled: localVarianceSection.selected
+                            && localVarianceSection.manualFloorSelected
                             && !root.vm.busy
-                        opacity: randomWalkerSection.localVarianceWeightSelected
-                            && randomWalkerSection.manualMinimumVarianceSelected
+                        opacity: localVarianceSection.selected
+                            && localVarianceSection.manualFloorSelected
                             ? 1.0 : 0.45
 
                         Label {
@@ -387,11 +376,11 @@ Rectangle {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10
-                        enabled: randomWalkerSection.localVarianceWeightSelected
-                            && !randomWalkerSection.manualMinimumVarianceSelected
+                        enabled: localVarianceSection.selected
+                            && !localVarianceSection.manualFloorSelected
                             && !root.vm.busy
-                        opacity: randomWalkerSection.localVarianceWeightSelected
-                            && !randomWalkerSection.manualMinimumVarianceSelected
+                        opacity: localVarianceSection.selected
+                            && !localVarianceSection.manualFloorSelected
                             ? 1.0 : 0.45
 
                         Label {
