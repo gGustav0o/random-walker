@@ -3,6 +3,8 @@
         <file>view/panels/ControlPanel.qml</file>
         <file>view/panels/SettingsPanel.qml</file>
         <file>view/panels/SettingsSection.qml</file>
+        <file>view/windows/AboutWindow.qml</file>
+        <file>view/windows/qmldir</file>
         <file>view/views/MainView.qml</file>
         <file>view/views/BaseImageView.qml</file>
         <file>view/views/AutoMarkerOverlay.qml</file>

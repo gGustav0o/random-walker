@@ -11,6 +11,7 @@ Rectangle {
     property bool settingsPanelOpen: false
 
     signal settingsToggled()
+    signal aboutRequested()
 
     FileDialog {
         id: openImageDialog
@@ -55,6 +56,11 @@ Rectangle {
             Button {
                 text: root.settingsPanelOpen ? "Hide settings" : "Settings"
                 onClicked: root.settingsToggled()
+            }
+
+            Button {
+                text: "About"
+                onClicked: root.aboutRequested()
             }
 
             Label {

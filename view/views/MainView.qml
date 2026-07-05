@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 
 import "qrc:/qt/qml/random-walker/view/panels" as Panels
+import "qrc:/qt/qml/random-walker/view/windows" as Windows
 
 ApplicationWindow {
     id: root
@@ -14,6 +15,10 @@ ApplicationWindow {
 
     property bool settingsPanelOpen: false
 
+    Windows.AboutWindow {
+        id: aboutWindow
+    }
+
     Panels.ControlPanel {
         id: controlPanel
         anchors.top: parent.top
@@ -22,6 +27,7 @@ ApplicationWindow {
         height: 96
         settingsPanelOpen: root.settingsPanelOpen
         onSettingsToggled: root.settingsPanelOpen = !root.settingsPanelOpen
+        onAboutRequested: aboutWindow.open()
     }
 
     RowLayout {
