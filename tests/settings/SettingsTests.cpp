@@ -506,6 +506,7 @@ void SettingsTests::migrates_schema_three_with_default_edge_weight_settings() {
     );
     QVERIFY(load_result.repair_required);
 }
+
 void SettingsTests::migrates_schema_four_with_default_minimum_variance_mode() {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
@@ -558,6 +559,7 @@ void SettingsTests::migrates_schema_four_with_default_minimum_variance_mode() {
     );
     QVERIFY(load_result.repair_required);
 }
+
 void SettingsTests::rejects_invalid_settings_on_save() {
     InMemorySettingsRepository repository;
     random_walker::application::SettingsService service(repository);

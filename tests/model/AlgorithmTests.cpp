@@ -610,6 +610,7 @@ void AlgorithmTests::large_thresholding_honors_cancellation() {
     QVERIFY(is_cancelled(outcome));
 }
 
+
 void AlgorithmTests::global_beta_edge_weight_parameters_validate_domain_bounds() {
     QVERIFY(graph::is_valid(graph::GlobalBetaEdgeWeightParameters {
         .beta = domain::kMinimumRandomWalkerBeta

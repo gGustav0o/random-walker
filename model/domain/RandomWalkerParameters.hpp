@@ -21,6 +21,7 @@ namespace random_walker::domain {
     inline constexpr double kMaximumLocalContrastAutoQuantile = 0.50;
     inline constexpr double kDefaultLocalContrastAutoQuantile = 0.10;
 
+
     enum class PixelConnectivity {
         Four
         , Eight
@@ -40,6 +41,7 @@ namespace random_walker::domain {
         PixelConnectivity::Four;
     inline constexpr EdgeWeightModel kDefaultEdgeWeightModel =
         EdgeWeightModel::GlobalBeta;
+
 
     [[nodiscard]] constexpr bool is_valid(
         PixelConnectivity connectivity
@@ -79,6 +81,7 @@ namespace random_walker::domain {
 
     inline constexpr MinimumVarianceMode kDefaultMinimumVarianceMode =
         MinimumVarianceMode::Manual;
+
 
     struct LocalContrastScaleParameters {
         int radius = kDefaultLocalContrastRadius;

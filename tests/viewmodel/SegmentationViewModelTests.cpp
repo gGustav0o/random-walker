@@ -315,6 +315,7 @@ void SegmentationViewModelTests::set_beta_saves_settings_and_emits_change() {
     QCOMPARE(beta_changed.count(), 1);
 }
 
+
 void SegmentationViewModelTests::set_connectivity_saves_settings_and_emits_change() {
     ViewModelFixture fixture;
     QSignalSpy connectivity_changed(

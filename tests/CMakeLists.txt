@@ -88,6 +88,14 @@ add_random_walker_test(application_diagnostics_tests
         ${PROJECT_SOURCE_DIR}/application/diagnostics/Logging.cpp
 )
 
+add_random_walker_test(application_segmentation_use_case_tests
+    SOURCES
+        application/SegmentationUseCaseTests.cpp
+        ${PROJECT_SOURCE_DIR}/application/segmentation/SegmentationUseCase.cpp
+    LIBRARIES
+        Eigen3::Eigen
+)
+
 add_random_walker_test(infrastructure_logging_tests
     SOURCES
         infrastructure/LoggingTests.cpp
@@ -104,12 +112,14 @@ add_random_walker_test(presentation_auto_marker_mask_renderer_tests
     LIBRARIES
         Qt6::Gui
 )
+
 add_random_walker_test(viewmodel_tests
     SOURCES
         viewmodel/SegmentationViewModelTests.cpp
         ${PROJECT_SOURCE_DIR}/application/diagnostics/Logging.cpp
         ${PROJECT_SOURCE_DIR}/application/markers/AutoMarkerService.cpp
         ${PROJECT_SOURCE_DIR}/application/settings/SettingsService.cpp
+        ${PROJECT_SOURCE_DIR}/application/segmentation/SegmentationUseCase.cpp
         ${PROJECT_SOURCE_DIR}/presentation/adapter/AutoMarkerMaskRenderer.cpp
         ${PROJECT_SOURCE_DIR}/presentation/adapter/MaskRenderer.cpp
         ${PROJECT_SOURCE_DIR}/presentation/error/ErrorPresenter.cpp

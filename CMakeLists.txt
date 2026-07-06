@@ -54,6 +54,7 @@ set(HEADERS
     application/settings/ApplicationSettings.hpp
     application/settings/SettingsRepository.hpp
     application/settings/SettingsService.hpp
+    application/segmentation/SegmentationUseCase.hpp
     bootstrap/AppContext.hpp
     infrastructure/settings/QtSettingsRepository.hpp
     infrastructure/logging/Logging.hpp
@@ -108,6 +109,7 @@ set(SOURCES
     application/markers/AutoMarkerService.cpp
     application/markers/JThreadAutoMarkerExecutor.cpp
     application/settings/SettingsService.cpp
+    application/segmentation/SegmentationUseCase.cpp
     infrastructure/settings/QtSettingsRepository.cpp
     infrastructure/logging/Logging.cpp
     # model

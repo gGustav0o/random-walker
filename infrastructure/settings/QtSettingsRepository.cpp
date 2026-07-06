@@ -193,6 +193,7 @@ namespace {
 
         return *mode;
     }
+
     [[nodiscard]] random_walker::domain::EdgeWeightModel stored_edge_weight_model(
         const QSettings& settings
         , const char* key

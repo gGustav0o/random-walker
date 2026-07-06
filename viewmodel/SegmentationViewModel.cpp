@@ -17,6 +17,7 @@
 #include <QtGlobal>
 
 #include "application/diagnostics/Logging.hpp"
+#include "application/segmentation/SegmentationUseCase.hpp"
 #include "presentation/image/ImageLoader.hpp"
 
 namespace {
@@ -58,7 +59,6 @@ namespace {
         return random_walker::application::ApplicationError::
             UnexpectedInternalFailure;
     }
-
 
     [[nodiscard]] int view_connectivity(
         random_walker::domain::PixelConnectivity connectivity
@@ -292,6 +292,7 @@ double SegmentationViewModel::beta() const noexcept {
     return application_settings_.random_walker.beta;
 }
 
+
 int SegmentationViewModel::connectivity() const noexcept {
     return view_connectivity(application_settings_.random_walker.connectivity);
 }
@@ -414,6 +415,7 @@ void SegmentationViewModel::set_beta(double value) {
     update_random_walker_parameters(updated_parameters);
 }
 
+
 void SegmentationViewModel::set_beta_slider_position(double position) {
     assert_ui_thread();
 
@@ -481,6 +483,7 @@ void SegmentationViewModel::set_local_contrast_minimum_variance(double value) {
     updated_parameters.local_contrast_scale.minimum_variance = value;
     update_random_walker_parameters(updated_parameters);
 }
+
 void SegmentationViewModel::set_local_contrast_minimum_variance_mode(int mode) {
     assert_ui_thread();
 
@@ -622,7 +625,6 @@ void SegmentationViewModel::clear_seeds() {
     emit seeds_changed();
     notify_can_run_if_changed(previous_can_run);
 }
-
 
 void SegmentationViewModel::clear_automatic_markers() {
     assert_ui_thread();
@@ -778,12 +780,13 @@ void SegmentationViewModel::run_segmentation() {
         );
     Q_ASSERT(background_constraints > 0);
     Q_ASSERT(object_constraints > 0);
-    random_walker::domain::SegmentationRequest request(
-        request_id
-        , image_state_.image()
-        , std::move(seed_regions)
-        , application_settings_.random_walker
-    );
+    random_walker::domain::SegmentationRequest request =
+        random_walker::application::make_segmentation_request(
+            request_id
+            , image_state_.image()
+            , std::move(seed_regions)
+            , application_settings_
+        );
     const bool automatic_markers_were_cleared = automatic_marker_state_.clear();
 
     random_walker::application::log_info(
@@ -1203,7 +1206,6 @@ void SegmentationViewModel::clear_seed_regions() {
         seed_state_.clear();
     });
 }
-
 
 void SegmentationViewModel::add_seed_region(
     random_walker::domain::SeedRegion region) {

@@ -66,6 +66,7 @@ public:
     };
     Q_ENUM(SeedLabel)
 
+
     enum GraphConnectivity {
         FourConnectivity = 0
         , EightConnectivity = 1

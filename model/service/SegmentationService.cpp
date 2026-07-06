@@ -188,6 +188,7 @@ namespace random_walker::service {
             , seeds
         };
 
+
         return algorithm::run_random_walker(
             input
             , request.parameters()

@@ -188,11 +188,14 @@ Rectangle {
                         }
                     }
 
+
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10
-                        enabled: edgeWeightSection.globalBetaWeightSelected && !root.vm.busy
-                        opacity: edgeWeightSection.globalBetaWeightSelected ? 1.0 : 0.45
+                        enabled: edgeWeightSection.globalBetaWeightSelected
+                            && !root.vm.busy
+                        opacity: edgeWeightSection.globalBetaWeightSelected
+                            ? 1.0 : 0.45
 
                         Label {
                             Layout.fillWidth: true
@@ -251,8 +254,10 @@ Rectangle {
                         Layout.fillWidth: true
                         from: 0
                         to: 1
-                        enabled: edgeWeightSection.globalBetaWeightSelected && !root.vm.busy
-                        opacity: edgeWeightSection.globalBetaWeightSelected ? 1.0 : 0.45
+                        enabled: edgeWeightSection.globalBetaWeightSelected
+                            && !root.vm.busy
+                        opacity: edgeWeightSection.globalBetaWeightSelected
+                            ? 1.0 : 0.45
                         value: root.vm.beta_slider_position
                         onMoved: root.vm.beta_slider_position = value
                     }

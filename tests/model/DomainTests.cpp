@@ -74,6 +74,7 @@ void DomainTests::default_random_walker_parameters_are_valid() {
     );
 }
 
+
 void DomainTests::random_walker_beta_accepts_closed_valid_range() {
     QVERIFY(domain::is_valid(domain::RandomWalkerParameters {
         .beta = domain::kMinimumRandomWalkerBeta
@@ -368,6 +369,7 @@ void DomainTests::marker_label_mask_converts_to_automatic_seed_regions() {
         , static_cast<int>(domain::SeedSource::Automatic)
     );
 }
+
 void DomainTests::gray_image_reports_empty_default_state() {
     const domain::GrayImage image;
 
