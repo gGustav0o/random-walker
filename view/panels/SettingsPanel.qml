@@ -164,6 +164,8 @@ Rectangle {
                         root.vm.edge_weight_model === 0
                     readonly property bool localVarianceWeightSelected:
                         root.vm.edge_weight_model === 1
+                    readonly property bool edgeLocalContrastWeightSelected:
+                        root.vm.edge_weight_model === 2
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -178,9 +180,9 @@ Rectangle {
 
                         ComboBox {
                             id: edgeWeightModelBox
-                            Layout.preferredWidth: 150
+                            Layout.preferredWidth: 180
                             enabled: !root.vm.busy
-                            model: ["Global beta", "Local variance"]
+                            model: ["Global beta", "Local variance", "Edge-local contrast"]
                             currentIndex: root.vm.edge_weight_model
                             onActivated: function(index) {
                                 root.vm.edge_weight_model = index
@@ -432,6 +434,148 @@ Rectangle {
                                 target: root.vm
                                 function onLocal_contrast_changed() {
                                     localContrastAutoQuantileField
+                                        .syncFromViewModel()
+                                }
+                            }
+                        }
+                    }
+                }
+                SettingsSection {
+                    id: edgeLocalContrastSection
+                    title: "Edge-Local Contrast"
+                    readonly property bool selected:
+                        root.vm.edge_weight_model === 2
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        enabled: edgeLocalContrastSection.selected && !root.vm.busy
+                        opacity: edgeLocalContrastSection.selected ? 1.0 : 0.45
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: "Window radius"
+                            color: "#ddd"
+                            elide: Text.ElideRight
+                        }
+
+                        SpinBox {
+                            id: edgeLocalContrastRadiusBox
+                            Layout.preferredWidth: 108
+                            from: 1
+                            to: 16
+                            value: root.vm.edge_local_contrast_radius
+                            editable: true
+                            onValueModified: root.vm.edge_local_contrast_radius = value
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        enabled: edgeLocalContrastSection.selected && !root.vm.busy
+                        opacity: edgeLocalContrastSection.selected ? 1.0 : 0.45
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: "Quantile"
+                            color: "#ddd"
+                            elide: Text.ElideRight
+                        }
+
+                        TextField {
+                            id: edgeLocalContrastQuantileField
+                            Layout.preferredWidth: 108
+                            horizontalAlignment: Text.AlignRight
+                            selectByMouse: true
+                            validator: DoubleValidator {
+                                bottom: 0.25
+                                top: 0.50
+                                notation: DoubleValidator.StandardNotation
+                                locale: Qt.locale().name
+                            }
+
+                            function syncFromViewModel() {
+                                if (!activeFocus)
+                                    forceSyncFromViewModel()
+                            }
+
+                            function forceSyncFromViewModel() {
+                                text = Number(
+                                    root.vm.edge_local_contrast_quantile
+                                ).toLocaleString(Qt.locale(), "f", 2)
+                            }
+
+                            Component.onCompleted: forceSyncFromViewModel()
+
+                            onEditingFinished: {
+                                if (acceptableInput) {
+                                    root.vm.edge_local_contrast_quantile =
+                                        Number.fromLocaleString(Qt.locale(), text)
+                                }
+                                forceSyncFromViewModel()
+                            }
+
+                            Connections {
+                                target: root.vm
+                                function onEdge_local_contrast_changed() {
+                                    edgeLocalContrastQuantileField
+                                        .syncFromViewModel()
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        enabled: edgeLocalContrastSection.selected && !root.vm.busy
+                        opacity: edgeLocalContrastSection.selected ? 1.0 : 0.45
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: "Min scale"
+                            color: "#ddd"
+                            elide: Text.ElideRight
+                        }
+
+                        TextField {
+                            id: edgeLocalContrastMinimumScaleField
+                            Layout.preferredWidth: 108
+                            horizontalAlignment: Text.AlignRight
+                            selectByMouse: true
+                            validator: DoubleValidator {
+                                bottom: 0.000001
+                                top: 255
+                                notation: DoubleValidator.StandardNotation
+                                locale: Qt.locale().name
+                            }
+
+                            function syncFromViewModel() {
+                                if (!activeFocus)
+                                    forceSyncFromViewModel()
+                            }
+
+                            function forceSyncFromViewModel() {
+                                text = Number(
+                                    root.vm.edge_local_contrast_minimum_scale
+                                ).toLocaleString(Qt.locale(), "g", 6)
+                            }
+
+                            Component.onCompleted: forceSyncFromViewModel()
+
+                            onEditingFinished: {
+                                if (acceptableInput) {
+                                    root.vm.edge_local_contrast_minimum_scale =
+                                        Number.fromLocaleString(Qt.locale(), text)
+                                }
+                                forceSyncFromViewModel()
+                            }
+
+                            Connections {
+                                target: root.vm
+                                function onEdge_local_contrast_changed() {
+                                    edgeLocalContrastMinimumScaleField
                                         .syncFromViewModel()
                                 }
                             }

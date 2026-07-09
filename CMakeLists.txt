@@ -77,8 +77,11 @@ set(HEADERS
     model/algorithm/SeedExpansion.hpp
     model/executor/SegmentationExecutor.hpp
     model/executor/JThreadSegmentationExecutor.hpp
+    model/graph/EdgeLocalNeighborhood.hpp
+    model/graph/EdgeLocalContrastScale.hpp
     model/graph/EdgeWeight.hpp
     model/graph/LocalContrastScale.hpp
+    model/graph/GridGeometry.hpp
     model/graph/GridLaplacian.hpp
     model/markers/GmmIntensity.hpp
     model/markers/GmmMarkerProposal.hpp

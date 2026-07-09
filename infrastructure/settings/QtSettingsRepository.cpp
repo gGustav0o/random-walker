@@ -9,7 +9,7 @@
 
 namespace {
 
-    constexpr int kCurrentSchemaVersion = 5;
+    constexpr int kCurrentSchemaVersion = 6;
 
     constexpr auto kSettingsGroup = "applicationSettings";
     constexpr auto kSchemaVersionKey = "schemaVersion";
@@ -25,6 +25,12 @@ namespace {
         "randomWalker/localContrast/minimumVarianceMode";
     constexpr auto kRandomWalkerLocalContrastAutoQuantileKey =
         "randomWalker/localContrast/autoMinimumVarianceQuantile";
+    constexpr auto kRandomWalkerEdgeLocalContrastRadiusKey =
+        "randomWalker/edgeLocalContrast/radius";
+    constexpr auto kRandomWalkerEdgeLocalContrastQuantileKey =
+        "randomWalker/edgeLocalContrast/quantile";
+    constexpr auto kRandomWalkerEdgeLocalContrastMinimumScaleKey =
+        "randomWalker/edgeLocalContrast/minimumScale";
     constexpr auto kLegacyBetaKey = "beta";
 
     [[nodiscard]] double stored_double(
@@ -121,6 +127,9 @@ namespace {
         if (value == QStringLiteral("localVarianceNormalized")) {
             return random_walker::domain::EdgeWeightModel::LocalVarianceNormalized;
         }
+        if (value == QStringLiteral("edgeLocalContrastNormalized")) {
+            return random_walker::domain::EdgeWeightModel::EdgeLocalContrastNormalized;
+        }
 
         return std::nullopt;
     }
@@ -133,6 +142,8 @@ namespace {
             return QStringLiteral("globalBeta");
         case random_walker::domain::EdgeWeightModel::LocalVarianceNormalized:
             return QStringLiteral("localVarianceNormalized");
+        case random_walker::domain::EdgeWeightModel::EdgeLocalContrastNormalized:
+            return QStringLiteral("edgeLocalContrastNormalized");
         }
 
         Q_ASSERT_X(
@@ -323,6 +334,19 @@ namespace random_walker::infrastructure {
                 settings_
                 , kRandomWalkerLocalContrastAutoQuantileKey
             );
+        result.random_walker.edge_local_contrast_scale.radius = stored_int(
+            settings_
+            , kRandomWalkerEdgeLocalContrastRadiusKey
+        );
+        result.random_walker.edge_local_contrast_scale.quantile = stored_double(
+            settings_
+            , kRandomWalkerEdgeLocalContrastQuantileKey
+        );
+        result.random_walker.edge_local_contrast_scale.minimum_scale =
+            stored_double(
+                settings_
+                , kRandomWalkerEdgeLocalContrastMinimumScaleKey
+            );
         return result;
     }
 
@@ -384,6 +408,41 @@ namespace random_walker::infrastructure {
                     , kRandomWalkerLocalContrastMinimumVarianceKey
                 );
             return result;
+        case 5:
+            result.random_walker.beta =
+                stored_double(settings_, kRandomWalkerBetaKey);
+            result.random_walker.connectivity = stored_connectivity(
+                settings_
+                , kRandomWalkerConnectivityKey
+            );
+            result.random_walker.distance_power = stored_double(
+                settings_
+                , kRandomWalkerDistancePowerKey
+            );
+            result.random_walker.edge_weight_model = stored_edge_weight_model(
+                settings_
+                , kRandomWalkerEdgeWeightModelKey
+            );
+            result.random_walker.local_contrast_scale.radius = stored_int(
+                settings_
+                , kRandomWalkerLocalContrastRadiusKey
+            );
+            result.random_walker.local_contrast_scale.minimum_variance =
+                stored_double(
+                    settings_
+                    , kRandomWalkerLocalContrastMinimumVarianceKey
+                );
+            result.random_walker.local_contrast_scale.minimum_variance_mode =
+                stored_minimum_variance_mode(
+                    settings_
+                    , kRandomWalkerLocalContrastMinimumVarianceModeKey
+                );
+            result.random_walker.local_contrast_scale
+                .auto_minimum_variance_quantile = stored_double(
+                    settings_
+                    , kRandomWalkerLocalContrastAutoQuantileKey
+                );
+            return result;
         default:
             qWarning()
                 << "Unsupported legacy settings schema version"
@@ -440,6 +499,24 @@ namespace random_walker::infrastructure {
             , application_settings.random_walker
                 .local_contrast_scale
                 .auto_minimum_variance_quantile
+        );
+        settings_.setValue(
+            kRandomWalkerEdgeLocalContrastRadiusKey
+            , application_settings.random_walker
+                .edge_local_contrast_scale
+                .radius
+        );
+        settings_.setValue(
+            kRandomWalkerEdgeLocalContrastQuantileKey
+            , application_settings.random_walker
+                .edge_local_contrast_scale
+                .quantile
+        );
+        settings_.setValue(
+            kRandomWalkerEdgeLocalContrastMinimumScaleKey
+            , application_settings.random_walker
+                .edge_local_contrast_scale
+                .minimum_scale
         );
         settings_.setValue(kSchemaVersionKey, kCurrentSchemaVersion);
     }

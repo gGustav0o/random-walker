@@ -55,6 +55,9 @@ class SegmentationViewModel final : public QObject {
     Q_PROPERTY(double  local_contrast_minimum_variance READ local_contrast_minimum_variance WRITE set_local_contrast_minimum_variance NOTIFY local_contrast_changed)
     Q_PROPERTY(int     local_contrast_minimum_variance_mode READ local_contrast_minimum_variance_mode WRITE set_local_contrast_minimum_variance_mode NOTIFY local_contrast_changed)
     Q_PROPERTY(double  local_contrast_auto_quantile READ local_contrast_auto_quantile WRITE set_local_contrast_auto_quantile NOTIFY local_contrast_changed)
+    Q_PROPERTY(int     edge_local_contrast_radius READ edge_local_contrast_radius WRITE set_edge_local_contrast_radius NOTIFY edge_local_contrast_changed)
+    Q_PROPERTY(double  edge_local_contrast_quantile READ edge_local_contrast_quantile WRITE set_edge_local_contrast_quantile NOTIFY edge_local_contrast_changed)
+    Q_PROPERTY(double  edge_local_contrast_minimum_scale READ edge_local_contrast_minimum_scale WRITE set_edge_local_contrast_minimum_scale NOTIFY edge_local_contrast_changed)
     Q_PROPERTY(int     selected_label         READ selected_label       WRITE set_selected_label       NOTIFY selected_label_changed)
 
     Q_PROPERTY(QAbstractItemModel* seed_model READ seed_model CONSTANT)
@@ -76,6 +79,7 @@ public:
     enum EdgeWeightModel {
         GlobalBetaWeight = 0
         , LocalVarianceNormalizedWeight = 1
+        , EdgeLocalContrastNormalizedWeight = 2
     };
     Q_ENUM(EdgeWeightModel)
 
@@ -84,6 +88,7 @@ public:
         , AutoMinimumVariance = 1
     };
     Q_ENUM(MinimumVarianceMode)
+
     enum ProgressStage {
         Idle                         = ProgressState::Idle
         , ValidatingInput            = ProgressState::ValidatingInput
@@ -129,6 +134,9 @@ public:
     [[nodiscard]] double local_contrast_minimum_variance() const noexcept;
     [[nodiscard]] int local_contrast_minimum_variance_mode() const noexcept;
     [[nodiscard]] double local_contrast_auto_quantile() const noexcept;
+    [[nodiscard]] int edge_local_contrast_radius() const noexcept;
+    [[nodiscard]] double edge_local_contrast_quantile() const noexcept;
+    [[nodiscard]] double edge_local_contrast_minimum_scale() const noexcept;
     [[nodiscard]] bool has_result() const noexcept;
     [[nodiscard]] QString result_source() const;
     [[nodiscard]] quint64 result_version() const noexcept;
@@ -151,6 +159,9 @@ public:
     void set_local_contrast_minimum_variance(double value);
     void set_local_contrast_minimum_variance_mode(int mode);
     void set_local_contrast_auto_quantile(double value);
+    void set_edge_local_contrast_radius(int radius);
+    void set_edge_local_contrast_quantile(double value);
+    void set_edge_local_contrast_minimum_scale(double value);
 
     Q_INVOKABLE void open_image(const QString& path);
     Q_INVOKABLE void clear();
@@ -173,6 +184,7 @@ signals:
     void distance_power_changed();
     void edge_weight_model_changed();
     void local_contrast_changed();
+    void edge_local_contrast_changed();
     void result_changed();
     void automatic_markers_changed();
     void selected_label_changed();

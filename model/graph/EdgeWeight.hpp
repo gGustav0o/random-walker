@@ -1,6 +1,7 @@
 #pragma once
 
 #include "model/domain/RandomWalkerParameters.hpp"
+#include "model/graph/EdgeLocalContrastScale.hpp"
 #include "model/graph/LocalContrastScale.hpp"
 
 #include <cassert>
@@ -30,6 +31,11 @@ namespace random_walker::graph {
         bool operator==(const LocalVarianceNormalizedEdgeWeightParameters&) const = default;
     };
 
+    struct EdgeLocalContrastNormalizedEdgeWeightParameters {
+        double distance_power = domain::kDefaultRandomWalkerDistancePower;
+        bool operator==(const EdgeLocalContrastNormalizedEdgeWeightParameters&) const = default;
+    };
+
     [[nodiscard]] inline bool is_valid(
         const EdgeWeightInput& input
     ) noexcept {
@@ -41,23 +47,33 @@ namespace random_walker::graph {
             && input.distance >= 1.0;
     }
 
+    [[nodiscard]] inline bool is_valid_distance_power(
+        double distance_power
+    ) noexcept {
+        return std::isfinite(distance_power)
+            && distance_power >= domain::kMinimumRandomWalkerDistancePower
+            && distance_power <= domain::kMaximumRandomWalkerDistancePower;
+    }
+
     [[nodiscard]] inline bool is_valid(
         const GlobalBetaEdgeWeightParameters& parameters
     ) noexcept {
         return std::isfinite(parameters.beta)
             && parameters.beta >= domain::kMinimumRandomWalkerBeta
             && parameters.beta <= domain::kMaximumRandomWalkerBeta
-            && std::isfinite(parameters.distance_power)
-            && parameters.distance_power >= domain::kMinimumRandomWalkerDistancePower
-            && parameters.distance_power <= domain::kMaximumRandomWalkerDistancePower;
+            && is_valid_distance_power(parameters.distance_power);
     }
 
     [[nodiscard]] inline bool is_valid(
         const LocalVarianceNormalizedEdgeWeightParameters& parameters
     ) noexcept {
-        return std::isfinite(parameters.distance_power)
-            && parameters.distance_power >= domain::kMinimumRandomWalkerDistancePower
-            && parameters.distance_power <= domain::kMaximumRandomWalkerDistancePower;
+        return is_valid_distance_power(parameters.distance_power);
+    }
+
+    [[nodiscard]] inline bool is_valid(
+        const EdgeLocalContrastNormalizedEdgeWeightParameters& parameters
+    ) noexcept {
+        return is_valid_distance_power(parameters.distance_power);
     }
 
     [[nodiscard]] inline GlobalBetaEdgeWeightParameters
@@ -84,6 +100,18 @@ namespace random_walker::graph {
         };
     }
 
+    [[nodiscard]] inline EdgeLocalContrastNormalizedEdgeWeightParameters
+    edge_local_contrast_normalized_edge_weight_parameters_from(
+        const domain::RandomWalkerParameters& parameters
+    ) noexcept {
+        assert(domain::is_valid(parameters));
+        assert(parameters.edge_weight_model
+            == domain::EdgeWeightModel::EdgeLocalContrastNormalized);
+        return {
+            .distance_power = parameters.distance_power
+        };
+    }
+
     template<typename Function>
     concept EdgeWeightFunction = requires(
         const Function& function
@@ -98,9 +126,7 @@ namespace random_walker::graph {
     ) noexcept {
         assert(std::isfinite(distance));
         assert(distance >= 1.0);
-        assert(std::isfinite(distance_power));
-        assert(distance_power >= domain::kMinimumRandomWalkerDistancePower);
-        assert(distance_power <= domain::kMaximumRandomWalkerDistancePower);
+        assert(is_valid_distance_power(distance_power));
 
         const double result = std::pow(distance, distance_power);
         assert(std::isfinite(result));
@@ -116,6 +142,41 @@ namespace random_walker::graph {
             static_cast<double>(first_intensity)
             - static_cast<double>(second_intensity);
         return difference * difference;
+    }
+
+    [[nodiscard]] inline double gaussian_contrast_weight_from_variance(
+        double squared_difference
+        , double variance
+    ) noexcept {
+        assert(std::isfinite(squared_difference));
+        assert(squared_difference >= 0.0);
+        assert(std::isfinite(variance));
+        assert(variance > 0.0);
+
+        const double contrast_weight = std::exp(
+            -squared_difference / (2.0 * variance)
+        );
+        assert(std::isfinite(contrast_weight));
+        assert(contrast_weight >= 0.0);
+        assert(contrast_weight <= 1.0);
+        return contrast_weight;
+    }
+
+    [[nodiscard]] inline double combine_contrast_and_geometry(
+        double contrast_weight
+        , double distance
+        , double distance_power
+    ) noexcept {
+        assert(std::isfinite(contrast_weight));
+        assert(contrast_weight >= 0.0);
+        assert(contrast_weight <= 1.0);
+
+        const double weight =
+            contrast_weight / distance_weight(distance, distance_power);
+        assert(std::isfinite(weight));
+        assert(weight >= 0.0);
+        assert(weight <= 1.0);
+        return weight;
     }
 
     [[nodiscard]] inline double compute_global_beta_edge_weight(
@@ -134,12 +195,11 @@ namespace random_walker::graph {
         );
         assert(std::isfinite(contrast_weight));
 
-        const double weight =
-            contrast_weight / distance_weight(input.distance, parameters.distance_power);
-        assert(std::isfinite(weight));
-        assert(weight >= 0.0);
-        assert(weight <= 1.0);
-        return weight;
+        return combine_contrast_and_geometry(
+            contrast_weight
+            , input.distance
+            , parameters.distance_power
+        );
     }
 
     [[nodiscard]] inline double edge_local_variance(
@@ -169,21 +229,55 @@ namespace random_walker::graph {
         assert(is_valid(input));
         assert(is_valid(parameters));
 
-        const double variance = edge_local_variance(contrast_scale, input);
-        const double contrast_weight = std::exp(
-            -squared_intensity_difference(
+        const double contrast_weight = gaussian_contrast_weight_from_variance(
+            squared_intensity_difference(
                 input.first_intensity
                 , input.second_intensity
-            ) / (2.0 * variance)
+            )
+            , edge_local_variance(contrast_scale, input)
         );
-        assert(std::isfinite(contrast_weight));
+        return combine_contrast_and_geometry(
+            contrast_weight
+            , input.distance
+            , parameters.distance_power
+        );
+    }
 
-        const double weight =
-            contrast_weight / distance_weight(input.distance, parameters.distance_power);
-        assert(std::isfinite(weight));
-        assert(weight >= 0.0);
-        assert(weight <= 1.0);
-        return weight;
+    [[nodiscard]] inline GridEdge edge_from(
+        const EdgeWeightInput& input
+    ) noexcept {
+        assert(is_valid(input));
+        return {
+            .first = input.first_position
+            , .second = input.second_position
+        };
+    }
+
+    [[nodiscard]] inline double compute_edge_local_contrast_normalized_edge_weight(
+        const EdgeWeightInput& input
+        , const EdgeLocalContrastScaleMap& contrast_scale
+        , const EdgeLocalContrastNormalizedEdgeWeightParameters& parameters
+    ) noexcept {
+        assert(is_valid(input));
+        assert(is_valid(parameters));
+        assert(!contrast_scale.empty());
+
+        const double scale = contrast_scale.scale_at(edge_from(input));
+        assert(std::isfinite(scale));
+        assert(scale >= domain::kMinimumEdgeLocalContrastScale);
+
+        const double contrast_weight = gaussian_contrast_weight_from_variance(
+            squared_intensity_difference(
+                input.first_intensity
+                , input.second_intensity
+            )
+            , scale * scale
+        );
+        return combine_contrast_and_geometry(
+            contrast_weight
+            , input.distance
+            , parameters.distance_power
+        );
     }
 
     struct GlobalBetaEdgeWeight {
@@ -211,6 +305,22 @@ namespace random_walker::graph {
         }
     };
 
+    struct EdgeLocalContrastNormalizedEdgeWeight {
+        const EdgeLocalContrastScaleMap& contrast_scale;
+        EdgeLocalContrastNormalizedEdgeWeightParameters parameters;
+
+        [[nodiscard]] double operator()(
+            const EdgeWeightInput& input
+        ) const noexcept {
+            return compute_edge_local_contrast_normalized_edge_weight(
+                input
+                , contrast_scale
+                , parameters
+            );
+        }
+    };
+
     static_assert(EdgeWeightFunction<GlobalBetaEdgeWeight>);
     static_assert(EdgeWeightFunction<LocalVarianceNormalizedEdgeWeight>);
+    static_assert(EdgeWeightFunction<EdgeLocalContrastNormalizedEdgeWeight>);
 }

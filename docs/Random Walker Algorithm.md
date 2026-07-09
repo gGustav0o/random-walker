@@ -96,7 +96,7 @@ An edge weight encodes local similarity between adjacent pixels. Larger weights 
 
 Implementation: `EdgeWeightInput`, `GlobalBetaEdgeWeight`, `LocalVarianceNormalizedEdgeWeight`.
 
-The current project supports two edge-weight models.
+The current project supports three edge-weight models.
 
 ## 3.1. Global Beta Weight
 
@@ -221,6 +221,67 @@ $$
 Implementation: `local_variance_quantile`, `estimate_minimum_variance`, `build_effective_local_contrast_scale`.
 
 **Warning.** This is not a direct implementation of the Bhattacharyya-weight framework from [Drees et al. 2022](https://arxiv.org/abs/2206.00947). That paper motivates noise/local-statistics-aware Random Walker weights. The project implements a simpler local Gaussian normalization based on window variance. The citation is therefore a motivation and context reference, not a claim of exact implementation.
+
+
+## 3.3. Edge-Local Contrast Scale Model
+
+This model is intentionally formulated as a local scale model, not as an adaptive beta model.
+
+For an edge $(i,j)\in E$, define the intensity jump
+
+$$
+\delta_{ij}=|I_i-I_j|.
+$$
+
+The adaptive weight is defined as
+
+$$
+w_{ij}=\frac{\exp\left(-\frac{\delta_{ij}^{2}}{2\sigma_{ij}^{2}}\right)}{d_{ij}^{p}},
+$$
+
+where $\sigma_{ij}>0$ is an edge-local contrast scale. Equivalently, a local $\beta_{ij}$ would be $\beta_{ij}=1/(2\sigma_{ij}^{2})$, but the implementation models $\sigma_{ij}$ directly because it has the statistical meaning of an expected local intra-region edge difference scale.
+
+For a grid edge $e=(i,j)$, let
+
+$$
+m(e)=\frac{i+j}{2}
+$$
+
+be its geometric midpoint. To avoid floating-point midpoint comparisons in code, midpoint coordinates are represented in doubled coordinates:
+
+$$
+\tilde m(e)=i+j.
+$$
+
+Implementation: `GridEdge`, `doubled_midpoint`.
+
+For radius $R$, the edge-local neighborhood of a center edge $e$ is
+
+$$
+\mathcal E_R(e)=\left\{e'\in E \mid
+\left\lVert \tilde m(e')-\tilde m(e) \right\rVert_\infty \le 2R
+\right\}.
+$$
+
+Implementation: `belongs_to_edge_local_neighborhood`.
+
+The intended robust scale estimator is
+
+$$
+\sigma_{ij}=\max\left\{Q_q\left(\{\delta_{uv}\mid (u,v)\in\mathcal E_R(i,j)\}\right),\sigma_{\min}\right\},
+$$
+
+with
+
+$$
+R\in\{1,\dots,16\},\qquad
+q\in[0.25,0.50],\qquad
+\sigma_{\min}\in[10^{-6},255].
+$$
+
+Implementation: `estimate_edge_local_contrast_scale`, `EdgeLocalContrastScaleMap`, `compute_edge_local_contrast_normalized_edge_weight`. Parameters: `EdgeLocalContrastScaleParameters`.
+
+This estimator uses local neighboring edge differences rather than raw intensity variance inside a pixel window. The distinction matters: a pixel-window variance can be inflated by a true object boundary crossing the window, whereas an edge-difference quantile estimates the local scale in the same measurement space that appears in the edge weight.
 
 ## 4. Graph Laplacian
 
@@ -578,4 +639,3 @@ GrabCut [Rother, Kolmogorov, Blake 2004](https://www.microsoft.com/en-us/researc
 4. A. P. Dempster, N. M. Laird, D. B. Rubin. [Maximum Likelihood from Incomplete Data via the EM Algorithm](https://doi.org/10.1111/j.2517-6161.1977.tb01600.x). Journal of the Royal Statistical Society: Series B, 39(1), 1-22, 1977.
 5. Carsten Rother, Vladimir Kolmogorov, Andrew Blake. [GrabCut: Interactive Foreground Extraction using Iterated Graph Cuts](https://www.microsoft.com/en-us/research/publication/grabcut-interactive-foreground-extraction-using-iterated-graph-cuts/). ACM Transactions on Graphics, 23(3), 309-314, 2004.
 6. Azriel Rosenfeld, John L. Pfaltz. [Sequential Operations in Digital Picture Processing](https://doi.org/10.1145/321356.321357). Journal of the ACM, 13(4), 471-494, 1966.
-

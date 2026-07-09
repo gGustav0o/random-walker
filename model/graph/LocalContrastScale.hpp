@@ -2,6 +2,7 @@
 
 #include "model/domain/GrayImage.hpp"
 #include "model/domain/RandomWalkerParameters.hpp"
+#include "model/graph/GridGeometry.hpp"
 
 #include <algorithm>
 #include <cassert>

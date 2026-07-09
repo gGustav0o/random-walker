@@ -21,6 +21,7 @@
 #include "model/domain/ProgressReporter.hpp"
 #include "model/domain/Seed.hpp"
 #include "model/domain/Segmentation.hpp"
+#include "model/graph/EdgeLocalNeighborhood.hpp"
 #include "model/graph/EdgeWeight.hpp"
 #include "model/graph/GridLaplacian.hpp"
 
@@ -221,6 +222,11 @@ private slots:
     void large_thresholding_honors_cancellation();
     void global_beta_edge_weight_parameters_validate_domain_bounds();
     void local_variance_normalized_edge_weight_parameters_validate_domain_bounds();
+    void edge_local_neighborhood_uses_edge_midpoints();
+    void edge_local_neighborhood_rejects_edges_outside_radius();
+    void edge_local_contrast_scale_estimator_uses_edge_difference_quantile();
+    void edge_local_contrast_scale_estimator_clamps_minimum_scale();
+    void edge_local_contrast_weight_separates_contrast_and_geometry();
     void local_contrast_scale_map_clamps_flat_regions_to_minimum_variance();
     void local_contrast_scale_map_accepts_effective_scale();
     void local_contrast_minimum_variance_estimator_clamps_flat_regions();
@@ -242,6 +248,8 @@ private slots:
     void grid_laplacian_distance_power_normalizes_diagonal_edges();
     void grid_laplacian_beta_changes_edge_weight();
     void grid_laplacian_uses_local_variance_normalized_weight_model();
+    void grid_laplacian_uses_edge_local_contrast_weight_model();
+    void grid_laplacian_edge_local_contrast_model_honors_cancellation_while_building_scale_map();
     void grid_laplacian_auto_local_variance_model_uses_estimated_floor();
     void grid_laplacian_auto_local_variance_model_honors_cancellation_while_estimating_floor();
     void grid_laplacian_local_variance_model_honors_cancellation_while_building_scale_map();
@@ -671,6 +679,125 @@ void AlgorithmTests::local_variance_normalized_edge_weight_parameters_validate_d
     QVERIFY(!graph::is_valid(graph::LocalVarianceNormalizedEdgeWeightParameters {
         .distance_power = std::numeric_limits<double>::infinity()
     }));
+}
+
+void AlgorithmTests::edge_local_neighborhood_uses_edge_midpoints() {
+    const graph::GridEdge center {
+        .first = {.row = 2, .column = 2}
+        , .second = {.row = 2, .column = 3}
+    };
+    const graph::GridEdge diagonal_candidate {
+        .first = {.row = 3, .column = 3}
+        , .second = {.row = 4, .column = 4}
+    };
+
+    const graph::GridPoint midpoint = graph::doubled_midpoint(center);
+    QCOMPARE(midpoint.row, 4);
+    QCOMPARE(midpoint.column, 5);
+    QVERIFY(graph::belongs_to_edge_local_neighborhood(
+        center
+        , diagonal_candidate
+        , 1
+    ));
+}
+
+void AlgorithmTests::edge_local_neighborhood_rejects_edges_outside_radius() {
+    const graph::GridEdge center {
+        .first = {.row = 2, .column = 2}
+        , .second = {.row = 2, .column = 3}
+    };
+    const graph::GridEdge candidate {
+        .first = {.row = 5, .column = 2}
+        , .second = {.row = 5, .column = 3}
+    };
+
+    QVERIFY(!graph::belongs_to_edge_local_neighborhood(
+        center
+        , candidate
+        , 1
+    ));
+    QVERIFY(graph::belongs_to_edge_local_neighborhood(
+        center
+        , candidate
+        , 3
+    ));
+}
+
+void AlgorithmTests::edge_local_contrast_scale_estimator_uses_edge_difference_quantile() {
+    const domain::GrayImage image = make_image(1, 3, {0, 10, 30});
+    const graph::GridEdge center {
+        .first = {.row = 0, .column = 0}
+        , .second = {.row = 0, .column = 1}
+    };
+    const domain::EdgeLocalContrastScaleParameters parameters {
+        .radius = 1
+        , .quantile = 0.5
+        , .minimum_scale = 1.0
+    };
+
+    const double scale = graph::estimate_edge_local_contrast_scale(
+        image
+        , center
+        , domain::PixelConnectivity::Four
+        , parameters
+    );
+
+    QCOMPARE(scale, 15.0);
+}
+
+void AlgorithmTests::edge_local_contrast_scale_estimator_clamps_minimum_scale() {
+    const domain::GrayImage image = make_image(1, 2, {10, 10});
+    const graph::GridEdge center {
+        .first = {.row = 0, .column = 0}
+        , .second = {.row = 0, .column = 1}
+    };
+    const domain::EdgeLocalContrastScaleParameters parameters {
+        .radius = 1
+        , .quantile = 0.5
+        , .minimum_scale = 2.5
+    };
+
+    const double scale = graph::estimate_edge_local_contrast_scale(
+        image
+        , center
+        , domain::PixelConnectivity::Four
+        , parameters
+    );
+
+    QCOMPARE(scale, 2.5);
+}
+
+void AlgorithmTests::edge_local_contrast_weight_separates_contrast_and_geometry() {
+    const graph::GridEdge edge {
+        .first = {.row = 0, .column = 0}
+        , .second = {.row = 0, .column = 1}
+    };
+    graph::EdgeLocalContrastScaleMap::ScaleByEdge scales;
+    scales.emplace(graph::edge_key(edge, 2), 5.0);
+    const graph::EdgeLocalContrastScaleMap contrast_scale(
+        2
+        , 1
+        , std::move(scales)
+    );
+    const graph::EdgeLocalContrastNormalizedEdgeWeightParameters parameters {
+        .distance_power = 1.0
+    };
+    const graph::EdgeWeightInput input {
+        .first_intensity = 0
+        , .second_intensity = 10
+        , .first_position = edge.first
+        , .second_position = edge.second
+        , .distance = std::sqrt(2.0)
+    };
+
+    const double weight =
+        graph::compute_edge_local_contrast_normalized_edge_weight(
+            input
+            , contrast_scale
+            , parameters
+        );
+
+    QVERIFY(std::abs(weight - std::exp(-2.0) / std::sqrt(2.0)) < 1e-12);
 }
 
 void AlgorithmTests::local_contrast_scale_map_clamps_flat_regions_to_minimum_variance() {
@@ -1156,6 +1283,71 @@ void AlgorithmTests::grid_laplacian_uses_local_variance_normalized_weight_model(
     QVERIFY(std::abs(coefficient(laplacian, 1, 1) - expected_weight) < 1e-12);
     QVERIFY(std::abs(coefficient(laplacian, 0, 1) + expected_weight) < 1e-12);
     QVERIFY(std::abs(coefficient(laplacian, 1, 0) + expected_weight) < 1e-12);
+}
+
+void AlgorithmTests::grid_laplacian_uses_edge_local_contrast_weight_model() {
+    const domain::GrayImage image = make_image(1, 3, {0, 10, 30});
+    const domain::RandomWalkerParameters parameters {
+        .beta = 0.01
+        , .distance_power = 0.0
+        , .connectivity = domain::PixelConnectivity::Four
+        , .edge_weight_model = domain::EdgeWeightModel::EdgeLocalContrastNormalized
+        , .edge_local_contrast_scale = {
+            .radius = 1
+            , .quantile = 0.5
+            , .minimum_scale = 1.0
+        }
+    };
+
+    const auto outcome = graph::build_grid_laplacian(
+        image
+        , parameters
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<Eigen::SparseMatrix<double>>(outcome));
+    const auto& laplacian = std::get<Eigen::SparseMatrix<double>>(outcome);
+    const double first_weight = std::exp(-100.0 / (2.0 * 15.0 * 15.0));
+    const double second_weight = std::exp(-400.0 / (2.0 * 15.0 * 15.0));
+
+    QVERIFY(std::abs(coefficient(laplacian, 0, 0) - first_weight) < 1e-12);
+    QVERIFY(std::abs(coefficient(laplacian, 0, 1) + first_weight) < 1e-12);
+    QVERIFY(std::abs(coefficient(laplacian, 1, 1)
+        - (first_weight + second_weight)) < 1e-12);
+    QVERIFY(std::abs(coefficient(laplacian, 1, 2) + second_weight) < 1e-12);
+    QVERIFY(std::abs(coefficient(laplacian, 2, 2) - second_weight) < 1e-12);
+}
+
+void AlgorithmTests::grid_laplacian_edge_local_contrast_model_honors_cancellation_while_building_scale_map() {
+    const domain::GrayImage image = make_image(2, 2, {0, 10, 20, 30});
+    const domain::RandomWalkerParameters parameters {
+        .beta = 0.01
+        , .distance_power = 0.0
+        , .connectivity = domain::PixelConnectivity::Four
+        , .edge_weight_model = domain::EdgeWeightModel::EdgeLocalContrastNormalized
+        , .edge_local_contrast_scale = {
+            .radius = 1
+            , .quantile = 0.5
+            , .minimum_scale = 1.0
+        }
+    };
+    std::stop_source stop_source;
+    const domain::ProgressReporter progress {
+        7
+        , [&stop_source](domain::SegmentationProgress) {
+            stop_source.request_stop();
+        }
+    };
+
+    const auto outcome = graph::build_grid_laplacian(
+        image
+        , parameters
+        , domain::CancellationToken {stop_source.get_token()}
+        , progress
+    );
+
+    QVERIFY(is_cancelled(outcome));
 }
 
 void AlgorithmTests::grid_laplacian_auto_local_variance_model_uses_estimated_floor() {

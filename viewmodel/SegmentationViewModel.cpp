@@ -94,6 +94,8 @@ namespace {
             return SegmentationViewModel::GlobalBetaWeight;
         case random_walker::domain::EdgeWeightModel::LocalVarianceNormalized:
             return SegmentationViewModel::LocalVarianceNormalizedWeight;
+        case random_walker::domain::EdgeWeightModel::EdgeLocalContrastNormalized:
+            return SegmentationViewModel::EdgeLocalContrastNormalizedWeight;
         }
 
         Q_ASSERT_X(
@@ -111,10 +113,13 @@ namespace {
             return random_walker::domain::EdgeWeightModel::GlobalBeta;
         case SegmentationViewModel::LocalVarianceNormalizedWeight:
             return random_walker::domain::EdgeWeightModel::LocalVarianceNormalized;
+        case SegmentationViewModel::EdgeLocalContrastNormalizedWeight:
+            return random_walker::domain::EdgeWeightModel::EdgeLocalContrastNormalized;
         default:
             return std::nullopt;
         }
     }
+
     [[nodiscard]] int view_minimum_variance_mode(
         random_walker::domain::MinimumVarianceMode mode
     ) noexcept {
@@ -329,6 +334,23 @@ double SegmentationViewModel::local_contrast_auto_quantile() const noexcept {
         .local_contrast_scale
         .auto_minimum_variance_quantile;
 }
+int SegmentationViewModel::edge_local_contrast_radius() const noexcept {
+    return application_settings_.random_walker
+        .edge_local_contrast_scale
+        .radius;
+}
+
+double SegmentationViewModel::edge_local_contrast_quantile() const noexcept {
+    return application_settings_.random_walker
+        .edge_local_contrast_scale
+        .quantile;
+}
+
+double SegmentationViewModel::edge_local_contrast_minimum_scale() const noexcept {
+    return application_settings_.random_walker
+        .edge_local_contrast_scale
+        .minimum_scale;
+}
 
 double SegmentationViewModel::beta_slider_position() const noexcept {
     const double exponent =
@@ -505,6 +527,30 @@ void SegmentationViewModel::set_local_contrast_auto_quantile(double value) {
     auto updated_parameters = application_settings_.random_walker;
     updated_parameters.local_contrast_scale.auto_minimum_variance_quantile =
         value;
+    update_random_walker_parameters(updated_parameters);
+}
+
+void SegmentationViewModel::set_edge_local_contrast_radius(int radius) {
+    assert_ui_thread();
+
+    auto updated_parameters = application_settings_.random_walker;
+    updated_parameters.edge_local_contrast_scale.radius = radius;
+    update_random_walker_parameters(updated_parameters);
+}
+
+void SegmentationViewModel::set_edge_local_contrast_quantile(double value) {
+    assert_ui_thread();
+
+    auto updated_parameters = application_settings_.random_walker;
+    updated_parameters.edge_local_contrast_scale.quantile = value;
+    update_random_walker_parameters(updated_parameters);
+}
+
+void SegmentationViewModel::set_edge_local_contrast_minimum_scale(double value) {
+    assert_ui_thread();
+
+    auto updated_parameters = application_settings_.random_walker;
+    updated_parameters.edge_local_contrast_scale.minimum_scale = value;
     update_random_walker_parameters(updated_parameters);
 }
 
@@ -819,6 +865,24 @@ void SegmentationViewModel::run_segmentation() {
                     .local_contrast_scale
                     .minimum_variance
             )
+            + ", edge_local_contrast_radius="
+            + std::to_string(
+                application_settings_.random_walker
+                    .edge_local_contrast_scale
+                    .radius
+            )
+            + ", edge_local_contrast_quantile="
+            + std::to_string(
+                application_settings_.random_walker
+                    .edge_local_contrast_scale
+                    .quantile
+            )
+            + ", edge_local_contrast_minimum_scale="
+            + std::to_string(
+                application_settings_.random_walker
+                    .edge_local_contrast_scale
+                    .minimum_scale
+            )
     );
 
     active_request_id_ = request_id;
@@ -903,6 +967,9 @@ void SegmentationViewModel::update_random_walker_parameters(
     const bool local_contrast_was_changed =
         parameters.local_contrast_scale
             != application_settings_.random_walker.local_contrast_scale;
+    const bool edge_local_contrast_was_changed =
+        parameters.edge_local_contrast_scale
+            != application_settings_.random_walker.edge_local_contrast_scale;
 
     auto updated_settings = application_settings_;
     updated_settings.random_walker = parameters;
@@ -942,6 +1009,24 @@ void SegmentationViewModel::update_random_walker_parameters(
                     .local_contrast_scale
                     .minimum_variance
             )
+            + ", edge_local_contrast_radius="
+            + std::to_string(
+                updated_settings.random_walker
+                    .edge_local_contrast_scale
+                    .radius
+            )
+            + ", edge_local_contrast_quantile="
+            + std::to_string(
+                updated_settings.random_walker
+                    .edge_local_contrast_scale
+                    .quantile
+            )
+            + ", edge_local_contrast_minimum_scale="
+            + std::to_string(
+                updated_settings.random_walker
+                    .edge_local_contrast_scale
+                    .minimum_scale
+            )
     );
 
     cancel_active_request();
@@ -963,6 +1048,9 @@ void SegmentationViewModel::update_random_walker_parameters(
     }
     if (local_contrast_was_changed) {
         emit local_contrast_changed();
+    }
+    if (edge_local_contrast_was_changed) {
+        emit edge_local_contrast_changed();
     }
 }
 

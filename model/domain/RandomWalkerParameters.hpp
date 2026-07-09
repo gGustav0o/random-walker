@@ -20,7 +20,15 @@ namespace random_walker::domain {
     inline constexpr double kMinimumLocalContrastAutoQuantile = 0.01;
     inline constexpr double kMaximumLocalContrastAutoQuantile = 0.50;
     inline constexpr double kDefaultLocalContrastAutoQuantile = 0.10;
-
+    inline constexpr int kMinimumEdgeLocalContrastRadius = 1;
+    inline constexpr int kMaximumEdgeLocalContrastRadius = 16;
+    inline constexpr int kDefaultEdgeLocalContrastRadius = 1;
+    inline constexpr double kMinimumEdgeLocalContrastScale = 1e-6;
+    inline constexpr double kMaximumEdgeLocalContrastScale = 255.0;
+    inline constexpr double kDefaultEdgeLocalContrastMinimumScale = 1.0;
+    inline constexpr double kMinimumEdgeLocalContrastQuantile = 0.25;
+    inline constexpr double kMaximumEdgeLocalContrastQuantile = 0.50;
+    inline constexpr double kDefaultEdgeLocalContrastQuantile = 0.35;
 
     enum class PixelConnectivity {
         Four
@@ -30,6 +38,7 @@ namespace random_walker::domain {
     enum class EdgeWeightModel {
         GlobalBeta
         , LocalVarianceNormalized
+        , EdgeLocalContrastNormalized
     };
 
     enum class MinimumVarianceMode {
@@ -61,6 +70,7 @@ namespace random_walker::domain {
         switch (edge_weight_model) {
         case EdgeWeightModel::GlobalBeta:
         case EdgeWeightModel::LocalVarianceNormalized:
+        case EdgeWeightModel::EdgeLocalContrastNormalized:
             return true;
         }
 
@@ -98,6 +108,13 @@ namespace random_walker::domain {
         bool operator==(const EffectiveLocalContrastScale&) const = default;
     };
 
+    struct EdgeLocalContrastScaleParameters {
+        int radius = kDefaultEdgeLocalContrastRadius;
+        double quantile = kDefaultEdgeLocalContrastQuantile;
+        double minimum_scale = kDefaultEdgeLocalContrastMinimumScale;
+        bool operator==(const EdgeLocalContrastScaleParameters&) const = default;
+    };
+
     [[nodiscard]] inline bool is_valid(
         const LocalContrastScaleParameters& parameters
     ) noexcept {
@@ -124,6 +141,19 @@ namespace random_walker::domain {
             && scale.minimum_variance <= kMaximumLocalContrastVariance;
     }
 
+    [[nodiscard]] inline bool is_valid(
+        const EdgeLocalContrastScaleParameters& parameters
+    ) noexcept {
+        return parameters.radius >= kMinimumEdgeLocalContrastRadius
+            && parameters.radius <= kMaximumEdgeLocalContrastRadius
+            && std::isfinite(parameters.quantile)
+            && parameters.quantile >= kMinimumEdgeLocalContrastQuantile
+            && parameters.quantile <= kMaximumEdgeLocalContrastQuantile
+            && std::isfinite(parameters.minimum_scale)
+            && parameters.minimum_scale >= kMinimumEdgeLocalContrastScale
+            && parameters.minimum_scale <= kMaximumEdgeLocalContrastScale;
+    }
+
     [[nodiscard]] inline EffectiveLocalContrastScale manual_effective_scale(
         const LocalContrastScaleParameters& parameters
     ) noexcept {
@@ -140,6 +170,7 @@ namespace random_walker::domain {
         PixelConnectivity connectivity = kDefaultPixelConnectivity;
         EdgeWeightModel edge_weight_model = kDefaultEdgeWeightModel;
         LocalContrastScaleParameters local_contrast_scale;
+        EdgeLocalContrastScaleParameters edge_local_contrast_scale;
         bool operator==(const RandomWalkerParameters&) const = default;
     };
 
@@ -154,6 +185,7 @@ namespace random_walker::domain {
             && parameters.distance_power <= kMaximumRandomWalkerDistancePower
             && is_valid(parameters.connectivity)
             && is_valid(parameters.edge_weight_model)
-            && is_valid(parameters.local_contrast_scale);
+            && is_valid(parameters.local_contrast_scale)
+            && is_valid(parameters.edge_local_contrast_scale);
     }
 }
