@@ -31,7 +31,7 @@ namespace random_walker::infrastructure {
 
     private:
         [[nodiscard]]
-        application::ApplicationSettings load_current_schema() const;
+        application::SettingsRepositoryLoadResult load_current_schema() const;
 
         [[nodiscard]]
         application::ApplicationSettings

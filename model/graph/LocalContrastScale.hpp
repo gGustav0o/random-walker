@@ -15,12 +15,6 @@
 
 namespace random_walker::graph {
 
-    struct GridPoint {
-        int row = 0;
-        int column = 0;
-        bool operator==(const GridPoint&) const = default;
-    };
-
     class LocalContrastScaleMap final {
     public:
         LocalContrastScaleMap() = default;
