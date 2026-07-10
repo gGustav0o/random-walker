@@ -94,9 +94,10 @@ Implementation: `edge_distance`.
 
 An edge weight encodes local similarity between adjacent pixels. Larger weights make label propagation easier across that edge. This follows the weighted-graph formulation of Random Walker segmentation [Grady 2006](https://doi.org/10.1109/TPAMI.2006.233).
 
-Implementation: `EdgeWeightInput`, `GlobalBetaEdgeWeight`, `LocalVarianceNormalizedEdgeWeight`.
+Implementation: `EdgeWeightInput`, `GlobalBetaEdgeWeight`.
 
-The current project supports three edge-weight models.
+The current project uses one explicit edge-weight model controlled by the manual
+global contrast parameter $\beta$ and by the geometric distance exponent $p$.
 
 ## 3.1. Global Beta Weight
 
@@ -140,148 +141,6 @@ $$
 $$
 
 is the classical Gaussian contrast weight used in Random Walker segmentation [Grady 2006](https://doi.org/10.1109/TPAMI.2006.233). The multiplier $d_{ij}^{-p}$ is a project-level geometric extension for distance-aware 8-connectivity.
-
-## 3.2. Local Variance Normalized Weight
-
-In `LocalVarianceNormalized`, the global $\beta$ parameter is not used. A local variance estimate is computed for every pixel.
-
-For a pixel $s=(r,c)$ and window radius $R$, define the boundary-clipped square window
-
-$$
-\mathcal W_R(s)=
-\{t=(u,v)\in\Omega \mid |u-r|\le R,\ |v-c|\le R\}.
-$$
-
-Implementation: `raw_local_window_variance`.
-
-The raw local variance is the population variance
-
-$$
-\widehat\sigma^2(s)=
-\frac{1}{|\mathcal W_R(s)|}\sum_{t\in\mathcal W_R(s)} I_t^2
--
-\left(
-\frac{1}{|\mathcal W_R(s)|}\sum_{t\in\mathcal W_R(s)} I_t
-\right)^2.
-$$
-
-The effective local variance is clamped from below:
-
-$$
-\sigma^2(s)=\max\{\widehat\sigma^2(s),\sigma^2_{\min}\}.
-$$
-
-Implementation: `local_window_variance`.
-
-For an edge $(i,j)$, the edge variance is the arithmetic mean of endpoint variances:
-
-$$
-\sigma^2_{ij}=\frac{\sigma^2(i)+\sigma^2(j)}{2}.
-$$
-
-Implementation: `edge_local_variance`.
-
-The edge weight is
-
-$$
-w_{ij}=\frac{\exp\left(-\frac{(\Delta I_{ij})^2}{2\sigma^2_{ij}}\right)}{d_{ij}^{p}}.
-$$
-
-Implementation: `compute_local_variance_normalized_edge_weight`.
-
-Parameters:
-
-$$
-R\in\{1,\dots,16\},
-\qquad
-\sigma^2_{\min}\in[10^{-6},255^2],
-\qquad
-p\in[0,2].
-$$
-
-The minimum variance can be manual or automatic. In automatic mode, all raw local variances are computed first. Then the quantile
-
-$$
-q_\alpha\left(\{\widehat\sigma^2(s)\mid s\in\Omega\}\right)
-$$
-
-is selected, where
-
-$$
-\alpha\in[0.01,0.50].
-$$
-
-The final minimum variance is
-
-$$
-\sigma^2_{\min}=\operatorname{clamp}
-\left(q_\alpha,10^{-6},255^2\right).
-$$
-
-Implementation: `local_variance_quantile`, `estimate_minimum_variance`, `build_effective_local_contrast_scale`.
-
-**Warning.** This is not a direct implementation of the Bhattacharyya-weight framework from [Drees et al. 2022](https://arxiv.org/abs/2206.00947). That paper motivates noise/local-statistics-aware Random Walker weights. The project implements a simpler local Gaussian normalization based on window variance. The citation is therefore a motivation and context reference, not a claim of exact implementation.
-
-
-## 3.3. Edge-Local Contrast Scale Model
-
-This model is intentionally formulated as a local scale model, not as an adaptive beta model.
-
-For an edge $(i,j)\in E$, define the intensity jump
-
-$$
-\delta_{ij}=|I_i-I_j|.
-$$
-
-The adaptive weight is defined as
-
-$$
-w_{ij}=\frac{\exp\left(-\frac{\delta_{ij}^{2}}{2\sigma_{ij}^{2}}\right)}{d_{ij}^{p}},
-$$
-
-where $\sigma_{ij}>0$ is an edge-local contrast scale. Equivalently, a local $\beta_{ij}$ would be $\beta_{ij}=1/(2\sigma_{ij}^{2})$, but the implementation models $\sigma_{ij}$ directly because it has the statistical meaning of an expected local intra-region edge difference scale.
-
-For a grid edge $e=(i,j)$, let
-
-$$
-m(e)=\frac{i+j}{2}
-$$
-
-be its geometric midpoint. To avoid floating-point midpoint comparisons in code, midpoint coordinates are represented in doubled coordinates:
-
-$$
-\tilde m(e)=i+j.
-$$
-
-Implementation: `GridEdge`, `doubled_midpoint`.
-
-For radius $R$, the edge-local neighborhood of a center edge $e$ is
-
-$$
-\mathcal E_R(e)=\left\{e'\in E \mid
-\left\lVert \tilde m(e')-\tilde m(e) \right\rVert_\infty \le 2R
-\right\}.
-$$
-
-Implementation: `belongs_to_edge_local_neighborhood`.
-
-The intended robust scale estimator is
-
-$$
-\sigma_{ij}=\max\left\{Q_q\left(\{\delta_{uv}\mid (u,v)\in\mathcal E_R(i,j)\}\right),\sigma_{\min}\right\},
-$$
-
-with
-
-$$
-R\in\{1,\dots,16\},\qquad
-q\in[0.25,0.50],\qquad
-\sigma_{\min}\in[10^{-6},255].
-$$
-
-Implementation: `estimate_edge_local_contrast_scale`, `EdgeLocalContrastScaleMap`, `compute_edge_local_contrast_normalized_edge_weight`. Parameters: `EdgeLocalContrastScaleParameters`.
-
-This estimator uses local neighboring edge differences rather than raw intensity variance inside a pixel window. The distinction matters: a pixel-window variance can be inflated by a true object boundary crossing the window, whereas an edge-difference quantile estimates the local scale in the same measurement space that appears in the edge weight.
 
 ## 4. Graph Laplacian
 
@@ -635,7 +494,6 @@ GrabCut [Rother, Kolmogorov, Blake 2004](https://www.microsoft.com/en-us/researc
 
 1. Leo Grady. [Random Walks for Image Segmentation](https://doi.org/10.1109/TPAMI.2006.233). IEEE Transactions on Pattern Analysis and Machine Intelligence, 28(11), 1768-1783, 2006.
 2. Peter G. Doyle, J. Laurie Snell. [Random Walks and Electric Networks](https://math.dartmouth.edu/~doyle/docs/walks/walks.pdf). Mathematical Association of America, 1984.
-3. Dominik Drees, Florian Eilers, Ang Bian, Xiaoyi Jiang. [A Bhattacharyya Coefficient-Based Framework for Noise Model-Aware Random Walker Image Segmentation](https://arxiv.org/abs/2206.00947). arXiv:2206.00947, 2022.
-4. A. P. Dempster, N. M. Laird, D. B. Rubin. [Maximum Likelihood from Incomplete Data via the EM Algorithm](https://doi.org/10.1111/j.2517-6161.1977.tb01600.x). Journal of the Royal Statistical Society: Series B, 39(1), 1-22, 1977.
-5. Carsten Rother, Vladimir Kolmogorov, Andrew Blake. [GrabCut: Interactive Foreground Extraction using Iterated Graph Cuts](https://www.microsoft.com/en-us/research/publication/grabcut-interactive-foreground-extraction-using-iterated-graph-cuts/). ACM Transactions on Graphics, 23(3), 309-314, 2004.
-6. Azriel Rosenfeld, John L. Pfaltz. [Sequential Operations in Digital Picture Processing](https://doi.org/10.1145/321356.321357). Journal of the ACM, 13(4), 471-494, 1966.
+3. A. P. Dempster, N. M. Laird, D. B. Rubin. [Maximum Likelihood from Incomplete Data via the EM Algorithm](https://doi.org/10.1111/j.2517-6161.1977.tb01600.x). Journal of the Royal Statistical Society: Series B, 39(1), 1-22, 1977.
+4. Carsten Rother, Vladimir Kolmogorov, Andrew Blake. [GrabCut: Interactive Foreground Extraction using Iterated Graph Cuts](https://www.microsoft.com/en-us/research/publication/grabcut-interactive-foreground-extraction-using-iterated-graph-cuts/). ACM Transactions on Graphics, 23(3), 309-314, 2004.
+5. Azriel Rosenfeld, John L. Pfaltz. [Sequential Operations in Digital Picture Processing](https://doi.org/10.1145/321356.321357). Journal of the ACM, 13(4), 471-494, 1966.

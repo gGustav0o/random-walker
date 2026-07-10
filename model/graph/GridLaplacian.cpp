@@ -33,12 +33,6 @@ namespace random_walker::graph {
         };
 
         using GridBuildStepOutcome = std::optional<domain::Cancelled>;
-        using LocalContrastScaleOutcome =
-            std::variant<LocalContrastScaleMap, domain::Cancelled>;
-        using EffectiveLocalContrastScaleOutcome =
-            std::variant<domain::EffectiveLocalContrastScale, domain::Cancelled>;
-        using EdgeLocalContrastScaleOutcome =
-            std::variant<EdgeLocalContrastScaleMap, domain::Cancelled>;
 
         constexpr std::array<ForwardGridDirection, 2> kFourConnectedDirections = {
             ForwardGridDirection::Right
@@ -313,237 +307,6 @@ namespace random_walker::graph {
             return std::nullopt;
         }
 
-        [[nodiscard]] EffectiveLocalContrastScaleOutcome
-        build_effective_local_contrast_scale(
-            const domain::GrayImage& image
-            , const domain::LocalContrastScaleParameters& parameters
-            , const domain::CancellationToken& cancellation
-            , const domain::ProgressReporter& progress
-            , double progress_start
-            , double progress_finish
-        ) {
-            assert(!image.empty());
-            assert(domain::is_valid(parameters));
-            assert(progress_start >= 0.0);
-            assert(progress_finish <= 1.0);
-            assert(progress_start <= progress_finish);
-
-            switch (parameters.minimum_variance_mode) {
-            case domain::MinimumVarianceMode::Manual:
-                return domain::manual_effective_scale(parameters);
-            case domain::MinimumVarianceMode::Auto:
-                break;
-            }
-
-            std::vector<double> variances;
-            variances.reserve(
-                static_cast<std::size_t>(image.width())
-                * static_cast<std::size_t>(image.height())
-            );
-            progress.report(
-                domain::SegmentationStage::BuildingGraph
-                , progress_start
-            );
-            for (int row = 0; row < image.height(); ++row) {
-                if (cancellation.stop_requested()) {
-                    return domain::Cancelled {};
-                }
-
-                for (int column = 0; column < image.width(); ++column) {
-                    if (algorithm::should_poll_cancellation(
-                            static_cast<std::size_t>(column)
-                        )
-                        && cancellation.stop_requested()
-                    ) {
-                        return domain::Cancelled {};
-                    }
-
-                    variances.push_back(raw_local_window_variance(
-                        image
-                        , row
-                        , column
-                        , parameters.radius
-                    ));
-                }
-
-                progress.report(
-                    domain::SegmentationStage::BuildingGraph
-                    , graph_build_progress(
-                        row
-                        , image.height()
-                        , progress_start
-                        , progress_finish
-                    )
-                );
-            }
-
-            return domain::EffectiveLocalContrastScale {
-                .radius = parameters.radius
-                , .minimum_variance = std::clamp(
-                    local_variance_quantile(
-                        std::move(variances)
-                        , parameters.auto_minimum_variance_quantile
-                    )
-                    , domain::kMinimumLocalContrastVariance
-                    , domain::kMaximumLocalContrastVariance
-                )
-            };
-        }
-
-        [[nodiscard]] LocalContrastScaleOutcome build_local_contrast_scale_map(
-            const domain::GrayImage& image
-            , const domain::LocalContrastScaleParameters& parameters
-            , const domain::CancellationToken& cancellation
-            , const domain::ProgressReporter& progress
-            , double progress_start
-            , double progress_finish
-        ) {
-            assert(!image.empty());
-            assert(domain::is_valid(parameters));
-            assert(progress_start >= 0.0);
-            assert(progress_finish <= 1.0);
-            assert(progress_start <= progress_finish);
-
-            const double scale_progress_finish =
-                parameters.minimum_variance_mode == domain::MinimumVarianceMode::Auto
-                    ? progress_start + (progress_finish - progress_start) * 0.4
-                    : progress_start;
-            const EffectiveLocalContrastScaleOutcome scale_outcome =
-                build_effective_local_contrast_scale(
-                    image
-                    , parameters
-                    , cancellation
-                    , progress
-                    , progress_start
-                    , scale_progress_finish
-                );
-            if (std::holds_alternative<domain::Cancelled>(scale_outcome)) {
-                return domain::Cancelled {};
-            }
-            const domain::EffectiveLocalContrastScale scale =
-                std::get<domain::EffectiveLocalContrastScale>(scale_outcome);
-            assert(domain::is_valid(scale));
-
-            const int height = image.height();
-            const int width = image.width();
-            Eigen::MatrixXd variances(height, width);
-
-            progress.report(
-                domain::SegmentationStage::BuildingGraph
-                , scale_progress_finish
-            );
-            for (int row = 0; row < height; ++row) {
-                if (cancellation.stop_requested()) {
-                    return domain::Cancelled {};
-                }
-
-                for (int column = 0; column < width; ++column) {
-                    if (algorithm::should_poll_cancellation(
-                            static_cast<std::size_t>(column)
-                        )
-                        && cancellation.stop_requested()
-                    ) {
-                        return domain::Cancelled {};
-                    }
-
-                    variances(row, column) = local_window_variance(
-                        image
-                        , row
-                        , column
-                        , scale
-                    );
-                }
-
-                progress.report(
-                    domain::SegmentationStage::BuildingGraph
-                    , graph_build_progress(
-                        row
-                        , height
-                        , scale_progress_finish
-                        , progress_finish
-                    )
-                );
-            }
-
-            return LocalContrastScaleMap(std::move(variances));
-        }
-
-
-        [[nodiscard]] EdgeLocalContrastScaleOutcome
-        build_edge_local_contrast_scale_map(
-            const domain::GrayImage& image
-            , domain::PixelConnectivity connectivity
-            , const domain::EdgeLocalContrastScaleParameters& parameters
-            , const domain::CancellationToken& cancellation
-            , const domain::ProgressReporter& progress
-            , double progress_start
-            , double progress_finish
-        ) {
-            assert(!image.empty());
-            assert(domain::is_valid(connectivity));
-            assert(domain::is_valid(parameters));
-            assert(progress_start >= 0.0);
-            assert(progress_finish <= 1.0);
-            assert(progress_start <= progress_finish);
-
-            const int height = image.height();
-            const int width = image.width();
-            EdgeLocalContrastScaleMap::ScaleByEdge scales;
-            scales.reserve(grid_triplet_capacity(
-                grid_pixel_count(width, height)
-                , connectivity
-            ));
-
-            progress.report(
-                domain::SegmentationStage::BuildingGraph
-                , progress_start
-            );
-            for (int row = 0; row < height; ++row) {
-                if (cancellation.stop_requested()) {
-                    return domain::Cancelled {};
-                }
-
-                for (int column = 0; column < width; ++column) {
-                    if (algorithm::should_poll_cancellation(
-                            static_cast<std::size_t>(column)
-                        )
-                        && cancellation.stop_requested()
-                    ) {
-                        return domain::Cancelled {};
-                    }
-
-                    for (const GridEdge edge : forward_edges_for_point(
-                        {.row = row, .column = column}
-                        , width
-                        , height
-                        , connectivity
-                    )) {
-                        scales.emplace(
-                            edge_key(edge, width)
-                            , estimate_edge_local_contrast_scale(
-                                image
-                                , edge
-                                , connectivity
-                                , parameters
-                            )
-                        );
-                    }
-                }
-
-                progress.report(
-                    domain::SegmentationStage::BuildingGraph
-                    , graph_build_progress(
-                        row
-                        , height
-                        , progress_start
-                        , progress_finish
-                    )
-                );
-            }
-
-            return EdgeLocalContrastScaleMap(width, height, std::move(scales));
-        }
-
         [[nodiscard]] GridBuildStepOutcome add_laplacian_diagonal(
             GridGraphBuilder& builder
             , const domain::CancellationToken& cancellation
@@ -647,14 +410,12 @@ namespace random_walker::graph {
             progress.report(domain::SegmentationStage::BuildingGraph, 1.0);
             return laplacian;
         }
-
         [[nodiscard]] GridLaplacianOutcome build_global_beta_grid_laplacian(
             const domain::GrayImage& image
             , const domain::RandomWalkerParameters& parameters
             , const domain::CancellationToken& cancellation
             , const domain::ProgressReporter& progress
         ) {
-            assert(parameters.edge_weight_model == domain::EdgeWeightModel::GlobalBeta);
             const GlobalBetaEdgeWeight edge_weight {
                 .parameters = global_beta_edge_weight_parameters_from(parameters)
             };
@@ -664,99 +425,6 @@ namespace random_walker::graph {
                 , edge_weight
                 , cancellation
                 , progress
-            );
-        }
-
-        [[nodiscard]] GridLaplacianOutcome build_local_variance_grid_laplacian(
-            const domain::GrayImage& image
-            , const domain::RandomWalkerParameters& parameters
-            , const domain::CancellationToken& cancellation
-            , const domain::ProgressReporter& progress
-        ) {
-            assert(parameters.edge_weight_model
-                == domain::EdgeWeightModel::LocalVarianceNormalized);
-            if (cancellation.stop_requested()) {
-                return domain::Cancelled {};
-            }
-
-            constexpr double kLocalContrastProgressFinish = 0.25;
-            const LocalContrastScaleOutcome contrast_scale_outcome =
-                build_local_contrast_scale_map(
-                    image
-                    , parameters.local_contrast_scale
-                    , cancellation
-                    , progress
-                    , 0.0
-                    , kLocalContrastProgressFinish
-                );
-            if (std::holds_alternative<domain::Cancelled>(contrast_scale_outcome)) {
-                return domain::Cancelled {};
-            }
-            const LocalContrastScaleMap& contrast_scale =
-                std::get<LocalContrastScaleMap>(contrast_scale_outcome);
-
-            const LocalVarianceNormalizedEdgeWeight edge_weight {
-                .contrast_scale = contrast_scale
-                , .parameters = local_variance_normalized_edge_weight_parameters_from(
-                    parameters
-                )
-            };
-            return build_grid_laplacian_with_weight(
-                image
-                , parameters
-                , edge_weight
-                , cancellation
-                , progress
-                , kLocalContrastProgressFinish
-                , 1.0
-            );
-        }
-
-        [[nodiscard]] GridLaplacianOutcome
-        build_edge_local_contrast_grid_laplacian(
-            const domain::GrayImage& image
-            , const domain::RandomWalkerParameters& parameters
-            , const domain::CancellationToken& cancellation
-            , const domain::ProgressReporter& progress
-        ) {
-            assert(parameters.edge_weight_model
-                == domain::EdgeWeightModel::EdgeLocalContrastNormalized);
-            if (cancellation.stop_requested()) {
-                return domain::Cancelled {};
-            }
-
-            constexpr double kEdgeLocalContrastProgressFinish = 0.25;
-            const EdgeLocalContrastScaleOutcome contrast_scale_outcome =
-                build_edge_local_contrast_scale_map(
-                    image
-                    , parameters.connectivity
-                    , parameters.edge_local_contrast_scale
-                    , cancellation
-                    , progress
-                    , 0.0
-                    , kEdgeLocalContrastProgressFinish
-                );
-            if (std::holds_alternative<domain::Cancelled>(contrast_scale_outcome)) {
-                return domain::Cancelled {};
-            }
-            const EdgeLocalContrastScaleMap& contrast_scale =
-                std::get<EdgeLocalContrastScaleMap>(contrast_scale_outcome);
-
-            const EdgeLocalContrastNormalizedEdgeWeight edge_weight {
-                .contrast_scale = contrast_scale
-                , .parameters =
-                    edge_local_contrast_normalized_edge_weight_parameters_from(
-                        parameters
-                    )
-            };
-            return build_grid_laplacian_with_weight(
-                image
-                , parameters
-                , edge_weight
-                , cancellation
-                , progress
-                , kEdgeLocalContrastProgressFinish
-                , 1.0
             );
         }
     }
@@ -769,31 +437,11 @@ namespace random_walker::graph {
     ) {
         assert_grid_laplacian_preconditions(image, parameters);
 
-        switch (parameters.edge_weight_model) {
-        case domain::EdgeWeightModel::GlobalBeta:
-            return build_global_beta_grid_laplacian(
-                image
-                , parameters
-                , cancellation
-                , progress
-            );
-        case domain::EdgeWeightModel::LocalVarianceNormalized:
-            return build_local_variance_grid_laplacian(
-                image
-                , parameters
-                , cancellation
-                , progress
-            );
-        case domain::EdgeWeightModel::EdgeLocalContrastNormalized:
-            return build_edge_local_contrast_grid_laplacian(
-                image
-                , parameters
-                , cancellation
-                , progress
-            );
-        }
-
-        assert(false && "Unhandled edge weight model");
-        return domain::Cancelled {};
+        return build_global_beta_grid_laplacian(
+            image
+            , parameters
+            , cancellation
+            , progress
+        );
     }
 }

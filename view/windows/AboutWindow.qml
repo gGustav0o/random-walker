@@ -252,7 +252,7 @@ ApplicationWindow {
 
                         InfoBlock {
                             title: "Edge weights"
-                            body: "The Global beta model uses one contrast scale for the whole image. The Local variance model estimates a local contrast scale, which is usually more robust when different parts of the image have different noise or contrast."
+                            body: "The current model uses a manual global beta parameter to control contrast sensitivity. In 8-connectivity, diagonal edges can also be weakened by the distance exponent."
                         }
 
                         InfoBlock {
@@ -311,12 +311,6 @@ ApplicationWindow {
                             title: "Peter G. Doyle, J. Laurie Snell, Random Walks and Electric Networks, 1984"
                             url: "https://math.dartmouth.edu/~doyle/docs/walks/walks.pdf"
                             note: "Mathematical background: hitting probabilities, harmonic functions, and the electrical-network interpretation behind solving the Dirichlet problem on a weighted graph."
-                        }
-
-                        ReferenceItem {
-                            title: "Dominik Drees, Florian Eilers, Ang Bian, Xiaoyi Jiang, Noise Model-Aware Random Walker, 2022"
-                            url: "https://arxiv.org/abs/2206.00947"
-                            note: "Weight-model context: motivates moving beyond a fixed beta and treating edge weights as similarity functions derived from local/noise statistics."
                         }
 
                         ReferenceItem {
