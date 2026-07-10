@@ -9,8 +9,8 @@ namespace random_walker::qt_adapter {
         Q_ASSERT(mask.height() >= 0);
 
         const QColor transparent(0, 0, 0, 0);
-        const QColor background_color(0, 80, 255, 110);
-        const QColor object_color(255, 40, 40, 110);
+        const QColor background_color(0, 80, 255, 60);
+        const QColor object_color(255, 40, 40, 60);
 
         QImage result(
             mask.width()

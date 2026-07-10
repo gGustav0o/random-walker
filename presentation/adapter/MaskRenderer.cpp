@@ -10,8 +10,8 @@ namespace random_walker::qt_adapter {
         Q_ASSERT(mask.rows() >= 0);
         Q_ASSERT(mask.cols() >= 0);
 
-        const QColor object_color(0, 255, 0, 100);
-        const QColor background_color(255, 0, 255, 100);
+        const QColor object_color(0, 255, 0, 60);
+        const QColor background_color(255, 0, 255, 60);
 
         QImage result(
             static_cast<int>(mask.cols())
