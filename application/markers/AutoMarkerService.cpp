@@ -89,8 +89,8 @@ namespace random_walker::application {
                 + std::to_string(parameters.confidence_threshold)
                 + ", minimum_component_area="
                 + std::to_string(parameters.minimum_component_area)
-                + ", erosion_radius="
-                + std::to_string(parameters.erosion_radius)
+                + ", minimum_boundary_distance="
+                + std::to_string(parameters.minimum_boundary_distance)
                 + ", foreground_polarity="
                 + std::string(foreground_polarity_name(parameters.foreground_polarity))
                 + ", gmm_component_count="
@@ -112,10 +112,8 @@ namespace random_walker::application {
                 + std::to_string(diagnostics.rejected_low_confidence_count)
                 + ", rejected_small_component="
                 + std::to_string(diagnostics.rejected_small_component_count)
-                + ", rejected_erosion="
-                + std::to_string(diagnostics.rejected_erosion_count)
-                + ", rejected_empty_core_component="
-                + std::to_string(diagnostics.rejected_empty_core_component_count)
+                + ", rejected_boundary_distance="
+                + std::to_string(diagnostics.rejected_boundary_distance_count)
                 + ", rejected_manual_conflict="
                 + std::to_string(diagnostics.rejected_manual_conflict_count)
                 + ", gmm_iterations="

@@ -9,13 +9,21 @@
 
 namespace {
 
-    constexpr int kCurrentSchemaVersion = 7;
+    constexpr int kCurrentSchemaVersion = 8;
 
     constexpr auto kSettingsGroup = "applicationSettings";
     constexpr auto kSchemaVersionKey = "schemaVersion";
     constexpr auto kRandomWalkerBetaKey = "randomWalker/beta";
     constexpr auto kRandomWalkerConnectivityKey = "randomWalker/connectivity";
     constexpr auto kRandomWalkerDistancePowerKey = "randomWalker/distancePower";
+    constexpr auto kAutoMarkersConfidenceThresholdKey =
+        "autoMarkers/confidenceThreshold";
+    constexpr auto kAutoMarkersMinimumComponentAreaKey =
+        "autoMarkers/minimumComponentArea";
+    constexpr auto kAutoMarkersMinimumBoundaryDistanceKey =
+        "autoMarkers/minimumBoundaryDistance";
+    constexpr auto kAutoMarkersForegroundPolarityKey =
+        "autoMarkers/foregroundPolarity";
     constexpr auto kLegacyBetaKey = "beta";
 
     template<typename Value>
@@ -68,6 +76,37 @@ namespace {
                 << "; settings will be repaired";
             return {
                 .value = std::numeric_limits<double>::quiet_NaN()
+                , .repair_required = true
+            };
+        }
+
+        return {.value = value};
+    }
+
+    [[nodiscard]] StoredValue<int> stored_int_or_default(
+        const QSettings& settings
+        , const char* key
+        , int default_value
+    ) {
+        if (!settings.contains(key)) {
+            return {
+                .value = default_value
+                , .repair_required = true
+            };
+        }
+
+        bool converted = false;
+        const QVariant stored_value = settings.value(key);
+        const int value = stored_value.toInt(&converted);
+        if (!converted) {
+            qWarning()
+                << "Failed to read integer settings value"
+                << key
+                << "from"
+                << settings.fileName()
+                << "; settings will be repaired";
+            return {
+                .value = std::numeric_limits<int>::min()
                 , .repair_required = true
             };
         }
@@ -152,6 +191,72 @@ namespace {
         }
 
         return {.value = *connectivity};
+    }
+
+    [[nodiscard]] std::optional<random_walker::domain::ForegroundPolarity>
+    foreground_polarity_from_storage(const QString& value) noexcept {
+        if (value == QStringLiteral("dark")) {
+            return random_walker::domain::ForegroundPolarity::DarkObject;
+        }
+        if (value == QStringLiteral("bright")) {
+            return random_walker::domain::ForegroundPolarity::BrightObject;
+        }
+
+        return std::nullopt;
+    }
+
+    [[nodiscard]] QString foreground_polarity_to_storage(
+        random_walker::domain::ForegroundPolarity foreground_polarity
+    ) noexcept {
+        switch (foreground_polarity) {
+        case random_walker::domain::ForegroundPolarity::DarkObject:
+            return QStringLiteral("dark");
+        case random_walker::domain::ForegroundPolarity::BrightObject:
+            return QStringLiteral("bright");
+        }
+
+        Q_ASSERT_X(
+            false
+            , "foreground_polarity_to_storage"
+            , "Unhandled foreground polarity"
+        );
+        return QStringLiteral("bright");
+    }
+
+    [[nodiscard]]
+    StoredValue<random_walker::domain::ForegroundPolarity>
+    stored_foreground_polarity_or_default(
+        const QSettings& settings
+        , const char* key
+        , random_walker::domain::ForegroundPolarity default_value
+    ) {
+        if (!settings.contains(key)) {
+            return {
+                .value = default_value
+                , .repair_required = true
+            };
+        }
+
+        const QVariant stored_value = settings.value(key);
+        const std::optional<random_walker::domain::ForegroundPolarity>
+            foreground_polarity =
+                foreground_polarity_from_storage(stored_value.toString());
+        if (!foreground_polarity.has_value()) {
+            qWarning()
+                << "Failed to read foreground polarity settings value"
+                << key
+                << "from"
+                << settings.fileName()
+                << "; settings will be repaired";
+            return {
+                .value = static_cast<
+                    random_walker::domain::ForegroundPolarity
+                >(-1)
+                , .repair_required = true
+            };
+        }
+
+        return {.value = *foreground_polarity};
     }
 }
 
@@ -255,6 +360,43 @@ namespace random_walker::infrastructure {
         settings.random_walker.distance_power = distance_power.value;
         result.repair_required |= distance_power.repair_required;
 
+        const auto confidence_threshold = stored_double_or_default(
+            settings_
+            , kAutoMarkersConfidenceThresholdKey
+            , default_settings.auto_markers.confidence_threshold
+        );
+        settings.auto_markers.confidence_threshold =
+            confidence_threshold.value;
+        result.repair_required |= confidence_threshold.repair_required;
+
+        const auto minimum_component_area = stored_int_or_default(
+            settings_
+            , kAutoMarkersMinimumComponentAreaKey
+            , default_settings.auto_markers.minimum_component_area
+        );
+        settings.auto_markers.minimum_component_area =
+            minimum_component_area.value;
+        result.repair_required |= minimum_component_area.repair_required;
+
+        const auto minimum_boundary_distance = stored_int_or_default(
+            settings_
+            , kAutoMarkersMinimumBoundaryDistanceKey
+            , default_settings.auto_markers.minimum_boundary_distance
+        );
+        settings.auto_markers.minimum_boundary_distance =
+            minimum_boundary_distance.value;
+        result.repair_required |= minimum_boundary_distance.repair_required;
+
+        const auto foreground_polarity =
+            stored_foreground_polarity_or_default(
+                settings_
+                , kAutoMarkersForegroundPolarityKey
+                , default_settings.auto_markers.foreground_polarity
+            );
+        settings.auto_markers.foreground_polarity =
+            foreground_polarity.value;
+        result.repair_required |= foreground_polarity.repair_required;
+
         result.settings = settings;
         return result;
     }
@@ -312,6 +454,24 @@ namespace random_walker::infrastructure {
         settings_.setValue(
             kRandomWalkerDistancePowerKey
             , application_settings.random_walker.distance_power
+        );
+        settings_.setValue(
+            kAutoMarkersConfidenceThresholdKey
+            , application_settings.auto_markers.confidence_threshold
+        );
+        settings_.setValue(
+            kAutoMarkersMinimumComponentAreaKey
+            , application_settings.auto_markers.minimum_component_area
+        );
+        settings_.setValue(
+            kAutoMarkersMinimumBoundaryDistanceKey
+            , application_settings.auto_markers.minimum_boundary_distance
+        );
+        settings_.setValue(
+            kAutoMarkersForegroundPolarityKey
+            , foreground_polarity_to_storage(
+                application_settings.auto_markers.foreground_polarity
+            )
         );
         settings_.setValue(kSchemaVersionKey, kCurrentSchemaVersion);
     }

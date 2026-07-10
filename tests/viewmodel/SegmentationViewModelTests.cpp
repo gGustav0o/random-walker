@@ -243,9 +243,11 @@ private slots:
     void set_beta_saves_settings_and_emits_change();
     void set_connectivity_saves_settings_and_emits_change();
     void set_distance_power_saves_settings_and_emits_change();
+    void set_auto_marker_parameters_saves_settings_and_emits_changes();
     void open_image_updates_image_state_and_cache();
     void add_seed_rectangles_updates_counts_and_can_run();
     void propose_markers_without_image_sets_error();
+    void propose_markers_uses_configured_auto_marker_parameters();
     void propose_markers_does_not_inflate_seed_model();
     void clear_automatic_markers_keeps_manual_regions();
     void clear_seeds_clears_manual_and_automatic_markers();
@@ -267,6 +269,22 @@ void SegmentationViewModelTests::initializes_from_settings() {
     QCOMPARE(
         fixture.view_model.distance_power()
         , domain::kDefaultRandomWalkerDistancePower
+    );
+    QCOMPARE(
+        fixture.view_model.auto_marker_confidence_threshold()
+        , domain::kDefaultAutoMarkerConfidenceThreshold
+    );
+    QCOMPARE(
+        fixture.view_model.auto_marker_minimum_boundary_distance()
+        , domain::kDefaultAutoMarkerBoundaryDistance
+    );
+    QCOMPARE(
+        fixture.view_model.auto_marker_minimum_component_area()
+        , domain::kDefaultAutoMarkerComponentArea
+    );
+    QCOMPARE(
+        fixture.view_model.auto_marker_foreground_polarity()
+        , static_cast<int>(SegmentationViewModel::BrightObjectForeground)
     );
     QVERIFY(!fixture.view_model.image_loaded());
     QVERIFY(!fixture.view_model.can_run());
@@ -325,6 +343,54 @@ void SegmentationViewModelTests::set_distance_power_saves_settings_and_emits_cha
     QCOMPARE(distance_power_changed.count(), 1);
 }
 
+void SegmentationViewModelTests::
+set_auto_marker_parameters_saves_settings_and_emits_changes() {
+    ViewModelFixture fixture;
+    QSignalSpy confidence_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::auto_marker_confidence_threshold_changed
+    );
+    QSignalSpy boundary_distance_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::auto_marker_minimum_boundary_distance_changed
+    );
+    QSignalSpy component_area_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::auto_marker_minimum_component_area_changed
+    );
+    QSignalSpy foreground_polarity_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::auto_marker_foreground_polarity_changed
+    );
+
+    fixture.view_model.set_auto_marker_confidence_threshold(0.75);
+    fixture.view_model.set_auto_marker_minimum_boundary_distance(5);
+    fixture.view_model.set_auto_marker_minimum_component_area(32);
+    fixture.view_model.set_auto_marker_foreground_polarity(
+        SegmentationViewModel::DarkObjectForeground
+    );
+
+    QCOMPARE(fixture.view_model.auto_marker_confidence_threshold(), 0.75);
+    QCOMPARE(fixture.view_model.auto_marker_minimum_boundary_distance(), 5);
+    QCOMPARE(fixture.view_model.auto_marker_minimum_component_area(), 32);
+    QCOMPARE(
+        fixture.view_model.auto_marker_foreground_polarity()
+        , static_cast<int>(SegmentationViewModel::DarkObjectForeground)
+    );
+    QCOMPARE(fixture.repository.save_count, 4);
+    QCOMPARE(fixture.repository.stored.auto_markers.confidence_threshold, 0.75);
+    QCOMPARE(fixture.repository.stored.auto_markers.minimum_boundary_distance, 5);
+    QCOMPARE(fixture.repository.stored.auto_markers.minimum_component_area, 32);
+    QCOMPARE(
+        static_cast<int>(fixture.repository.stored.auto_markers.foreground_polarity)
+        , static_cast<int>(domain::ForegroundPolarity::DarkObject)
+    );
+    QCOMPARE(confidence_changed.count(), 1);
+    QCOMPARE(boundary_distance_changed.count(), 1);
+    QCOMPARE(component_area_changed.count(), 1);
+    QCOMPARE(foreground_polarity_changed.count(), 1);
+}
+
 
 void SegmentationViewModelTests::open_image_updates_image_state_and_cache() {
     ViewModelFixture fixture;
@@ -375,6 +441,33 @@ void SegmentationViewModelTests::propose_markers_without_image_sets_error() {
     QCOMPARE(fixture.view_model.automatic_marker_count(), 0);
     QCOMPARE(fixture.executor.submit_count, 0);
     QCOMPARE(error_message_changed.count(), 1);
+}
+
+void SegmentationViewModelTests::
+propose_markers_uses_configured_auto_marker_parameters() {
+    ViewModelFixture fixture;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    fixture.view_model.open_image(write_bimodal_test_image(directory));
+    fixture.view_model.set_auto_marker_confidence_threshold(0.75);
+    fixture.view_model.set_auto_marker_minimum_boundary_distance(5);
+    fixture.view_model.set_auto_marker_minimum_component_area(32);
+    fixture.view_model.set_auto_marker_foreground_polarity(
+        SegmentationViewModel::DarkObjectForeground
+    );
+
+    fixture.view_model.propose_markers();
+
+    QVERIFY(fixture.auto_marker_executor.pending_request.has_value());
+    const auto& parameters =
+        fixture.auto_marker_executor.pending_request->parameters();
+    QCOMPARE(parameters.confidence_threshold, 0.75);
+    QCOMPARE(parameters.minimum_boundary_distance, 5);
+    QCOMPARE(parameters.minimum_component_area, 32);
+    QCOMPARE(
+        static_cast<int>(parameters.foreground_polarity)
+        , static_cast<int>(domain::ForegroundPolarity::DarkObject)
+    );
 }
 
 void SegmentationViewModelTests::propose_markers_does_not_inflate_seed_model() {

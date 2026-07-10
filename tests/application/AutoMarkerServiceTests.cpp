@@ -1,11 +1,14 @@
 #include <cstdint>
 #include <initializer_list>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include <QtTest>
 
+#include "application/diagnostics/Logging.hpp"
 #include "application/markers/AutoMarkerService.hpp"
 #include "model/domain/GrayImage.hpp"
 
@@ -38,20 +41,32 @@ namespace {
             }
             , .confidence_threshold = 0.95
             , .minimum_component_area = 1
-            , .erosion_radius = 0
+            , .minimum_boundary_distance = 0
             , .foreground_polarity = domain::ForegroundPolarity::BrightObject
         };
     }
+
+    struct CapturedLogMessage {
+        application::LogLevel level = application::LogLevel::Info;
+        std::string category;
+        std::string message;
+    };
 }
 
 class AutoMarkerServiceTests final : public QObject {
     Q_OBJECT
 
 private slots:
+    void cleanup();
     void maps_empty_image_to_user_error();
     void maps_invalid_parameters_to_user_error();
     void filters_automatic_markers_that_conflict_with_manual_regions();
+    void logs_boundary_distance_diagnostics();
 };
+
+void AutoMarkerServiceTests::cleanup() {
+    application::clear_log_sink();
+}
 
 void AutoMarkerServiceTests::maps_empty_image_to_user_error() {
     const application::AutoMarkerService service;
@@ -108,6 +123,60 @@ void AutoMarkerServiceTests::filters_automatic_markers_that_conflict_with_manual
     QCOMPARE(proposal.mask.seed_count(), std::size_t {3});
     QCOMPARE(proposal.diagnostics.proposed_seed_count, proposal.mask.seed_count());
     QCOMPARE(proposal.diagnostics.rejected_manual_conflict_count, std::size_t {1});
+}
+
+void AutoMarkerServiceTests::logs_boundary_distance_diagnostics() {
+    std::vector<CapturedLogMessage> messages;
+    application::set_log_sink(
+        [&messages](
+            application::LogLevel level
+            , std::string_view category
+            , std::string_view message
+        ) {
+            messages.push_back({
+                .level = level
+                , .category = std::string(category)
+                , .message = std::string(message)
+            });
+        }
+    );
+
+    const application::AutoMarkerService service;
+    domain::AutoMarkerParameters parameters = permissive_parameters();
+    parameters.minimum_boundary_distance = 2;
+
+    const application::AutoMarkerProposalOutcome outcome = service.propose(
+        make_image(
+            5
+            , 5
+            , {
+                0, 0, 0, 0, 0,
+                0, 200, 200, 200, 0,
+                0, 200, 200, 200, 0,
+                0, 200, 200, 200, 0,
+                0, 0, 0, 0, 0
+            }
+        )
+        , parameters
+        , {}
+    );
+
+    QVERIFY(std::holds_alternative<domain::MarkerProposal>(outcome));
+    QCOMPARE(messages.size(), std::size_t {2});
+    QCOMPARE(
+        static_cast<int>(messages[0].level)
+        , static_cast<int>(application::LogLevel::Info)
+    );
+    QVERIFY(messages[0].category == std::string(application::log_category::auto_markers));
+    QVERIFY(messages[0].message.find("minimum_boundary_distance=2")
+        != std::string::npos);
+    QCOMPARE(
+        static_cast<int>(messages[1].level)
+        , static_cast<int>(application::LogLevel::Info)
+    );
+    QVERIFY(messages[1].category == std::string(application::log_category::auto_markers));
+    QVERIFY(messages[1].message.find("rejected_boundary_distance=")
+        != std::string::npos);
 }
 
 QTEST_GUILESS_MAIN(AutoMarkerServiceTests)

@@ -11,13 +11,21 @@ namespace {
     constexpr auto kRandomWalkerBetaKey = "randomWalker/beta";
     constexpr auto kRandomWalkerConnectivityKey = "randomWalker/connectivity";
     constexpr auto kRandomWalkerDistancePowerKey = "randomWalker/distancePower";
+    constexpr auto kAutoMarkersConfidenceThresholdKey =
+        "autoMarkers/confidenceThreshold";
+    constexpr auto kAutoMarkersMinimumComponentAreaKey =
+        "autoMarkers/minimumComponentArea";
+    constexpr auto kAutoMarkersMinimumBoundaryDistanceKey =
+        "autoMarkers/minimumBoundaryDistance";
+    constexpr auto kAutoMarkersForegroundPolarityKey =
+        "autoMarkers/foregroundPolarity";
     constexpr auto kLegacyBetaKey = "beta";
     constexpr auto kRemovedEdgeWeightModelKey = "randomWalker/edgeWeightModel";
     constexpr auto kRemovedLocalContrastRadiusKey =
         "randomWalker/localContrast/radius";
     constexpr auto kRemovedEdgeLocalContrastRadiusKey =
         "randomWalker/edgeLocalContrast/radius";
-    constexpr int kCurrentSchemaVersion = 7;
+    constexpr int kCurrentSchemaVersion = 8;
 
     class InMemorySettingsRepository final
         : public random_walker::application::SettingsRepository {
@@ -59,6 +67,29 @@ namespace {
         settings.endGroup();
         settings.sync();
     }
+
+    void compare_default_auto_markers(
+        const random_walker::application::ApplicationSettings& settings
+    ) {
+        const random_walker::domain::AutoMarkerParameters default_parameters;
+
+        QCOMPARE(
+            settings.auto_markers.confidence_threshold
+            , random_walker::domain::kDefaultAutoMarkerConfidenceThreshold
+        );
+        QCOMPARE(
+            settings.auto_markers.minimum_component_area
+            , random_walker::domain::kDefaultAutoMarkerComponentArea
+        );
+        QCOMPARE(
+            settings.auto_markers.minimum_boundary_distance
+            , random_walker::domain::kDefaultAutoMarkerBoundaryDistance
+        );
+        QCOMPARE(
+            static_cast<int>(settings.auto_markers.foreground_polarity)
+            , static_cast<int>(default_parameters.foreground_polarity)
+        );
+    }
 }
 
 class SettingsTests final : public QObject {
@@ -96,6 +127,7 @@ void SettingsTests::loads_default_values() {
         settings.random_walker.distance_power
         , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
+    compare_default_auto_markers(settings);
     QVERIFY(repository.stored == settings);
     QVERIFY(!load_result.repair_required);
     QCOMPARE(repository.save_count, 0);
@@ -109,6 +141,26 @@ void SettingsTests::repairs_corrupted_values() {
     write_value(path, kRandomWalkerBetaKey, QStringLiteral("invalid"));
     write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("invalid"));
     write_value(path, kRandomWalkerDistancePowerKey, QStringLiteral("invalid"));
+    write_value(
+        path
+        , kAutoMarkersConfidenceThresholdKey
+        , QStringLiteral("invalid")
+    );
+    write_value(
+        path
+        , kAutoMarkersMinimumComponentAreaKey
+        , QStringLiteral("invalid")
+    );
+    write_value(
+        path
+        , kAutoMarkersMinimumBoundaryDistanceKey
+        , QStringLiteral("invalid")
+    );
+    write_value(
+        path
+        , kAutoMarkersForegroundPolarityKey
+        , QStringLiteral("invalid")
+    );
 
     random_walker::infrastructure::QtSettingsRepository repository(
         path
@@ -131,6 +183,7 @@ void SettingsTests::repairs_corrupted_values() {
         settings.random_walker.distance_power
         , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
+    compare_default_auto_markers(settings);
     QVERIFY(load_result.repair_required);
 
     const auto repair_outcome = service.save(settings);
@@ -150,6 +203,22 @@ void SettingsTests::repairs_corrupted_values() {
         repaired.value(kRandomWalkerDistancePowerKey).toDouble()
         , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
+    QCOMPARE(
+        repaired.value(kAutoMarkersConfidenceThresholdKey).toDouble()
+        , random_walker::domain::kDefaultAutoMarkerConfidenceThreshold
+    );
+    QCOMPARE(
+        repaired.value(kAutoMarkersMinimumComponentAreaKey).toInt()
+        , random_walker::domain::kDefaultAutoMarkerComponentArea
+    );
+    QCOMPARE(
+        repaired.value(kAutoMarkersMinimumBoundaryDistanceKey).toInt()
+        , random_walker::domain::kDefaultAutoMarkerBoundaryDistance
+    );
+    QCOMPARE(
+        repaired.value(kAutoMarkersForegroundPolarityKey).toString()
+        , QStringLiteral("bright")
+    );
     QCOMPARE(repaired.value(kSchemaVersionKey).toInt(), kCurrentSchemaVersion);
 }
 
@@ -161,6 +230,10 @@ void SettingsTests::loads_persisted_parameters() {
     write_value(path, kRandomWalkerBetaKey, 0.005);
     write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
     write_value(path, kRandomWalkerDistancePowerKey, 1.5);
+    write_value(path, kAutoMarkersConfidenceThresholdKey, 0.75);
+    write_value(path, kAutoMarkersMinimumComponentAreaKey, 32);
+    write_value(path, kAutoMarkersMinimumBoundaryDistanceKey, 5);
+    write_value(path, kAutoMarkersForegroundPolarityKey, QStringLiteral("dark"));
 
     random_walker::infrastructure::QtSettingsRepository repository(
         path
@@ -176,6 +249,13 @@ void SettingsTests::loads_persisted_parameters() {
         , static_cast<int>(random_walker::domain::PixelConnectivity::Eight)
     );
     QCOMPARE(settings.random_walker.distance_power, 1.5);
+    QCOMPARE(settings.auto_markers.confidence_threshold, 0.75);
+    QCOMPARE(settings.auto_markers.minimum_component_area, 32);
+    QCOMPARE(settings.auto_markers.minimum_boundary_distance, 5);
+    QCOMPARE(
+        static_cast<int>(settings.auto_markers.foreground_polarity)
+        , static_cast<int>(random_walker::domain::ForegroundPolarity::DarkObject)
+    );
     QVERIFY(!load_result.repair_required);
 }
 
@@ -187,6 +267,10 @@ void SettingsTests::ignores_unknown_newer_schema() {
     write_value(path, kRandomWalkerBetaKey, 0.005);
     write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
     write_value(path, kRandomWalkerDistancePowerKey, 1.5);
+    write_value(path, kAutoMarkersConfidenceThresholdKey, 0.75);
+    write_value(path, kAutoMarkersMinimumComponentAreaKey, 32);
+    write_value(path, kAutoMarkersMinimumBoundaryDistanceKey, 5);
+    write_value(path, kAutoMarkersForegroundPolarityKey, QStringLiteral("dark"));
 
     random_walker::infrastructure::QtSettingsRepository repository(
         path
@@ -208,6 +292,7 @@ void SettingsTests::ignores_unknown_newer_schema() {
         settings.random_walker.distance_power
         , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
+    compare_default_auto_markers(settings);
     QVERIFY(!load_result.repair_required);
 
     QSettings persisted(path, QSettings::IniFormat);
@@ -243,6 +328,7 @@ void SettingsTests::migrates_legacy_schema() {
         settings.random_walker.distance_power
         , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
+    compare_default_auto_markers(settings);
     QVERIFY(load_result.repair_required);
 
     QVERIFY(repository.save(settings));
@@ -258,6 +344,22 @@ void SettingsTests::migrates_legacy_schema() {
     QCOMPARE(
         migrated.value(kRandomWalkerDistancePowerKey).toDouble()
         , random_walker::domain::kDefaultRandomWalkerDistancePower
+    );
+    QCOMPARE(
+        migrated.value(kAutoMarkersConfidenceThresholdKey).toDouble()
+        , random_walker::domain::kDefaultAutoMarkerConfidenceThreshold
+    );
+    QCOMPARE(
+        migrated.value(kAutoMarkersMinimumComponentAreaKey).toInt()
+        , random_walker::domain::kDefaultAutoMarkerComponentArea
+    );
+    QCOMPARE(
+        migrated.value(kAutoMarkersMinimumBoundaryDistanceKey).toInt()
+        , random_walker::domain::kDefaultAutoMarkerBoundaryDistance
+    );
+    QCOMPARE(
+        migrated.value(kAutoMarkersForegroundPolarityKey).toString()
+        , QStringLiteral("bright")
     );
     QVERIFY(!migrated.contains(kLegacyBetaKey));
 }
@@ -287,6 +389,7 @@ void SettingsTests::migrates_schema_one_with_default_connectivity() {
         settings.random_walker.distance_power
         , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
+    compare_default_auto_markers(settings);
     QVERIFY(load_result.repair_required);
 }
 
@@ -316,6 +419,7 @@ void SettingsTests::migrates_schema_two_with_default_distance_power() {
         settings.random_walker.distance_power
         , random_walker::domain::kDefaultRandomWalkerDistancePower
     );
+    compare_default_auto_markers(settings);
     QVERIFY(load_result.repair_required);
 }
 
@@ -349,6 +453,7 @@ void SettingsTests::drops_removed_weight_settings_on_save() {
         , static_cast<int>(random_walker::domain::PixelConnectivity::Eight)
     );
     QCOMPARE(settings.random_walker.distance_power, 1.5);
+    compare_default_auto_markers(settings);
     QVERIFY(load_result.repair_required);
 
     QVERIFY(repository.save(settings));
@@ -358,6 +463,22 @@ void SettingsTests::drops_removed_weight_settings_on_save() {
     QVERIFY(!migrated.contains(kRemovedEdgeWeightModelKey));
     QVERIFY(!migrated.contains(kRemovedLocalContrastRadiusKey));
     QVERIFY(!migrated.contains(kRemovedEdgeLocalContrastRadiusKey));
+    QCOMPARE(
+        migrated.value(kAutoMarkersConfidenceThresholdKey).toDouble()
+        , random_walker::domain::kDefaultAutoMarkerConfidenceThreshold
+    );
+    QCOMPARE(
+        migrated.value(kAutoMarkersMinimumComponentAreaKey).toInt()
+        , random_walker::domain::kDefaultAutoMarkerComponentArea
+    );
+    QCOMPARE(
+        migrated.value(kAutoMarkersMinimumBoundaryDistanceKey).toInt()
+        , random_walker::domain::kDefaultAutoMarkerBoundaryDistance
+    );
+    QCOMPARE(
+        migrated.value(kAutoMarkersForegroundPolarityKey).toString()
+        , QStringLiteral("bright")
+    );
     QCOMPARE(migrated.value(kSchemaVersionKey).toInt(), kCurrentSchemaVersion);
 }
 
@@ -374,6 +495,19 @@ void SettingsTests::rejects_invalid_settings_on_save() {
     QVERIFY(outcome.has_value());
     QVERIFY(
         *outcome == random_walker::application::SettingsError::InvalidSettings
+    );
+    QCOMPARE(repository.save_count, 0);
+
+    settings = {};
+    settings.auto_markers.confidence_threshold =
+        random_walker::domain::kMaximumAutoMarkerConfidenceThreshold + 1.0;
+
+    const auto auto_marker_outcome = service.save(settings);
+
+    QVERIFY(auto_marker_outcome.has_value());
+    QVERIFY(
+        *auto_marker_outcome
+        == random_walker::application::SettingsError::InvalidSettings
     );
     QCOMPARE(repository.save_count, 0);
 }

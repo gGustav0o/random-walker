@@ -39,7 +39,7 @@ namespace {
             }
             , .confidence_threshold = 0.95
             , .minimum_component_area = 1
-            , .erosion_radius = 0
+            , .minimum_boundary_distance = 0
             , .foreground_polarity = domain::ForegroundPolarity::BrightObject
         };
     }
@@ -60,7 +60,7 @@ private slots:
     void proposes_high_confidence_object_and_background_seeds();
     void dark_object_polarity_assigns_low_intensity_to_object();
     void rejects_small_components();
-    void erosion_removes_boundary_candidates();
+    void distance_transform_removes_boundary_candidates();
     void manual_regions_take_priority_over_automatic_seeds();
 };
 
@@ -125,25 +125,31 @@ void GmmMarkerProposalTests::rejects_small_components() {
     QVERIFY(proposal.diagnostics.rejected_small_component_count >= std::size_t {1});
 }
 
-void GmmMarkerProposalTests::erosion_removes_boundary_candidates() {
+void GmmMarkerProposalTests::distance_transform_removes_boundary_candidates() {
     const domain::GrayImage image = make_image(
-        3
-        , 3
+        5
+        , 5
         , {
-            0, 0, 0,
-            0, 200, 0,
-            0, 0, 0
+            0, 0, 0, 0, 0,
+            0, 200, 200, 200, 0,
+            0, 200, 200, 200, 0,
+            0, 200, 200, 200, 0,
+            0, 0, 0, 0, 0
         }
     );
     domain::AutoMarkerParameters parameters = permissive_parameters();
-    parameters.erosion_radius = 1;
+    parameters.minimum_boundary_distance = 2;
 
     const auto outcome = markers::propose_gmm_markers(image, parameters);
 
     QVERIFY(std::holds_alternative<domain::MarkerProposal>(outcome));
     const domain::MarkerProposal& proposal = std::get<domain::MarkerProposal>(outcome);
-    QCOMPARE(marker_count(proposal, domain::MarkerLabel::Object), 0);
-    QVERIFY(proposal.diagnostics.rejected_erosion_count > std::size_t {0});
+    QCOMPARE(marker_count(proposal, domain::MarkerLabel::Object), 1);
+    QCOMPARE(
+        static_cast<int>(proposal.mask.at(2, 2))
+        , static_cast<int>(domain::MarkerLabel::Object)
+    );
+    QVERIFY(proposal.diagnostics.rejected_boundary_distance_count > std::size_t {0});
 }
 
 void GmmMarkerProposalTests::manual_regions_take_priority_over_automatic_seeds() {

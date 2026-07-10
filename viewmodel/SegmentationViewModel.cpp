@@ -86,6 +86,36 @@ namespace {
         }
     }
 
+    [[nodiscard]] int view_foreground_polarity(
+        random_walker::domain::ForegroundPolarity foreground_polarity
+    ) noexcept {
+        switch (foreground_polarity) {
+        case random_walker::domain::ForegroundPolarity::DarkObject:
+            return SegmentationViewModel::DarkObjectForeground;
+        case random_walker::domain::ForegroundPolarity::BrightObject:
+            return SegmentationViewModel::BrightObjectForeground;
+        }
+
+        Q_ASSERT_X(
+            false
+            , "view_foreground_polarity"
+            , "Unhandled foreground polarity"
+        );
+        return SegmentationViewModel::BrightObjectForeground;
+    }
+
+    [[nodiscard]] std::optional<random_walker::domain::ForegroundPolarity>
+    domain_foreground_polarity(int foreground_polarity) noexcept {
+        switch (foreground_polarity) {
+        case SegmentationViewModel::DarkObjectForeground:
+            return random_walker::domain::ForegroundPolarity::DarkObject;
+        case SegmentationViewModel::BrightObjectForeground:
+            return random_walker::domain::ForegroundPolarity::BrightObject;
+        default:
+            return std::nullopt;
+        }
+    }
+
     [[nodiscard]] std::optional<random_walker::domain::PixelRectangle>
     clipped_seed_rectangle(
         int x
@@ -155,6 +185,9 @@ SegmentationViewModel::SegmentationViewModel(
     application_settings_ = loaded_settings.settings;
     Q_ASSERT(random_walker::domain::is_valid(
         application_settings_.random_walker
+    ));
+    Q_ASSERT(random_walker::domain::is_valid(
+        application_settings_.auto_markers
     ));
     random_walker::application::log_info(
         random_walker::application::log_category::viewmodel
@@ -240,6 +273,57 @@ int SegmentationViewModel::connectivity() const noexcept {
 
 double SegmentationViewModel::distance_power() const noexcept {
     return application_settings_.random_walker.distance_power;
+}
+
+double SegmentationViewModel::auto_marker_confidence_threshold()
+    const noexcept {
+    return application_settings_.auto_markers.confidence_threshold;
+}
+
+int SegmentationViewModel::auto_marker_minimum_boundary_distance()
+    const noexcept {
+    return application_settings_.auto_markers.minimum_boundary_distance;
+}
+
+int SegmentationViewModel::auto_marker_minimum_component_area()
+    const noexcept {
+    return application_settings_.auto_markers.minimum_component_area;
+}
+
+int SegmentationViewModel::auto_marker_foreground_polarity() const noexcept {
+    return view_foreground_polarity(
+        application_settings_.auto_markers.foreground_polarity
+    );
+}
+
+double SegmentationViewModel::minimum_auto_marker_confidence_threshold()
+    const noexcept {
+    return random_walker::domain::kMinimumAutoMarkerConfidenceThreshold;
+}
+
+double SegmentationViewModel::maximum_auto_marker_confidence_threshold()
+    const noexcept {
+    return random_walker::domain::kMaximumAutoMarkerConfidenceThreshold;
+}
+
+int SegmentationViewModel::minimum_auto_marker_boundary_distance()
+    const noexcept {
+    return random_walker::domain::kMinimumAutoMarkerBoundaryDistance;
+}
+
+int SegmentationViewModel::maximum_auto_marker_boundary_distance()
+    const noexcept {
+    return random_walker::domain::kMaximumAutoMarkerBoundaryDistance;
+}
+
+int SegmentationViewModel::minimum_auto_marker_component_area()
+    const noexcept {
+    return random_walker::domain::kMinimumAutoMarkerComponentArea;
+}
+
+int SegmentationViewModel::maximum_auto_marker_component_area()
+    const noexcept {
+    return random_walker::domain::kMaximumAutoMarkerComponentArea;
 }
 
 
@@ -364,6 +448,50 @@ void SegmentationViewModel::set_distance_power(double value) {
     auto updated_parameters = application_settings_.random_walker;
     updated_parameters.distance_power = value;
     update_random_walker_parameters(updated_parameters);
+}
+
+void SegmentationViewModel::set_auto_marker_confidence_threshold(
+    double value
+) {
+    assert_ui_thread();
+
+    auto updated_parameters = application_settings_.auto_markers;
+    updated_parameters.confidence_threshold = value;
+    update_auto_marker_parameters(updated_parameters);
+}
+
+void SegmentationViewModel::set_auto_marker_minimum_boundary_distance(
+    int value
+) {
+    assert_ui_thread();
+
+    auto updated_parameters = application_settings_.auto_markers;
+    updated_parameters.minimum_boundary_distance = value;
+    update_auto_marker_parameters(updated_parameters);
+}
+
+void SegmentationViewModel::set_auto_marker_minimum_component_area(
+    int value
+) {
+    assert_ui_thread();
+
+    auto updated_parameters = application_settings_.auto_markers;
+    updated_parameters.minimum_component_area = value;
+    update_auto_marker_parameters(updated_parameters);
+}
+
+void SegmentationViewModel::set_auto_marker_foreground_polarity(int polarity) {
+    assert_ui_thread();
+
+    const std::optional<DomainForegroundPolarity> updated_polarity =
+        domain_foreground_polarity(polarity);
+    if (!updated_polarity.has_value()) {
+        return;
+    }
+
+    auto updated_parameters = application_settings_.auto_markers;
+    updated_parameters.foreground_polarity = *updated_polarity;
+    update_auto_marker_parameters(updated_parameters);
 }
 
 void SegmentationViewModel::open_image(const QString& path) {
@@ -528,7 +656,7 @@ void SegmentationViewModel::propose_markers() {
     random_walker::application::AutoMarkerRequest request(
         request_id
         , image_state_.image()
-        , random_walker::domain::AutoMarkerParameters {}
+        , application_settings_.auto_markers
         , seed_state_.regions()
     );
 
@@ -781,6 +909,84 @@ void SegmentationViewModel::update_random_walker_parameters(
     if (distance_power_was_changed) {
         emit distance_power_changed();
     }
+}
+
+void SegmentationViewModel::update_auto_marker_parameters(
+    random_walker::domain::AutoMarkerParameters parameters) {
+    assert_ui_thread();
+
+    if (parameters == application_settings_.auto_markers) {
+        return;
+    }
+
+    const bool confidence_threshold_was_changed =
+        parameters.confidence_threshold
+            != application_settings_.auto_markers.confidence_threshold;
+    const bool minimum_boundary_distance_was_changed =
+        parameters.minimum_boundary_distance
+            != application_settings_.auto_markers.minimum_boundary_distance;
+    const bool minimum_component_area_was_changed =
+        parameters.minimum_component_area
+            != application_settings_.auto_markers.minimum_component_area;
+    const bool foreground_polarity_was_changed =
+        parameters.foreground_polarity
+            != application_settings_.auto_markers.foreground_polarity;
+    auto updated_settings = application_settings_;
+    updated_settings.auto_markers = parameters;
+    if (const auto error = settings_service_.save(updated_settings);
+        error.has_value()) {
+        random_walker::application::log_warning(
+            random_walker::application::log_category::viewmodel
+            , "Failed to save automatic marker parameters"
+        );
+        set_error(*error);
+        return;
+    }
+
+    random_walker::application::log_info(
+        random_walker::application::log_category::viewmodel
+        , std::string("Automatic marker parameters updated: ")
+            + "confidence_threshold="
+            + std::to_string(updated_settings.auto_markers.confidence_threshold)
+            + ", minimum_component_area="
+            + std::to_string(
+                updated_settings.auto_markers.minimum_component_area
+            )
+            + ", minimum_boundary_distance="
+            + std::to_string(
+                updated_settings.auto_markers.minimum_boundary_distance
+            )
+            + ", foreground_polarity="
+            + std::to_string(view_foreground_polarity(
+                updated_settings.auto_markers.foreground_polarity
+            ))
+    );
+
+    const bool previous_can_run = can_run();
+    cancel_active_auto_marker_request();
+    const bool automatic_markers_were_cleared =
+        automatic_marker_state_.clear();
+    invalidate_result();
+    clear_error();
+
+    application_settings_ = std::move(updated_settings);
+    if (confidence_threshold_was_changed) {
+        emit auto_marker_confidence_threshold_changed();
+    }
+    if (minimum_boundary_distance_was_changed) {
+        emit auto_marker_minimum_boundary_distance_changed();
+    }
+    if (minimum_component_area_was_changed) {
+        emit auto_marker_minimum_component_area_changed();
+    }
+    if (foreground_polarity_was_changed) {
+        emit auto_marker_foreground_polarity_changed();
+    }
+    if (automatic_markers_were_cleared) {
+        emit automatic_markers_changed();
+        emit seeds_changed();
+    }
+    notify_can_run_if_changed(previous_can_run);
 }
 
 void SegmentationViewModel::dispatch_completion(

@@ -42,6 +42,11 @@ add_random_walker_test(model_algorithm_tests
         random_walker_algorithm_options
 )
 
+add_random_walker_test(model_distance_transform_tests
+    SOURCES
+        model/DistanceTransformTests.cpp
+)
+
 add_random_walker_test(model_gmm_intensity_tests
     SOURCES
         model/GmmIntensityTests.cpp

@@ -66,6 +66,7 @@ set(HEADERS
     model/domain/Seed.hpp
     model/domain/Segmentation.hpp
     model/algorithm/BoundaryConditions.hpp
+    model/algorithm/DistanceTransform.hpp
     model/algorithm/HarmonicSolver.hpp
     model/algorithm/IndexTypes.hpp
     model/algorithm/IterationPolicy.hpp

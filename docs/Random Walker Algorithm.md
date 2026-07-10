@@ -452,13 +452,29 @@ Otherwise the pixel is rejected as low-confidence.
 
 Implementation: `high_confidence_candidates`.
 
-## 8.5. Connected Components and Erosion-Like Cleanup
+## 8.5. Distance-Transform Cleanup and Connected Components
 
-Candidates are split into connected components by label. Current auto-marker cleanup uses 4-connectivity regardless of the Random Walker connectivity selected by the user.
+For each label $\ell$, let $A_\ell\subseteq\Omega$ be the set of high-confidence candidate pixels with that label. The cleanup first computes the exact squared Euclidean distance from each pixel to the complement of $A_\ell$:
 
-Implementation: `clean_candidates`.
+$$
+D_\ell(s)=\min_{t\in\Omega\setminus A_\ell}\|s-t\|_2^2.
+$$
 
-For each component $C$:
+If $\Omega\setminus A_\ell$ is empty, distances for that label are treated as infinite inside the image domain.
+
+A candidate $s\in A_\ell$ is distance-safe iff
+
+$$
+D_\ell(s)\ge d_{\min}^2,
+$$
+
+where $d_{\min}$ is `minimum_boundary_distance`. Setting `minimum_boundary_distance` to `0` disables this geometric rejection step.
+
+Implementation: `squared_euclidean_distance_transform`, `distance_safe_candidates`.
+
+Distance-safe candidates are then split into connected components by label. Current auto-marker cleanup uses 4-connectivity regardless of the Random Walker connectivity selected by the user.
+
+For each distance-safe component $C$:
 
 1. If
 
@@ -468,25 +484,13 @@ $$
 
 the component is rejected as too small.
 
-2. For each $s\in C$, define the square neighborhood
+2. Otherwise, all pixels in $C$ are emitted as automatic markers.
 
-$$
-\mathcal W_\rho(s)=\{t\in\Omega\mid |t_r-s_r|\le\rho,\ |t_c-s_c|\le\rho\}.
-$$
+Implementation: `clean_candidates`, `append_clean_component_markers`.
 
-The pixel survives cleanup iff
+This is equivalent to an Euclidean-distance core extraction on each accepted candidate mask, followed by connected-component cleanup. Connected-component processing is historically related to [Rosenfeld and Pfaltz 1966](https://doi.org/10.1145/321356.321357).
 
-$$
-\forall t\in\mathcal W_\rho(s):\quad t\in C\ \text{and}\ t\text{ has the same label as }s.
-$$
-
-If the square neighborhood crosses the image boundary, the pixel is rejected.
-
-Implementation: `survives_erosion`, `append_clean_component_markers`.
-
-This is equivalent to binary erosion with a square structuring element on the accepted candidate mask. Connected-component processing is historically related to [Rosenfeld and Pfaltz 1966](https://doi.org/10.1145/321356.321357).
-
-**Theoretical warning.** GMM plus connected components plus erosion does not prove marker correctness. It is a high-confidence intensity heuristic. If object and background are not well separated by intensity, the GMM may produce confident but wrong marker proposals.
+**Theoretical warning.** GMM plus distance-transform cleanup plus connected components does not prove marker correctness. It is a high-confidence intensity heuristic. If object and background are not well separated by intensity, the GMM may produce confident but wrong marker proposals.
 
 GrabCut [Rother, Kolmogorov, Blake 2004](https://www.microsoft.com/en-us/research/publication/grabcut-interactive-foreground-extraction-using-iterated-graph-cuts/) is relevant only as a related example of GMM-based foreground/background modelling in interactive segmentation. The project does not implement GrabCut and does not solve graph-cut energy.
 

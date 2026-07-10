@@ -37,15 +37,19 @@ namespace random_walker::application {
     bool SettingsService::is_valid(
         const ApplicationSettings& settings
     ) noexcept {
-        return domain::is_valid(settings.random_walker);
+        return domain::is_valid(settings.random_walker)
+            && domain::is_valid(settings.auto_markers);
     }
 
     ApplicationSettings SettingsService::normalize(
         ApplicationSettings settings
     ) {
         const ApplicationSettings default_settings = defaults();
-        if (!is_valid(settings)) {
+        if (!domain::is_valid(settings.random_walker)) {
             settings.random_walker = default_settings.random_walker;
+        }
+        if (!domain::is_valid(settings.auto_markers)) {
+            settings.auto_markers = default_settings.auto_markers;
         }
         return settings;
     }

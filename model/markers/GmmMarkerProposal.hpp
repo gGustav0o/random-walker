@@ -1,5 +1,6 @@
 #pragma once
 
+#include "model/algorithm/DistanceTransform.hpp"
 #include "model/domain/AutoMarkers.hpp"
 #include "model/domain/GrayImage.hpp"
 #include "model/markers/GmmIntensity.hpp"
@@ -49,6 +50,15 @@ namespace random_walker::markers {
         assert(width > 0);
         assert(position.x < width);
         return position.y * width + position.x;
+    }
+
+    [[nodiscard]] inline std::size_t pixel_count(
+        int width
+        , int height
+    ) noexcept {
+        assert(width >= 0);
+        assert(height >= 0);
+        return static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
     }
 
     [[nodiscard]] inline domain::PixelCoordinate unflatten(
@@ -133,43 +143,81 @@ namespace random_walker::markers {
             && position.y < height;
     }
 
-    [[nodiscard]] inline bool survives_erosion(
-        domain::PixelCoordinate position
-        , domain::SeedLabel label
+    [[nodiscard]] inline std::vector<std::uint8_t> distance_safe_candidates(
+        const std::vector<CandidatePixel>& candidates
         , std::span<const std::uint8_t> accepted_by_label
         , int width
         , int height
-        , int radius
-    ) noexcept {
-        assert(radius >= 0);
+        , const domain::AutoMarkerParameters& parameters
+        , domain::MarkerProposalDiagnostics& diagnostics
+    ) {
         assert(width > 0);
         assert(height > 0);
-        assert(static_cast<std::size_t>(width * height) == accepted_by_label.size());
+        assert(pixel_count(width, height) == accepted_by_label.size());
+        assert(domain::is_valid(parameters));
 
-        for (int y = position.y - radius; y <= position.y + radius; ++y) {
-            for (int x = position.x - radius; x <= position.x + radius; ++x) {
-                const domain::PixelCoordinate neighbor {.x = x, .y = y};
-                if (!is_inside(neighbor, width, height)) {
-                    return false;
+        std::vector<std::uint8_t> candidate_is_safe(candidates.size(), 1U);
+        if (parameters.minimum_boundary_distance <= 0) {
+            return candidate_is_safe;
+        }
+
+        const double minimum_squared_distance =
+            static_cast<double>(parameters.minimum_boundary_distance)
+            * static_cast<double>(parameters.minimum_boundary_distance);
+
+        for (const domain::SeedLabel label : {
+                 domain::SeedLabel::Background
+                 , domain::SeedLabel::Object
+             }
+        ) {
+            std::vector<std::uint8_t> complement_mask(accepted_by_label.size(), 0U);
+            for (std::size_t pixel_index = 0;
+                 pixel_index < accepted_by_label.size();
+                 ++pixel_index
+            ) {
+                complement_mask[pixel_index] =
+                    accepted_by_label[pixel_index] == static_cast<std::uint8_t>(label)
+                    ? 0U
+                    : 1U;
+            }
+
+            const std::vector<double> squared_distances =
+                algorithm::squared_euclidean_distance_transform(
+                    width
+                    , height
+                    , complement_mask
+                );
+
+            for (std::size_t candidate_index = 0;
+                 candidate_index < candidates.size();
+                 ++candidate_index
+            ) {
+                const CandidatePixel& candidate = candidates[candidate_index];
+                if (candidate.label != label) {
+                    continue;
                 }
-                if (accepted_by_label[static_cast<std::size_t>(flatten(neighbor, width))]
-                    != static_cast<std::uint8_t>(label)
-                ) {
-                    return false;
+
+                const double squared_distance =
+                    squared_distances[static_cast<std::size_t>(
+                        flatten(candidate.position, width)
+                    )];
+                if (squared_distance >= minimum_squared_distance) {
+                    continue;
                 }
+
+                candidate_is_safe[candidate_index] = 0U;
+                ++diagnostics.rejected_boundary_distance_count;
             }
         }
-        return true;
+
+        return candidate_is_safe;
     }
 
     inline void append_clean_component_markers(
         domain::MarkerLabelMask& mask
         , const std::vector<CandidatePixel>& candidates
         , const std::vector<int>& component_indices
-        , std::span<const std::uint8_t> accepted_by_label
         , const domain::AutoMarkerParameters& parameters
-        , int width
-        , int height
         , domain::MarkerProposalDiagnostics& diagnostics
     ) {
         assert(!component_indices.empty());
@@ -182,35 +230,17 @@ namespace random_walker::markers {
             return;
         }
 
-        const std::size_t seed_count_before = mask.seed_count();
         for (const int candidate_index : component_indices) {
             assert(candidate_index >= 0);
             assert(static_cast<std::size_t>(candidate_index) < candidates.size());
             const CandidatePixel& candidate =
                 candidates[static_cast<std::size_t>(candidate_index)];
 
-            if (!survives_erosion(
-                    candidate.position
-                    , candidate.label
-                    , accepted_by_label
-                    , width
-                    , height
-                    , parameters.erosion_radius
-                )
-            ) {
-                ++diagnostics.rejected_erosion_count;
-                continue;
-            }
-
             mask.set(
                 candidate.position.y
                 , candidate.position.x
                 , domain::marker_label_from_seed_label(candidate.label)
             );
-        }
-
-        if (mask.seed_count() == seed_count_before) {
-            diagnostics.rejected_empty_core_component_count += component_indices.size();
         }
     }
 
@@ -225,9 +255,9 @@ namespace random_walker::markers {
 
         const int width = image.width();
         const int height = image.height();
-        const std::size_t pixel_count = static_cast<std::size_t>(width * height);
-        std::vector<int> candidate_index_by_pixel(pixel_count, -1);
-        std::vector<std::uint8_t> accepted_by_label(pixel_count, 255U);
+        const std::size_t image_pixel_count = pixel_count(width, height);
+        std::vector<int> candidate_index_by_pixel(image_pixel_count, -1);
+        std::vector<std::uint8_t> accepted_by_label(image_pixel_count, 255U);
 
         for (std::size_t candidate_index = 0;
              candidate_index < candidates.size();
@@ -241,6 +271,15 @@ namespace random_walker::markers {
                 static_cast<std::uint8_t>(candidate.label);
         }
 
+        const std::vector<std::uint8_t> candidate_is_safe = distance_safe_candidates(
+            candidates
+            , accepted_by_label
+            , width
+            , height
+            , parameters
+            , diagnostics
+        );
+
         std::vector<std::uint8_t> visited(candidates.size(), 0U);
         domain::MarkerLabelMask mask(width, height);
 
@@ -252,6 +291,9 @@ namespace random_walker::markers {
              start_index < candidates.size();
              ++start_index
         ) {
+            if (candidate_is_safe[start_index] == 0U) {
+                continue;
+            }
             if (visited[start_index] != 0U) {
                 continue;
             }
@@ -287,6 +329,11 @@ namespace random_walker::markers {
                     if (visited[static_cast<std::size_t>(neighbor_candidate_index)] != 0U) {
                         continue;
                     }
+                    if (candidate_is_safe[static_cast<std::size_t>(neighbor_candidate_index)]
+                        == 0U
+                    ) {
+                        continue;
+                    }
                     if (candidates[static_cast<std::size_t>(neighbor_candidate_index)].label
                         != current.label
                     ) {
@@ -302,10 +349,7 @@ namespace random_walker::markers {
                 mask
                 , candidates
                 , component_indices
-                , accepted_by_label
                 , parameters
-                , width
-                , height
                 , diagnostics
             );
         }

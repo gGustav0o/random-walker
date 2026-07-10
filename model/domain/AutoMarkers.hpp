@@ -27,9 +27,9 @@ namespace random_walker::domain {
     inline constexpr int kMinimumAutoMarkerComponentArea = 1;
     inline constexpr int kMaximumAutoMarkerComponentArea = 1'000'000;
     inline constexpr int kDefaultAutoMarkerComponentArea = 16;
-    inline constexpr int kMinimumAutoMarkerErosionRadius = 0;
-    inline constexpr int kMaximumAutoMarkerErosionRadius = 16;
-    inline constexpr int kDefaultAutoMarkerErosionRadius = 1;
+    inline constexpr int kMinimumAutoMarkerBoundaryDistance = 0;
+    inline constexpr int kMaximumAutoMarkerBoundaryDistance = 64;
+    inline constexpr int kDefaultAutoMarkerBoundaryDistance = 2;
 
     enum class ForegroundPolarity {
         DarkObject
@@ -74,7 +74,7 @@ namespace random_walker::domain {
         GmmParameters gmm;
         double confidence_threshold = kDefaultAutoMarkerConfidenceThreshold;
         int minimum_component_area = kDefaultAutoMarkerComponentArea;
-        int erosion_radius = kDefaultAutoMarkerErosionRadius;
+        int minimum_boundary_distance = kDefaultAutoMarkerBoundaryDistance;
         ForegroundPolarity foreground_polarity = ForegroundPolarity::BrightObject;
         bool operator==(const AutoMarkerParameters&) const = default;
     };
@@ -88,8 +88,8 @@ namespace random_walker::domain {
             && parameters.confidence_threshold <= kMaximumAutoMarkerConfidenceThreshold
             && parameters.minimum_component_area >= kMinimumAutoMarkerComponentArea
             && parameters.minimum_component_area <= kMaximumAutoMarkerComponentArea
-            && parameters.erosion_radius >= kMinimumAutoMarkerErosionRadius
-            && parameters.erosion_radius <= kMaximumAutoMarkerErosionRadius
+            && parameters.minimum_boundary_distance >= kMinimumAutoMarkerBoundaryDistance
+            && parameters.minimum_boundary_distance <= kMaximumAutoMarkerBoundaryDistance
             && is_valid(parameters.foreground_polarity);
     }
 
@@ -251,8 +251,7 @@ namespace random_walker::domain {
         std::size_t proposed_seed_count = 0;
         std::size_t rejected_low_confidence_count = 0;
         std::size_t rejected_small_component_count = 0;
-        std::size_t rejected_erosion_count = 0;
-        std::size_t rejected_empty_core_component_count = 0;
+        std::size_t rejected_boundary_distance_count = 0;
         std::size_t rejected_manual_conflict_count = 0;
         std::size_t gmm_iterations = 0;
         bool gmm_converged = false;

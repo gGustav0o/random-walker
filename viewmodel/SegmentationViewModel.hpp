@@ -50,6 +50,16 @@ class SegmentationViewModel final : public QObject {
     Q_PROPERTY(double  beta_slider_position   READ beta_slider_position WRITE set_beta_slider_position NOTIFY beta_changed)
     Q_PROPERTY(int     connectivity           READ connectivity         WRITE set_connectivity         NOTIFY connectivity_changed)
     Q_PROPERTY(double  distance_power         READ distance_power       WRITE set_distance_power       NOTIFY distance_power_changed)
+    Q_PROPERTY(double  auto_marker_confidence_threshold READ auto_marker_confidence_threshold WRITE set_auto_marker_confidence_threshold NOTIFY auto_marker_confidence_threshold_changed)
+    Q_PROPERTY(int     auto_marker_minimum_boundary_distance READ auto_marker_minimum_boundary_distance WRITE set_auto_marker_minimum_boundary_distance NOTIFY auto_marker_minimum_boundary_distance_changed)
+    Q_PROPERTY(int     auto_marker_minimum_component_area READ auto_marker_minimum_component_area WRITE set_auto_marker_minimum_component_area NOTIFY auto_marker_minimum_component_area_changed)
+    Q_PROPERTY(int     auto_marker_foreground_polarity READ auto_marker_foreground_polarity WRITE set_auto_marker_foreground_polarity NOTIFY auto_marker_foreground_polarity_changed)
+    Q_PROPERTY(double  minimum_auto_marker_confidence_threshold READ minimum_auto_marker_confidence_threshold CONSTANT)
+    Q_PROPERTY(double  maximum_auto_marker_confidence_threshold READ maximum_auto_marker_confidence_threshold CONSTANT)
+    Q_PROPERTY(int     minimum_auto_marker_boundary_distance READ minimum_auto_marker_boundary_distance CONSTANT)
+    Q_PROPERTY(int     maximum_auto_marker_boundary_distance READ maximum_auto_marker_boundary_distance CONSTANT)
+    Q_PROPERTY(int     minimum_auto_marker_component_area READ minimum_auto_marker_component_area CONSTANT)
+    Q_PROPERTY(int     maximum_auto_marker_component_area READ maximum_auto_marker_component_area CONSTANT)
     Q_PROPERTY(int     selected_label         READ selected_label       WRITE set_selected_label       NOTIFY selected_label_changed)
 
     Q_PROPERTY(QAbstractItemModel* seed_model READ seed_model CONSTANT)
@@ -67,6 +77,12 @@ public:
         , EightConnectivity = 1
     };
     Q_ENUM(GraphConnectivity)
+
+    enum AutoMarkerForegroundPolarity {
+        DarkObjectForeground = 0
+        , BrightObjectForeground = 1
+    };
+    Q_ENUM(AutoMarkerForegroundPolarity)
 
 
 
@@ -110,6 +126,16 @@ public:
     [[nodiscard]] double beta_slider_position() const noexcept;
     [[nodiscard]] int connectivity() const noexcept;
     [[nodiscard]] double distance_power() const noexcept;
+    [[nodiscard]] double auto_marker_confidence_threshold() const noexcept;
+    [[nodiscard]] int auto_marker_minimum_boundary_distance() const noexcept;
+    [[nodiscard]] int auto_marker_minimum_component_area() const noexcept;
+    [[nodiscard]] int auto_marker_foreground_polarity() const noexcept;
+    [[nodiscard]] double minimum_auto_marker_confidence_threshold() const noexcept;
+    [[nodiscard]] double maximum_auto_marker_confidence_threshold() const noexcept;
+    [[nodiscard]] int minimum_auto_marker_boundary_distance() const noexcept;
+    [[nodiscard]] int maximum_auto_marker_boundary_distance() const noexcept;
+    [[nodiscard]] int minimum_auto_marker_component_area() const noexcept;
+    [[nodiscard]] int maximum_auto_marker_component_area() const noexcept;
     [[nodiscard]] bool has_result() const noexcept;
     [[nodiscard]] QString result_source() const;
     [[nodiscard]] quint64 result_version() const noexcept;
@@ -127,6 +153,10 @@ public:
     void set_beta_slider_position(double position);
     void set_connectivity(int connectivity);
     void set_distance_power(double value);
+    void set_auto_marker_confidence_threshold(double value);
+    void set_auto_marker_minimum_boundary_distance(int value);
+    void set_auto_marker_minimum_component_area(int value);
+    void set_auto_marker_foreground_polarity(int polarity);
 
     Q_INVOKABLE void open_image(const QString& path);
     Q_INVOKABLE void clear();
@@ -147,6 +177,10 @@ signals:
     void beta_changed();
     void connectivity_changed();
     void distance_power_changed();
+    void auto_marker_confidence_threshold_changed();
+    void auto_marker_minimum_boundary_distance_changed();
+    void auto_marker_minimum_component_area_changed();
+    void auto_marker_foreground_polarity_changed();
     void result_changed();
     void automatic_markers_changed();
     void selected_label_changed();
@@ -156,6 +190,7 @@ signals:
 private:
     using DomainSeedLabel = random_walker::domain::SeedLabel;
     using DomainConnectivity = random_walker::domain::PixelConnectivity;
+    using DomainForegroundPolarity = random_walker::domain::ForegroundPolarity;
     struct CompletionDeliveryGate;
 
     [[nodiscard]] DomainSeedLabel domain_seed_label() const noexcept;
@@ -166,6 +201,9 @@ private:
 
     void update_random_walker_parameters(
         random_walker::domain::RandomWalkerParameters parameters
+    );
+    void update_auto_marker_parameters(
+        random_walker::domain::AutoMarkerParameters parameters
     );
 
     static void dispatch_completion(

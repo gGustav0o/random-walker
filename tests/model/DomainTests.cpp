@@ -122,7 +122,7 @@ void DomainTests::auto_marker_parameters_accept_defaults_and_bounds() {
         }
         , .confidence_threshold = domain::kMinimumAutoMarkerConfidenceThreshold
         , .minimum_component_area = domain::kMinimumAutoMarkerComponentArea
-        , .erosion_radius = domain::kMinimumAutoMarkerErosionRadius
+        , .minimum_boundary_distance = domain::kMinimumAutoMarkerBoundaryDistance
         , .foreground_polarity = domain::ForegroundPolarity::DarkObject
     }));
     QVERIFY(domain::is_valid(domain::AutoMarkerParameters {
@@ -134,7 +134,7 @@ void DomainTests::auto_marker_parameters_accept_defaults_and_bounds() {
         }
         , .confidence_threshold = domain::kMaximumAutoMarkerConfidenceThreshold
         , .minimum_component_area = domain::kMaximumAutoMarkerComponentArea
-        , .erosion_radius = domain::kMaximumAutoMarkerErosionRadius
+        , .minimum_boundary_distance = domain::kMaximumAutoMarkerBoundaryDistance
         , .foreground_polarity = domain::ForegroundPolarity::BrightObject
     }));
 }
@@ -162,7 +162,10 @@ void DomainTests::auto_marker_parameters_reject_invalid_values() {
         .minimum_component_area = domain::kMinimumAutoMarkerComponentArea - 1
     }));
     QVERIFY(!domain::is_valid(domain::AutoMarkerParameters {
-        .erosion_radius = domain::kMaximumAutoMarkerErosionRadius + 1
+        .minimum_boundary_distance = domain::kMinimumAutoMarkerBoundaryDistance - 1
+    }));
+    QVERIFY(!domain::is_valid(domain::AutoMarkerParameters {
+        .minimum_boundary_distance = domain::kMaximumAutoMarkerBoundaryDistance + 1
     }));
     QVERIFY(!domain::is_valid(domain::AutoMarkerParameters {
         .foreground_polarity = static_cast<domain::ForegroundPolarity>(-1)
