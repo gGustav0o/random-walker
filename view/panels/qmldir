@@ -1,3 +1,4 @@
 ControlPanel 1.0 ControlPanel.qml
+SettingLabel 1.0 SettingLabel.qml
 SettingsPanel 1.0 SettingsPanel.qml
 SettingsSection 1.0 SettingsSection.qml

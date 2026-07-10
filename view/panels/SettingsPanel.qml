@@ -19,6 +19,43 @@ Rectangle {
     opacity: expanded ? 1 : 0
     enabled: expanded
 
+    QtObject {
+        id: help
+
+        readonly property string connectivity:
+            "Defines which neighboring pixels are connected in the Random Walker graph. "
+            + "4-connectivity uses only horizontal and vertical neighbors. "
+            + "8-connectivity also adds diagonals, usually producing smoother propagation through diagonal structures."
+
+        readonly property string distancePower:
+            "Geometric distance exponent in the edge weight denominator d^p. "
+            + "p = 0 ignores edge length. With 8-connectivity, larger values weaken diagonal edges "
+            + "relative to horizontal and vertical edges."
+
+        readonly property string beta:
+            "Global contrast sensitivity in the Random Walker edge weight exp(-beta * deltaI^2). "
+            + "Higher beta weakens edges across intensity jumps more strongly, so boundaries follow contrast more tightly. "
+            + "Lower beta allows labels to propagate more smoothly across weak contrast."
+
+        readonly property string autoMarkerPolarity:
+            "Selects which Gaussian mixture component is treated as the object: the darker component or the brighter component. "
+            + "Use Dark object when the target is darker than the background, and Bright object when it is brighter."
+
+        readonly property string autoMarkerConfidence:
+            "Minimum posterior probability required for automatic marker candidates. "
+            + "Higher values produce fewer, more conservative markers. Lower values produce more markers, "
+            + "but can include unreliable candidates when object and background intensities overlap."
+
+        readonly property string autoMarkerSafeMargin:
+            "Minimum Euclidean distance from the edge of each high-confidence candidate region. "
+            + "Increasing it keeps only the interior core of proposed markers. "
+            + "Set to 0 to disable this distance-based cleanup."
+
+        readonly property string autoMarkerMinimumArea:
+            "Minimum connected-component area for automatic markers. Increasing it removes small noisy components. "
+            + "Decreasing it allows small objects, but may also keep isolated artifacts."
+    }
+
     Behavior on panelWidth {
         NumberAnimation {
             duration: 220
@@ -49,7 +86,7 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            height: 1
+            Layout.preferredHeight: 1
             color: "#3a3a3a"
         }
 
@@ -71,11 +108,9 @@ Rectangle {
                         Layout.fillWidth: true
                         spacing: 10
 
-                        Label {
-                            Layout.fillWidth: true
+                        SettingLabel {
                             text: "Connectivity"
-                            color: "#ddd"
-                            elide: Text.ElideRight
+                            helpText: help.connectivity
                         }
 
                         ComboBox {
@@ -93,11 +128,9 @@ Rectangle {
                         Layout.fillWidth: true
                         spacing: 10
 
-                        Label {
-                            Layout.fillWidth: true
+                        SettingLabel {
                             text: "Distance p"
-                            color: "#ddd"
-                            elide: Text.ElideRight
+                            helpText: help.distancePower
                         }
 
                         TextField {
@@ -166,11 +199,9 @@ Rectangle {
                         spacing: 10
                         enabled: !root.vm.busy
 
-                        Label {
-                            Layout.fillWidth: true
+                        SettingLabel {
                             text: "Beta"
-                            color: "#ddd"
-                            elide: Text.ElideRight
+                            helpText: help.beta
                         }
 
                         TextField {
@@ -236,11 +267,9 @@ Rectangle {
                         Layout.fillWidth: true
                         spacing: 10
 
-                        Label {
-                            Layout.fillWidth: true
+                        SettingLabel {
                             text: "Object polarity"
-                            color: "#ddd"
-                            elide: Text.ElideRight
+                            helpText: help.autoMarkerPolarity
                         }
 
                         ComboBox {
@@ -259,11 +288,9 @@ Rectangle {
                         spacing: 10
                         enabled: !root.vm.busy
 
-                        Label {
-                            Layout.fillWidth: true
+                        SettingLabel {
                             text: "Confidence"
-                            color: "#ddd"
-                            elide: Text.ElideRight
+                            helpText: help.autoMarkerConfidence
                         }
 
                         TextField {
@@ -326,11 +353,9 @@ Rectangle {
                         Layout.fillWidth: true
                         spacing: 10
 
-                        Label {
-                            Layout.fillWidth: true
+                        SettingLabel {
                             text: "Safe margin, px"
-                            color: "#ddd"
-                            elide: Text.ElideRight
+                            helpText: help.autoMarkerSafeMargin
                         }
 
                         SpinBox {
@@ -351,11 +376,9 @@ Rectangle {
                         Layout.fillWidth: true
                         spacing: 10
 
-                        Label {
-                            Layout.fillWidth: true
+                        SettingLabel {
                             text: "Min area, px"
-                            color: "#ddd"
-                            elide: Text.ElideRight
+                            helpText: help.autoMarkerMinimumArea
                         }
 
                         SpinBox {
