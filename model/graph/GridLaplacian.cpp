@@ -3,6 +3,7 @@
 #include "EdgeWeight.hpp"
 #include "model/algorithm/IndexTypes.hpp"
 #include "model/algorithm/IterationPolicy.hpp"
+#include "model/domain/ImageGeometry.hpp"
 
 #include <algorithm>
 #include <array>
@@ -59,7 +60,7 @@ namespace random_walker::graph {
         [[nodiscard]] int grid_pixel_count(int width, int height) noexcept {
             assert(width > 0);
             assert(height > 0);
-            return width * height;
+            return domain::pixel_count_as_int(width, height);
         }
 
         [[nodiscard]] std::size_t grid_triplet_capacity(

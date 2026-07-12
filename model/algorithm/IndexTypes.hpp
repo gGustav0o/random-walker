@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <functional>
 
+#include "model/domain/ImageGeometry.hpp"
+
 namespace random_walker::algorithm {
     struct PixelIndex {
         int value = 0;
@@ -33,7 +35,7 @@ namespace random_walker::algorithm {
         assert(width > 0);
         assert(column < width);
         return PixelIndex {
-            .value = row * width + column
+            .value = domain::linear_pixel_index(row, column, width)
         };
     }
 

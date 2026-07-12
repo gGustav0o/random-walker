@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ImageGeometry.hpp"
 #include "Seed.hpp"
 
 #include <algorithm>
@@ -136,8 +137,7 @@ namespace random_walker::domain {
             assert(width >= 0);
             assert(height >= 0);
             labels_.resize(
-                static_cast<std::size_t>(width)
-                * static_cast<std::size_t>(height)
+                pixel_count(width, height)
             );
         }
 
@@ -193,8 +193,9 @@ namespace random_walker::domain {
 
     private:
         [[nodiscard]] std::size_t flatten(int row, int column) const noexcept {
-            return static_cast<std::size_t>(row) * static_cast<std::size_t>(width_)
-                + static_cast<std::size_t>(column);
+            return static_cast<std::size_t>(
+                linear_pixel_index(row, column, width_)
+            );
         }
 
         int width_ = 0;

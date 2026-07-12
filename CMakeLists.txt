@@ -61,6 +61,7 @@ set(HEADERS
     model/domain/AutoMarkers.hpp
     model/domain/Cancellation.hpp
     model/domain/GrayImage.hpp
+    model/domain/ImageGeometry.hpp
     model/domain/ProgressReporter.hpp
     model/domain/RandomWalkerParameters.hpp
     model/domain/Seed.hpp

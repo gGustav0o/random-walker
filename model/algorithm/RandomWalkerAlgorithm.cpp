@@ -12,6 +12,7 @@
 #include "NodePartition.hpp"
 #include "PartitionedLaplacian.hpp"
 #include "ProbabilityField.hpp"
+#include "model/domain/ImageGeometry.hpp"
 #include "model/graph/GridLaplacian.hpp"
 
 namespace random_walker::algorithm {
@@ -179,7 +180,8 @@ namespace random_walker::algorithm {
         const int height = input.image.height();
         assert(width > 0);
         assert(height > 0);
-        const int pixel_count = width * height;
+        assert(domain::is_supported_non_empty_image_geometry(width, height));
+        const int pixel_count = domain::pixel_count_as_int(width, height);
 
         graph::GridLaplacianOutcome laplacian_outcome =
             graph::build_grid_laplacian(

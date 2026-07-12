@@ -11,6 +11,7 @@
 
 #include "model/algorithm/RandomWalkerAlgorithm.hpp"
 #include "model/algorithm/SeedExpansion.hpp"
+#include "model/domain/ImageGeometry.hpp"
 
 namespace random_walker::service {
     namespace {
@@ -57,7 +58,7 @@ namespace random_walker::service {
             assert(width > 0);
             assert(column < width);
             return SeedPixelIndex {
-                .value = row * width + column
+                .value = domain::linear_pixel_index(row, column, width)
             };
         }
 
@@ -112,6 +113,14 @@ namespace random_walker::service {
         const domain::SegmentationRequest& request) {
         if (request.image().empty()) {
             return domain::SegmentationError::EmptyImage;
+        }
+
+        if (!domain::is_supported_non_empty_image_geometry(
+                request.image().width()
+                , request.image().height()
+            )
+        ) {
+            return domain::SegmentationError::ImageTooLarge;
         }
 
         if (!domain::is_valid(request.parameters())) {

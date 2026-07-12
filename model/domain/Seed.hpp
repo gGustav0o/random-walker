@@ -1,9 +1,13 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
+#include <limits>
 #include <numeric>
 #include <span>
+
+#include "ImageGeometry.hpp"
 
 namespace random_walker::domain {
     struct PixelCoordinate {
@@ -76,22 +80,36 @@ namespace random_walker::domain {
         );
     }
 
+    [[nodiscard]] inline std::size_t valid_seed_region_pixel_count(
+        const SeedRegion& region
+    ) noexcept {
+        if (region.area.width <= 0 || region.area.height <= 0) {
+            return 0;
+        }
+
+        return pixel_count(region.area.width, region.area.height);
+    }
+
     [[nodiscard]] inline int seed_pixel_count(
         std::span<const SeedRegion> regions
         , SeedLabel label
     ) noexcept {
-        return std::accumulate(
+        const std::size_t result = std::accumulate(
             regions.begin()
             , regions.end()
-            , 0
-            , [label](int result, const SeedRegion& region) {
+            , std::size_t {0}
+            , [label](std::size_t result, const SeedRegion& region) {
                 if (region.label != label) {
                     return result;
                 }
 
-                return result + region.area.width * region.area.height;
+                return result + valid_seed_region_pixel_count(region);
             }
         );
+        assert(result <= static_cast<std::size_t>(
+            std::numeric_limits<int>::max()
+        ));
+        return static_cast<int>(result);
     }
 
     [[nodiscard]] inline std::size_t valid_seed_pixel_count(
@@ -102,12 +120,7 @@ namespace random_walker::domain {
             , regions.end()
             , std::size_t {0}
             , [](std::size_t result, const SeedRegion& region) {
-                if (region.area.width <= 0 || region.area.height <= 0) {
-                    return result;
-                }
-
-                return result + static_cast<std::size_t>(region.area.width)
-                    * static_cast<std::size_t>(region.area.height);
+                return result + valid_seed_region_pixel_count(region);
             }
         );
     }

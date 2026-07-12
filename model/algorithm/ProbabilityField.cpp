@@ -2,6 +2,7 @@
 
 #include "IterationPolicy.hpp"
 #include "ParallelPolicy.hpp"
+#include "model/domain/ImageGeometry.hpp"
 
 #include <atomic>
 #include <cassert>
@@ -19,8 +20,7 @@ namespace random_walker::algorithm {
         ) noexcept {
             assert(width > 0);
             assert(height > 0);
-            return static_cast<std::size_t>(width)
-                * static_cast<std::size_t>(height);
+            return domain::pixel_count(width, height);
         }
 
         [[nodiscard]] double probability_assembly_progress(
@@ -264,7 +264,7 @@ namespace random_walker::algorithm {
         assert(
             node_partition.unknown_pixels.size()
                 + node_partition.boundary_pixels.size()
-            == static_cast<std::size_t>(width * height)
+            == domain::pixel_count(width, height)
         );
         assert(
             boundary_conditions.pixels.size()
@@ -272,7 +272,7 @@ namespace random_walker::algorithm {
         );
 
         domain::ProbabilityMap result(height, width);
-        const int pixel_count = width * height;
+        const int pixel_count = domain::pixel_count_as_int(width, height);
 
         progress.report(
             domain::SegmentationStage::AssemblingProbabilities

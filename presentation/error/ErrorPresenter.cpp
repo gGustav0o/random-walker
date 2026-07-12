@@ -93,6 +93,8 @@ namespace random_walker::presentation {
             switch (error) {
             case Error::EmptyImage:
                 return QStringLiteral("No image is loaded.");
+            case Error::ImageTooLarge:
+                return QStringLiteral("The selected image is too large.");
             case Error::InvalidBeta:
                 return QStringLiteral(
                     "Beta is outside the supported range.");

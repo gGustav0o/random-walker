@@ -71,6 +71,7 @@ namespace random_walker::domain {
 
     enum class SegmentationError {
         EmptyImage
+        , ImageTooLarge
         , InvalidBeta
         , MissingBackgroundSeeds
         , MissingObjectSeeds

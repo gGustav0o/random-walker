@@ -3,6 +3,7 @@
 #include "model/algorithm/DistanceTransform.hpp"
 #include "model/domain/AutoMarkers.hpp"
 #include "model/domain/GrayImage.hpp"
+#include "model/domain/ImageGeometry.hpp"
 #include "model/markers/GmmIntensity.hpp"
 
 #include <algorithm>
@@ -38,7 +39,7 @@ namespace random_walker::markers {
         assert(!image.empty());
         assert(image.width() > 0);
         assert(image.height() > 0);
-        return image.width() * image.height();
+        return domain::pixel_count_as_int(image.width(), image.height());
     }
 
     [[nodiscard]] inline int flatten(
@@ -49,16 +50,7 @@ namespace random_walker::markers {
         assert(position.y >= 0);
         assert(width > 0);
         assert(position.x < width);
-        return position.y * width + position.x;
-    }
-
-    [[nodiscard]] inline std::size_t pixel_count(
-        int width
-        , int height
-    ) noexcept {
-        assert(width >= 0);
-        assert(height >= 0);
-        return static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+        return domain::linear_pixel_index(position.y, position.x, width);
     }
 
     [[nodiscard]] inline domain::PixelCoordinate unflatten(
@@ -153,7 +145,7 @@ namespace random_walker::markers {
     ) {
         assert(width > 0);
         assert(height > 0);
-        assert(pixel_count(width, height) == accepted_by_label.size());
+        assert(domain::pixel_count(width, height) == accepted_by_label.size());
         assert(domain::is_valid(parameters));
 
         std::vector<std::uint8_t> candidate_is_safe(candidates.size(), 1U);
@@ -255,7 +247,7 @@ namespace random_walker::markers {
 
         const int width = image.width();
         const int height = image.height();
-        const std::size_t image_pixel_count = pixel_count(width, height);
+        const std::size_t image_pixel_count = domain::pixel_count(width, height);
         std::vector<int> candidate_index_by_pixel(image_pixel_count, -1);
         std::vector<std::uint8_t> accepted_by_label(image_pixel_count, 255U);
 

@@ -8,6 +8,7 @@
 
 #include "model/domain/AutoMarkers.hpp"
 #include "model/domain/GrayImage.hpp"
+#include "model/domain/ImageGeometry.hpp"
 #include "model/domain/RandomWalkerParameters.hpp"
 #include "model/domain/Seed.hpp"
 #include "model/domain/Segmentation.hpp"
@@ -27,6 +28,9 @@ private slots:
     void auto_marker_parameters_reject_invalid_values();
     void marker_label_mask_stores_labels_and_counts_seeds();
     void marker_label_mask_converts_to_automatic_seed_regions();
+    void image_geometry_accepts_representable_pixel_count();
+    void image_geometry_rejects_unrepresentable_pixel_count();
+    void image_geometry_flattens_pixel_coordinates();
     void gray_image_reports_empty_default_state();
     void gray_image_reports_dimensions_and_pixel_values();
     void seed_pixel_count_counts_only_requested_label();
@@ -228,6 +232,38 @@ void DomainTests::marker_label_mask_converts_to_automatic_seed_regions() {
         static_cast<int>(regions[1].source)
         , static_cast<int>(domain::SeedSource::Automatic)
     );
+}
+
+void DomainTests::image_geometry_accepts_representable_pixel_count() {
+    QVERIFY(domain::has_representable_pixel_count(0, 0));
+    QVERIFY(domain::has_representable_pixel_count(1, 0));
+    QVERIFY(domain::has_representable_pixel_count(
+        domain::kMaximumSupportedImagePixels
+        , 1
+    ));
+    QVERIFY(domain::is_supported_non_empty_image_geometry(
+        domain::kMaximumSupportedImagePixels
+        , 1
+    ));
+    QCOMPARE(
+        domain::pixel_count_as_int(domain::kMaximumSupportedImagePixels, 1)
+        , domain::kMaximumSupportedImagePixels
+    );
+}
+
+void DomainTests::image_geometry_rejects_unrepresentable_pixel_count() {
+    QVERIFY(!domain::has_representable_pixel_count(-1, 1));
+    QVERIFY(!domain::has_representable_pixel_count(1, -1));
+    QVERIFY(!domain::is_supported_non_empty_image_geometry(0, 1));
+    QVERIFY(!domain::is_supported_non_empty_image_geometry(
+        domain::kMaximumSupportedImagePixels
+        , 2
+    ));
+}
+
+void DomainTests::image_geometry_flattens_pixel_coordinates() {
+    QCOMPARE(domain::linear_pixel_index(0, 0, 7), 0);
+    QCOMPARE(domain::linear_pixel_index(2, 3, 7), 17);
 }
 
 void DomainTests::gray_image_reports_empty_default_state() {
