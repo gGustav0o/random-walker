@@ -76,6 +76,26 @@ namespace random_walker::service {
         }
 
         [[nodiscard]]
+        domain::SegmentationError
+        segmentation_error_for(
+            domain::RandomWalkerParameterError error
+        ) noexcept {
+            using Error = domain::RandomWalkerParameterError;
+
+            switch (error) {
+            case Error::InvalidBeta:
+                return domain::SegmentationError::InvalidBeta;
+            case Error::InvalidDistancePower:
+                return domain::SegmentationError::InvalidDistancePower;
+            case Error::InvalidConnectivity:
+                return domain::SegmentationError::InvalidConnectivity;
+            }
+
+            assert(false);
+            return domain::SegmentationError::InvalidBeta;
+        }
+
+        [[nodiscard]]
         std::optional<domain::SegmentationError>
         mark_seed_region(
             BoundaryMarkerMap& markers
@@ -123,8 +143,10 @@ namespace random_walker::service {
             return domain::SegmentationError::ImageTooLarge;
         }
 
-        if (!domain::is_valid(request.parameters())) {
-            return domain::SegmentationError::InvalidBeta;
+        if (const auto error = domain::validate(request.parameters());
+            error.has_value()
+        ) {
+            return segmentation_error_for(*error);
         }
 
         BoundaryMarkerMap markers;

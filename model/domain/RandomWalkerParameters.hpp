@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <optional>
 
 namespace random_walker::domain {
 
@@ -18,6 +19,12 @@ namespace random_walker::domain {
 
     inline constexpr PixelConnectivity kDefaultPixelConnectivity =
         PixelConnectivity::Four;
+
+    enum class RandomWalkerParameterError {
+        InvalidBeta
+        , InvalidDistancePower
+        , InvalidConnectivity
+    };
 
     [[nodiscard]] constexpr bool is_valid(
         PixelConnectivity connectivity
@@ -38,15 +45,33 @@ namespace random_walker::domain {
         bool operator==(const RandomWalkerParameters&) const = default;
     };
 
+    [[nodiscard]] inline std::optional<RandomWalkerParameterError> validate(
+        const RandomWalkerParameters& parameters
+    ) noexcept {
+        if (!std::isfinite(parameters.beta)
+            || parameters.beta < kMinimumRandomWalkerBeta
+            || parameters.beta > kMaximumRandomWalkerBeta
+        ) {
+            return RandomWalkerParameterError::InvalidBeta;
+        }
+
+        if (!std::isfinite(parameters.distance_power)
+            || parameters.distance_power < kMinimumRandomWalkerDistancePower
+            || parameters.distance_power > kMaximumRandomWalkerDistancePower
+        ) {
+            return RandomWalkerParameterError::InvalidDistancePower;
+        }
+
+        if (!is_valid(parameters.connectivity)) {
+            return RandomWalkerParameterError::InvalidConnectivity;
+        }
+
+        return std::nullopt;
+    }
+
     [[nodiscard]] inline bool is_valid(
         const RandomWalkerParameters& parameters
     ) noexcept {
-        return std::isfinite(parameters.beta)
-            && parameters.beta >= kMinimumRandomWalkerBeta
-            && parameters.beta <= kMaximumRandomWalkerBeta
-            && std::isfinite(parameters.distance_power)
-            && parameters.distance_power >= kMinimumRandomWalkerDistancePower
-            && parameters.distance_power <= kMaximumRandomWalkerDistancePower
-            && is_valid(parameters.connectivity);
+        return !validate(parameters).has_value();
     }
 }

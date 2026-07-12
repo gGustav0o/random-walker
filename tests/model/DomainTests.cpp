@@ -24,6 +24,8 @@ private slots:
     void random_walker_beta_rejects_values_outside_valid_range();
     void random_walker_distance_power_accepts_closed_valid_range();
     void random_walker_distance_power_rejects_values_outside_valid_range();
+    void random_walker_parameters_report_first_invalid_field();
+    void pixel_connectivity_rejects_unknown_values();
     void auto_marker_parameters_accept_defaults_and_bounds();
     void auto_marker_parameters_reject_invalid_values();
     void marker_label_mask_stores_labels_and_counts_seeds();
@@ -111,6 +113,49 @@ void DomainTests::random_walker_distance_power_rejects_values_outside_valid_rang
     QVERIFY(!domain::is_valid(domain::RandomWalkerParameters {
         .distance_power = std::numeric_limits<double>::infinity()
     }));
+}
+
+void DomainTests::random_walker_parameters_report_first_invalid_field() {
+    const auto expect_parameter_error = [](
+        const domain::RandomWalkerParameters& parameters
+        , domain::RandomWalkerParameterError expected_error
+    ) {
+        const auto error = domain::validate(parameters);
+        QVERIFY(error.has_value());
+        QCOMPARE(
+            static_cast<int>(*error)
+            , static_cast<int>(expected_error)
+        );
+    };
+
+    expect_parameter_error(
+        domain::RandomWalkerParameters {
+            .beta = std::nextafter(domain::kMinimumRandomWalkerBeta, 0.0)
+        }
+        , domain::RandomWalkerParameterError::InvalidBeta
+    );
+    expect_parameter_error(
+        domain::RandomWalkerParameters {
+            .distance_power = std::nextafter(
+                domain::kMinimumRandomWalkerDistancePower
+                , -1.0
+            )
+        }
+        , domain::RandomWalkerParameterError::InvalidDistancePower
+    );
+    expect_parameter_error(
+        domain::RandomWalkerParameters {
+            .connectivity = static_cast<domain::PixelConnectivity>(-1)
+        }
+        , domain::RandomWalkerParameterError::InvalidConnectivity
+    );
+    QVERIFY(!domain::validate(domain::RandomWalkerParameters {}).has_value());
+}
+
+void DomainTests::pixel_connectivity_rejects_unknown_values() {
+    QVERIFY(domain::is_valid(domain::PixelConnectivity::Four));
+    QVERIFY(domain::is_valid(domain::PixelConnectivity::Eight));
+    QVERIFY(!domain::is_valid(static_cast<domain::PixelConnectivity>(-1)));
 }
 
 void DomainTests::auto_marker_parameters_accept_defaults_and_bounds() {

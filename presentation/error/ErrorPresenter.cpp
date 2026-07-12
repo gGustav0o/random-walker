@@ -98,6 +98,12 @@ namespace random_walker::presentation {
             case Error::InvalidBeta:
                 return QStringLiteral(
                     "Beta is outside the supported range.");
+            case Error::InvalidDistancePower:
+                return QStringLiteral(
+                    "Distance power is outside the supported range.");
+            case Error::InvalidConnectivity:
+                return QStringLiteral(
+                    "Pixel connectivity is not supported.");
             case Error::MissingBackgroundSeeds:
                 return QStringLiteral("At least one background seed is required.");
             case Error::MissingObjectSeeds:

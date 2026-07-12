@@ -73,6 +73,8 @@ namespace random_walker::domain {
         EmptyImage
         , ImageTooLarge
         , InvalidBeta
+        , InvalidDistancePower
+        , InvalidConnectivity
         , MissingBackgroundSeeds
         , MissingObjectSeeds
         , SeedOutOfBounds

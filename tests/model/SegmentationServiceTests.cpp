@@ -95,6 +95,8 @@ class SegmentationServiceTests final : public QObject {
 private slots:
     void rejects_empty_image();
     void rejects_invalid_beta();
+    void rejects_invalid_distance_power();
+    void rejects_invalid_connectivity();
     void rejects_missing_background_seeds();
     void rejects_missing_object_seeds();
     void rejects_seed_out_of_bounds();
@@ -132,6 +134,45 @@ void SegmentationServiceTests::rejects_invalid_beta() {
     expect_validation_error(
         segmentation_request
         , domain::SegmentationError::InvalidBeta
+    );
+}
+
+void SegmentationServiceTests::rejects_invalid_distance_power() {
+    const auto segmentation_request = request(
+        make_image(1, 2, {10, 10})
+        , {
+            seed_region(0, 0, 1, 1, domain::SeedLabel::Background),
+            seed_region(1, 0, 1, 1, domain::SeedLabel::Object)
+        }
+        , domain::RandomWalkerParameters {
+            .distance_power = std::nextafter(
+                domain::kMinimumRandomWalkerDistancePower
+                , -1.0
+            )
+        }
+    );
+
+    expect_validation_error(
+        segmentation_request
+        , domain::SegmentationError::InvalidDistancePower
+    );
+}
+
+void SegmentationServiceTests::rejects_invalid_connectivity() {
+    const auto segmentation_request = request(
+        make_image(1, 2, {10, 10})
+        , {
+            seed_region(0, 0, 1, 1, domain::SeedLabel::Background),
+            seed_region(1, 0, 1, 1, domain::SeedLabel::Object)
+        }
+        , domain::RandomWalkerParameters {
+            .connectivity = static_cast<domain::PixelConnectivity>(-1)
+        }
+    );
+
+    expect_validation_error(
+        segmentation_request
+        , domain::SegmentationError::InvalidConnectivity
     );
 }
 
