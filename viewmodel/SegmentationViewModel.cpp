@@ -1,13 +1,11 @@
 #include "SegmentationViewModel.hpp"
 
 #include <cmath>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
 #include <variant>
-#include <vector>
 
 #include <QImage>
 #include <QThread>
@@ -635,16 +633,24 @@ void SegmentationViewModel::run_segmentation() {
     const bool previous_can_run = can_run();
     const random_walker::domain::SegmentationRequestId request_id =
         next_request_id_++;
-    std::vector<random_walker::domain::SeedRegion> seed_regions =
-        segmentation_seed_regions();
+    random_walker::domain::SegmentationConstraints constraints =
+        segmentation_constraints();
     const int background_constraints =
         random_walker::domain::seed_pixel_count(
-            seed_regions
+            constraints.manual_seed_regions
+            , DomainSeedLabel::Background
+        )
+        + random_walker::domain::marker_pixel_count(
+            constraints.automatic_markers
             , DomainSeedLabel::Background
         );
     const int object_constraints =
         random_walker::domain::seed_pixel_count(
-            seed_regions
+            constraints.manual_seed_regions
+            , DomainSeedLabel::Object
+        )
+        + random_walker::domain::marker_pixel_count(
+            constraints.automatic_markers
             , DomainSeedLabel::Object
         );
     Q_ASSERT(background_constraints > 0);
@@ -653,7 +659,7 @@ void SegmentationViewModel::run_segmentation() {
         random_walker::application::make_segmentation_request(
             request_id
             , image_state_.image()
-            , std::move(seed_regions)
+            , std::move(constraints)
             , application_settings_
         );
     const bool automatic_markers_were_cleared = automatic_marker_state_.clear();
@@ -723,18 +729,16 @@ int SegmentationViewModel::object_constraint_count() const noexcept {
     return object_seed_count() + automatic_marker_state_.object_count();
 }
 
-std::vector<random_walker::domain::SeedRegion>
-SegmentationViewModel::segmentation_seed_regions() const {
-    std::vector<random_walker::domain::SeedRegion> regions =
-        seed_state_.regions();
-    std::vector<random_walker::domain::SeedRegion> automatic_regions =
-        automatic_marker_state_.seed_regions();
-    regions.insert(
-        regions.end()
-        , std::make_move_iterator(automatic_regions.begin())
-        , std::make_move_iterator(automatic_regions.end())
-    );
-    return regions;
+random_walker::domain::SegmentationConstraints
+SegmentationViewModel::segmentation_constraints() const {
+    random_walker::domain::SegmentationConstraints constraints {
+        .manual_seed_regions = seed_state_.regions()
+    };
+    if (const auto* mask = automatic_marker_state_.mask()) {
+        constraints.automatic_markers = *mask;
+    }
+
+    return constraints;
 }
 
 void SegmentationViewModel::update_random_walker_parameters(

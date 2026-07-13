@@ -55,13 +55,6 @@ const random_walker::domain::MarkerLabelMask* AutomaticMarkerState::mask()
     return mask_.has_value() ? &*mask_ : nullptr;
 }
 
-std::vector<random_walker::domain::SeedRegion>
-AutomaticMarkerState::seed_regions() const {
-    return mask_.has_value()
-        ? random_walker::domain::seed_regions_from_marker_mask(*mask_)
-        : std::vector<random_walker::domain::SeedRegion> {};
-}
-
 void AutomaticMarkerState::set(random_walker::domain::MarkerLabelMask mask) {
     mask_ = std::move(mask);
     cache_.store(random_walker::qt_adapter::render_marker_label_mask(*mask_));

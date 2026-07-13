@@ -76,12 +76,26 @@ namespace {
             last_request_id = request.request_id();
             last_image_width = request.image().width();
             last_image_height = request.image().height();
+            const domain::SegmentationConstraints& constraints =
+                request.constraints();
+            last_manual_seed_region_count =
+                static_cast<int>(constraints.manual_seed_regions.size());
+            last_automatic_marker_pixels =
+                static_cast<int>(constraints.automatic_markers.seed_count());
+            last_automatic_marker_width = constraints.automatic_markers.width();
+            last_automatic_marker_height = constraints.automatic_markers.height();
             last_background_seed_pixels = domain::seed_pixel_count(
-                request.seed_regions()
+                constraints.manual_seed_regions
+                , domain::SeedLabel::Background
+            ) + domain::marker_pixel_count(
+                constraints.automatic_markers
                 , domain::SeedLabel::Background
             );
             last_object_seed_pixels = domain::seed_pixel_count(
-                request.seed_regions()
+                constraints.manual_seed_regions
+                , domain::SeedLabel::Object
+            ) + domain::marker_pixel_count(
+                constraints.automatic_markers
                 , domain::SeedLabel::Object
             );
             last_beta = request.parameters().beta;
@@ -113,6 +127,10 @@ namespace {
         int last_image_height = 0;
         int last_background_seed_pixels = 0;
         int last_object_seed_pixels = 0;
+        int last_manual_seed_region_count = 0;
+        int last_automatic_marker_pixels = 0;
+        int last_automatic_marker_width = 0;
+        int last_automatic_marker_height = 0;
         double last_beta = 0.0;
         domain::PixelConnectivity last_connectivity =
             domain::PixelConnectivity::Four;
@@ -252,6 +270,7 @@ private slots:
     void clear_automatic_markers_keeps_manual_regions();
     void clear_seeds_clears_manual_and_automatic_markers();
     void run_segmentation_includes_automatic_marker_constraints();
+    void run_segmentation_submits_mixed_manual_and_automatic_constraints();
     void run_segmentation_is_ignored_while_auto_markers_are_running();
     void run_segmentation_submits_request_and_updates_progress();
     void completion_with_result_updates_result_state();
@@ -627,6 +646,13 @@ void SegmentationViewModelTests::run_segmentation_includes_automatic_marker_cons
     fixture.view_model.run_segmentation();
 
     QCOMPARE(fixture.executor.submit_count, 1);
+    QCOMPARE(fixture.executor.last_manual_seed_region_count, 0);
+    QCOMPARE(
+        fixture.executor.last_automatic_marker_pixels
+        , automatic_marker_count_before_run
+    );
+    QCOMPARE(fixture.executor.last_automatic_marker_width, 16);
+    QCOMPARE(fixture.executor.last_automatic_marker_height, 8);
     QVERIFY(fixture.executor.last_background_seed_pixels > 0);
     QVERIFY(fixture.executor.last_object_seed_pixels > 0);
     QCOMPARE(
@@ -642,6 +668,43 @@ void SegmentationViewModelTests::run_segmentation_includes_automatic_marker_cons
     QCOMPARE(seeds_changed.count(), 1);
     QCOMPARE(can_run_changed.count(), 1);
     QVERIFY(!fixture.view_model.can_run());
+}
+
+void SegmentationViewModelTests::
+run_segmentation_submits_mixed_manual_and_automatic_constraints() {
+    ViewModelFixture fixture;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    fixture.view_model.open_image(write_bimodal_test_image(directory));
+    fixture.view_model.add_seed_rectangle(0, 0, 1, 1);
+    fixture.view_model.propose_markers();
+    fixture.auto_marker_executor.deliver_service_result();
+    process_queued_viewmodel_events();
+    const int automatic_marker_count_before_run =
+        fixture.view_model.automatic_marker_count();
+    QVERIFY(automatic_marker_count_before_run > 0);
+    QVERIFY(fixture.view_model.can_run());
+
+    fixture.view_model.run_segmentation();
+
+    QCOMPARE(fixture.executor.submit_count, 1);
+    QCOMPARE(fixture.executor.last_manual_seed_region_count, 1);
+    QCOMPARE(
+        fixture.executor.last_automatic_marker_pixels
+        , automatic_marker_count_before_run
+    );
+    QCOMPARE(fixture.executor.last_automatic_marker_width, 16);
+    QCOMPARE(fixture.executor.last_automatic_marker_height, 8);
+    QCOMPARE(
+        fixture.executor.last_background_seed_pixels
+        + fixture.executor.last_object_seed_pixels
+        , automatic_marker_count_before_run + 1
+    );
+    QCOMPARE(fixture.view_model.background_seed_count(), 1);
+    QCOMPARE(fixture.view_model.object_seed_count(), 0);
+    QCOMPARE(fixture.view_model.automatic_marker_count(), 0);
+    QVERIFY(!fixture.view_model.has_automatic_markers());
+    QCOMPARE(fixture.view_model.seed_model()->rowCount(), 1);
 }
 
 void SegmentationViewModelTests::run_segmentation_is_ignored_while_auto_markers_are_running() {
@@ -685,6 +748,10 @@ void SegmentationViewModelTests::run_segmentation_submits_request_and_updates_pr
     QVERIFY(fixture.executor.last_request_id.has_value());
     QCOMPARE(fixture.executor.last_image_width, 3);
     QCOMPARE(fixture.executor.last_image_height, 2);
+    QCOMPARE(fixture.executor.last_manual_seed_region_count, 2);
+    QCOMPARE(fixture.executor.last_automatic_marker_pixels, 0);
+    QCOMPARE(fixture.executor.last_automatic_marker_width, 0);
+    QCOMPARE(fixture.executor.last_automatic_marker_height, 0);
     QCOMPARE(fixture.executor.last_background_seed_pixels, 1);
     QCOMPARE(fixture.executor.last_object_seed_pixels, 1);
     QCOMPARE(fixture.executor.last_beta, domain::kDefaultRandomWalkerBeta);

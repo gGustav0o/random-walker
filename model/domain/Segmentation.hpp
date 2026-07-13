@@ -12,6 +12,7 @@
 #include "ProgressReporter.hpp"
 #include "RandomWalkerParameters.hpp"
 #include "Seed.hpp"
+#include "SegmentationConstraints.hpp"
 
 namespace random_walker::domain {
 
@@ -23,12 +24,12 @@ namespace random_walker::domain {
         SegmentationRequest(
             SegmentationRequestId request_id
             , GrayImage image
-            , std::vector<SeedRegion> seed_regions
+            , SegmentationConstraints constraints
             , RandomWalkerParameters parameters
         )
             : request_id_(request_id)
             , image_(std::move(image))
-            , seed_regions_(std::move(seed_regions))
+            , constraints_(std::move(constraints))
             , parameters_(parameters) {}
 
         SegmentationRequest(const SegmentationRequest&) = default;
@@ -44,8 +45,19 @@ namespace random_walker::domain {
             return image_;
         }
 
-        [[nodiscard]] std::span<const SeedRegion> seed_regions() const noexcept {
-            return seed_regions_;
+        [[nodiscard]] const SegmentationConstraints& constraints()
+            const noexcept {
+            return constraints_;
+        }
+
+        [[nodiscard]] std::span<const SeedRegion> manual_seed_regions()
+            const noexcept {
+            return constraints_.manual_seed_regions;
+        }
+
+        [[nodiscard]] const MarkerLabelMask& automatic_markers()
+            const noexcept {
+            return constraints_.automatic_markers;
         }
 
         [[nodiscard]] const RandomWalkerParameters& parameters() const noexcept {
@@ -55,7 +67,7 @@ namespace random_walker::domain {
     private:
         SegmentationRequestId request_id_;
         GrayImage image_;
-        std::vector<SeedRegion> seed_regions_;
+        SegmentationConstraints constraints_;
         RandomWalkerParameters parameters_;
     };
 

@@ -21,7 +21,7 @@ QString ProgressState::status_text() const {
     case ValidatingInput:
         return QStringLiteral("Validating input");
     case ExpandingSeeds:
-        return QStringLiteral("Preparing seed regions");
+        return QStringLiteral("Preparing constraints");
     case BuildingGraph:
         return QStringLiteral("Building pixel graph");
     case BuildingBoundaryConditions:

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <limits>
@@ -28,18 +27,6 @@ namespace random_walker::domain {
     };
 
 
-    [[nodiscard]] constexpr bool is_user_seed(
-        SeedSource source
-    ) noexcept {
-        return source == SeedSource::User;
-    }
-
-    [[nodiscard]] constexpr bool is_automatic_seed(
-        SeedSource source
-    ) noexcept {
-        return source == SeedSource::Automatic;
-    }
-
     struct PixelRectangle {
         int x = 0;
         int y = 0;
@@ -66,19 +53,6 @@ namespace random_walker::domain {
 
         bool operator==(const Seed&) const = default;
     };
-
-    [[nodiscard]] inline bool has_seed_label(
-        std::span<const SeedRegion> regions
-        , SeedLabel label
-    ) noexcept {
-        return std::any_of(
-            regions.begin()
-            , regions.end()
-            , [label](const SeedRegion& region) {
-                return region.label == label;
-            }
-        );
-    }
 
     [[nodiscard]] inline std::size_t valid_seed_region_pixel_count(
         const SeedRegion& region

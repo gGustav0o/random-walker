@@ -71,13 +71,27 @@ namespace {
 
     [[nodiscard]] domain::SegmentationRequest request(
         domain::GrayImage image
-        , std::vector<domain::SeedRegion> seeds
+        , domain::SegmentationConstraints constraints
         , domain::RandomWalkerParameters parameters = {}
     ) {
         return domain::SegmentationRequest(
             7
             , std::move(image)
-            , std::move(seeds)
+            , std::move(constraints)
+            , parameters
+        );
+    }
+
+    [[nodiscard]] domain::SegmentationRequest request(
+        domain::GrayImage image
+        , std::vector<domain::SeedRegion> seeds
+        , domain::RandomWalkerParameters parameters = {}
+    ) {
+        return request(
+            std::move(image)
+            , domain::SegmentationConstraints {
+                .manual_seed_regions = std::move(seeds)
+            }
             , parameters
         );
     }
@@ -112,9 +126,14 @@ private slots:
     void rejects_invalid_connectivity();
     void rejects_missing_background_seeds();
     void rejects_missing_object_seeds();
+    void rejects_missing_background_automatic_constraints();
     void rejects_seed_out_of_bounds();
+    void rejects_automatic_marker_mask_with_unexpected_geometry();
     void rejects_conflicting_seed_labels();
+    void accepts_automatic_marker_constraints_with_manual_precedence();
     void returns_cancelled_when_cancelled_before_start();
+    void segments_image_from_automatic_marker_constraints();
+    void segments_mixed_constraints_with_manual_precedence();
     void segments_fully_constrained_image_without_unknown_pixels();
     void segments_three_pixel_line_with_expected_interpolation();
 };
@@ -239,6 +258,33 @@ void SegmentationServiceTests::rejects_missing_object_seeds() {
     );
 }
 
+void SegmentationServiceTests::
+rejects_missing_background_automatic_constraints() {
+    domain::SegmentationConstraints constraints {
+        .automatic_markers = domain::MarkerLabelMask(2, 1)
+    };
+    constraints.automatic_markers.set(
+        0
+        , 0
+        , domain::MarkerLabel::Object
+    );
+    constraints.automatic_markers.set(
+        0
+        , 1
+        , domain::MarkerLabel::Object
+    );
+
+    const auto segmentation_request = request(
+        make_image(1, 2, {10, 10})
+        , std::move(constraints)
+    );
+
+    expect_validation_error(
+        segmentation_request
+        , domain::SegmentationError::MissingBackgroundSeeds
+    );
+}
+
 void SegmentationServiceTests::rejects_seed_out_of_bounds() {
     const auto segmentation_request = request(
         make_image(1, 2, {10, 10})
@@ -246,6 +292,27 @@ void SegmentationServiceTests::rejects_seed_out_of_bounds() {
             seed_region(0, 0, 1, 1, domain::SeedLabel::Background),
             seed_region(2, 0, 1, 1, domain::SeedLabel::Object)
         }
+    );
+
+    expect_validation_error(
+        segmentation_request
+        , domain::SegmentationError::SeedOutOfBounds
+    );
+}
+
+void SegmentationServiceTests::
+rejects_automatic_marker_mask_with_unexpected_geometry() {
+    domain::SegmentationConstraints constraints {
+        .manual_seed_regions = {
+            seed_region(0, 0, 1, 1, domain::SeedLabel::Background),
+            seed_region(1, 0, 1, 1, domain::SeedLabel::Object)
+        },
+        .automatic_markers = domain::MarkerLabelMask(3, 1)
+    };
+
+    const auto segmentation_request = request(
+        make_image(1, 2, {10, 10})
+        , std::move(constraints)
     );
 
     expect_validation_error(
@@ -269,6 +336,35 @@ void SegmentationServiceTests::rejects_conflicting_seed_labels() {
     );
 }
 
+void SegmentationServiceTests::
+accepts_automatic_marker_constraints_with_manual_precedence() {
+    domain::SegmentationConstraints constraints {
+        .manual_seed_regions = {
+            seed_region(0, 0, 1, 1, domain::SeedLabel::Background)
+        },
+        .automatic_markers = domain::MarkerLabelMask(2, 1)
+    };
+    constraints.automatic_markers.set(
+        0
+        , 0
+        , domain::MarkerLabel::Object
+    );
+    constraints.automatic_markers.set(
+        0
+        , 1
+        , domain::MarkerLabel::Object
+    );
+
+    const auto segmentation_request = request(
+        make_image(1, 2, {10, 10})
+        , std::move(constraints)
+    );
+
+    QVERIFY(!service::SegmentationService::validate(
+        segmentation_request
+    ).has_value());
+}
+
 void SegmentationServiceTests::returns_cancelled_when_cancelled_before_start() {
     const auto segmentation_request = request(
         make_image(1, 2, {10, 10})
@@ -286,6 +382,79 @@ void SegmentationServiceTests::returns_cancelled_when_cancelled_before_start() {
     );
 
     QVERIFY(std::holds_alternative<domain::Cancelled>(outcome));
+}
+
+void SegmentationServiceTests::segments_image_from_automatic_marker_constraints() {
+    domain::SegmentationConstraints constraints {
+        .automatic_markers = domain::MarkerLabelMask(2, 1)
+    };
+    constraints.automatic_markers.set(
+        0
+        , 0
+        , domain::MarkerLabel::Background
+    );
+    constraints.automatic_markers.set(
+        0
+        , 1
+        , domain::MarkerLabel::Object
+    );
+    const auto segmentation_request = request(
+        make_image(1, 2, {10, 10})
+        , std::move(constraints)
+    );
+
+    const service::SegmentationService segmentation_service;
+    const domain::SegmentationOutcome outcome = segmentation_service.segment(
+        segmentation_request
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<domain::SegmentationResult>(outcome));
+    const auto& result = std::get<domain::SegmentationResult>(outcome);
+    QCOMPARE(result.probabilities(0, 0), 0.0);
+    QCOMPARE(result.probabilities(0, 1), 1.0);
+    QCOMPARE(static_cast<int>(result.mask(0, 0)), 0);
+    QCOMPARE(static_cast<int>(result.mask(0, 1)), 1);
+}
+
+void SegmentationServiceTests::segments_mixed_constraints_with_manual_precedence() {
+    domain::SegmentationConstraints constraints {
+        .manual_seed_regions = {
+            seed_region(0, 0, 1, 1, domain::SeedLabel::Background)
+        },
+        .automatic_markers = domain::MarkerLabelMask(3, 1)
+    };
+    constraints.automatic_markers.set(
+        0
+        , 0
+        , domain::MarkerLabel::Object
+    );
+    constraints.automatic_markers.set(
+        0
+        , 2
+        , domain::MarkerLabel::Object
+    );
+
+    const auto segmentation_request = request(
+        make_image(1, 3, {10, 10, 10})
+        , std::move(constraints)
+    );
+
+    const service::SegmentationService segmentation_service;
+    const domain::SegmentationOutcome outcome = segmentation_service.segment(
+        segmentation_request
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<domain::SegmentationResult>(outcome));
+    const auto& result = std::get<domain::SegmentationResult>(outcome);
+    QCOMPARE(result.probabilities(0, 0), 0.0);
+    QVERIFY(std::abs(result.probabilities(0, 1) - 0.5) < 1e-12);
+    QCOMPARE(result.probabilities(0, 2), 1.0);
+    QCOMPARE(static_cast<int>(result.mask(0, 0)), 0);
+    QCOMPARE(static_cast<int>(result.mask(0, 2)), 1);
 }
 
 void SegmentationServiceTests::segments_fully_constrained_image_without_unknown_pixels() {

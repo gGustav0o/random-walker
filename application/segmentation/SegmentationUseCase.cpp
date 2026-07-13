@@ -8,7 +8,7 @@ namespace random_walker::application {
     domain::SegmentationRequest make_segmentation_request(
         domain::SegmentationRequestId request_id
         , const domain::GrayImage& image
-        , std::vector<domain::SeedRegion> seed_regions
+        , domain::SegmentationConstraints constraints
         , const ApplicationSettings& settings
     ) {
         assert(domain::is_valid(settings.random_walker));
@@ -16,7 +16,7 @@ namespace random_walker::application {
         return domain::SegmentationRequest(
             request_id
             , image
-            , std::move(seed_regions)
+            , std::move(constraints)
             , settings.random_walker
         );
     }

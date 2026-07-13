@@ -66,6 +66,8 @@ set(HEADERS
     model/domain/RandomWalkerParameters.hpp
     model/domain/Seed.hpp
     model/domain/Segmentation.hpp
+    model/domain/SegmentationConstraints.hpp
+    model/domain/SegmentationConstraintsValidation.hpp
     model/domain/SegmentationLimits.hpp
     model/algorithm/BoundaryConditions.hpp
     model/algorithm/DistanceTransform.hpp
@@ -126,6 +128,7 @@ set(SOURCES
     model/algorithm/ProbabilityField.cpp
     model/algorithm/RandomWalkerAlgorithm.cpp
     model/algorithm/SeedExpansion.cpp
+    model/domain/SegmentationConstraintsValidation.cpp
     model/executor/JThreadSegmentationExecutor.cpp
     model/graph/GridLaplacian.cpp
     model/service/SegmentationService.cpp

@@ -1,12 +1,12 @@
 #pragma once
 
-#include <span>
 #include <variant>
 #include <vector>
 
 #include "model/domain/Cancellation.hpp"
 #include "model/domain/ProgressReporter.hpp"
 #include "model/domain/Seed.hpp"
+#include "model/domain/SegmentationConstraints.hpp"
 
 namespace random_walker::algorithm {
 
@@ -15,8 +15,10 @@ namespace random_walker::algorithm {
         , domain::Cancelled
     >;
 
-    [[nodiscard]] SeedExpansionOutcome expand_seed_regions(
-        std::span<const domain::SeedRegion> regions
+    [[nodiscard]] SeedExpansionOutcome expand_seed_constraints(
+        const domain::SegmentationConstraints& constraints
+        , int image_width
+        , int image_height
         , const domain::CancellationToken& cancellation
         , const domain::ProgressReporter& progress
     );

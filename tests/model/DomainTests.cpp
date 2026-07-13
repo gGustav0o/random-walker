@@ -12,6 +12,7 @@
 #include "model/domain/RandomWalkerParameters.hpp"
 #include "model/domain/Seed.hpp"
 #include "model/domain/Segmentation.hpp"
+#include "model/domain/SegmentationConstraintsValidation.hpp"
 #include "model/domain/SegmentationLimits.hpp"
 
 namespace domain = random_walker::domain;
@@ -30,7 +31,6 @@ private slots:
     void auto_marker_parameters_accept_defaults_and_bounds();
     void auto_marker_parameters_reject_invalid_values();
     void marker_label_mask_stores_labels_and_counts_seeds();
-    void marker_label_mask_converts_to_automatic_seed_regions();
     void image_geometry_accepts_representable_pixel_count();
     void image_geometry_rejects_unrepresentable_pixel_count();
     void segmentation_limits_accept_supported_pixel_count();
@@ -40,6 +40,9 @@ private slots:
     void gray_image_reports_dimensions_and_pixel_values();
     void seed_pixel_count_counts_only_requested_label();
     void segmentation_request_exposes_immutable_input_contract();
+    void constraints_validation_accepts_manual_and_automatic_union();
+    void constraints_validation_rejects_unexpected_automatic_marker_geometry();
+    void constraints_validation_prefers_manual_regions_over_automatic_markers();
 };
 
 void DomainTests::default_random_walker_parameters_are_valid() {
@@ -249,39 +252,6 @@ void DomainTests::marker_label_mask_stores_labels_and_counts_seeds() {
     QCOMPARE(mask.seed_count(), std::size_t {2});
 }
 
-void DomainTests::marker_label_mask_converts_to_automatic_seed_regions() {
-    domain::MarkerLabelMask mask(3, 2);
-    mask.set(0, 1, domain::MarkerLabel::Background);
-    mask.set(1, 2, domain::MarkerLabel::Object);
-
-    const std::vector<domain::SeedRegion> regions =
-        domain::seed_regions_from_marker_mask(mask);
-
-    QCOMPARE(regions.size(), std::size_t {2});
-    QCOMPARE(regions[0].area.x, 1);
-    QCOMPARE(regions[0].area.y, 0);
-    QCOMPARE(regions[0].area.width, 1);
-    QCOMPARE(regions[0].area.height, 1);
-    QCOMPARE(
-        static_cast<int>(regions[0].label)
-        , static_cast<int>(domain::SeedLabel::Background)
-    );
-    QCOMPARE(
-        static_cast<int>(regions[0].source)
-        , static_cast<int>(domain::SeedSource::Automatic)
-    );
-    QCOMPARE(regions[1].area.x, 2);
-    QCOMPARE(regions[1].area.y, 1);
-    QCOMPARE(
-        static_cast<int>(regions[1].label)
-        , static_cast<int>(domain::SeedLabel::Object)
-    );
-    QCOMPARE(
-        static_cast<int>(regions[1].source)
-        , static_cast<int>(domain::SeedSource::Automatic)
-    );
-}
-
 void DomainTests::image_geometry_accepts_representable_pixel_count() {
     QVERIFY(domain::has_representable_pixel_count(0, 0));
     QVERIFY(domain::has_representable_pixel_count(1, 0));
@@ -382,8 +352,6 @@ void DomainTests::seed_pixel_count_counts_only_requested_label() {
         domain::seed_pixel_count(regions, domain::SeedLabel::Object)
         , 4
     );
-    QVERIFY(domain::has_seed_label(regions, domain::SeedLabel::Background));
-    QVERIFY(domain::has_seed_label(regions, domain::SeedLabel::Object));
     QCOMPARE(domain::valid_seed_pixel_count(regions), std::size_t {12});
 }
 
@@ -391,22 +359,30 @@ void DomainTests::segmentation_request_exposes_immutable_input_contract() {
     domain::GrayImageMatrix pixels(1, 2);
     pixels << std::uint8_t {10}, std::uint8_t {20};
 
-    std::vector<domain::SeedRegion> seeds {
-        domain::SeedRegion {
-            .area = {.x = 0, .y = 0, .width = 1, .height = 1},
-            .label = domain::SeedLabel::Background
-        },
-        domain::SeedRegion {
-            .area = {.x = 1, .y = 0, .width = 1, .height = 1},
-            .label = domain::SeedLabel::Object
+    domain::SegmentationConstraints constraints {
+        .manual_seed_regions = {
+            domain::SeedRegion {
+                .area = {.x = 0, .y = 0, .width = 1, .height = 1},
+                .label = domain::SeedLabel::Background
+            },
+            domain::SeedRegion {
+                .area = {.x = 1, .y = 0, .width = 1, .height = 1},
+                .label = domain::SeedLabel::Object
+            }
         }
     };
+    constraints.automatic_markers = domain::MarkerLabelMask(2, 1);
+    constraints.automatic_markers.set(
+        0
+        , 1
+        , domain::MarkerLabel::Object
+    );
 
     const domain::RandomWalkerParameters parameters {.beta = 0.01};
     const domain::SegmentationRequest request(
         42
         , domain::GrayImage(std::move(pixels))
-        , std::move(seeds)
+        , std::move(constraints)
         , parameters
     );
 
@@ -414,16 +390,109 @@ void DomainTests::segmentation_request_exposes_immutable_input_contract() {
     QCOMPARE(request.image().width(), 2);
     QCOMPARE(request.image().height(), 1);
     QCOMPARE(static_cast<int>(request.image().at(0, 1)), 20);
-    QCOMPARE(request.seed_regions().size(), std::size_t {2});
+    QCOMPARE(request.manual_seed_regions().size(), std::size_t {2});
     QCOMPARE(
-        static_cast<int>(request.seed_regions()[0].label)
+        static_cast<int>(request.manual_seed_regions()[0].label)
         , static_cast<int>(domain::SeedLabel::Background)
     );
     QCOMPARE(
-        static_cast<int>(request.seed_regions()[1].label)
+        static_cast<int>(request.manual_seed_regions()[1].label)
         , static_cast<int>(domain::SeedLabel::Object)
     );
+    QCOMPARE(request.automatic_markers().width(), 2);
+    QCOMPARE(request.automatic_markers().height(), 1);
+    QCOMPARE(
+        static_cast<int>(request.automatic_markers().at(0, 1))
+        , static_cast<int>(domain::MarkerLabel::Object)
+    );
     QVERIFY(request.parameters() == parameters);
+}
+
+void DomainTests::constraints_validation_accepts_manual_and_automatic_union() {
+    domain::GrayImageMatrix pixels(1, 2);
+    pixels << std::uint8_t {10}, std::uint8_t {20};
+
+    domain::SegmentationConstraints constraints {
+        .manual_seed_regions = {
+            domain::SeedRegion {
+                .area = {.x = 0, .y = 0, .width = 1, .height = 1},
+                .label = domain::SeedLabel::Background
+            }
+        },
+        .automatic_markers = domain::MarkerLabelMask(2, 1)
+    };
+    constraints.automatic_markers.set(
+        0
+        , 1
+        , domain::MarkerLabel::Object
+    );
+
+    QVERIFY(!domain::validate(
+        constraints
+        , domain::GrayImage(std::move(pixels))
+    ).has_value());
+}
+
+void DomainTests::
+constraints_validation_rejects_unexpected_automatic_marker_geometry() {
+    domain::GrayImageMatrix pixels(1, 2);
+    pixels << std::uint8_t {10}, std::uint8_t {20};
+
+    const domain::SegmentationConstraints constraints {
+        .manual_seed_regions = {
+            domain::SeedRegion {
+                .area = {.x = 0, .y = 0, .width = 1, .height = 1},
+                .label = domain::SeedLabel::Background
+            },
+            domain::SeedRegion {
+                .area = {.x = 1, .y = 0, .width = 1, .height = 1},
+                .label = domain::SeedLabel::Object
+            }
+        },
+        .automatic_markers = domain::MarkerLabelMask(3, 1)
+    };
+
+    const auto error = domain::validate(
+        constraints
+        , domain::GrayImage(std::move(pixels))
+    );
+
+    QVERIFY(error.has_value());
+    QCOMPARE(
+        static_cast<int>(*error)
+        , static_cast<int>(domain::SegmentationError::SeedOutOfBounds)
+    );
+}
+
+void DomainTests::
+constraints_validation_prefers_manual_regions_over_automatic_markers() {
+    domain::GrayImageMatrix pixels(1, 2);
+    pixels << std::uint8_t {10}, std::uint8_t {20};
+
+    domain::SegmentationConstraints constraints {
+        .manual_seed_regions = {
+            domain::SeedRegion {
+                .area = {.x = 0, .y = 0, .width = 1, .height = 1},
+                .label = domain::SeedLabel::Background
+            }
+        },
+        .automatic_markers = domain::MarkerLabelMask(2, 1)
+    };
+    constraints.automatic_markers.set(
+        0
+        , 0
+        , domain::MarkerLabel::Object
+    );
+    constraints.automatic_markers.set(
+        0
+        , 1
+        , domain::MarkerLabel::Object
+    );
+
+    QVERIFY(!domain::validate(
+        constraints
+        , domain::GrayImage(std::move(pixels))
+    ).has_value());
 }
 
 QTEST_GUILESS_MAIN(DomainTests)

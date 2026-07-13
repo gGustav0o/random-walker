@@ -219,35 +219,6 @@ namespace random_walker::domain {
         return marker_pixel_count(mask, marker_label_from_seed_label(label));
     }
 
-    [[nodiscard]] inline std::vector<SeedRegion> seed_regions_from_marker_mask(
-        const MarkerLabelMask& mask
-    ) {
-        std::vector<SeedRegion> regions;
-        regions.reserve(mask.seed_count());
-
-        for (int row = 0; row < mask.height(); ++row) {
-            for (int column = 0; column < mask.width(); ++column) {
-                const MarkerLabel marker = mask.at(row, column);
-                if (!is_seed_marker_label(marker)) {
-                    continue;
-                }
-
-                regions.push_back({
-                    .area = {
-                        .x = column
-                        , .y = row
-                        , .width = 1
-                        , .height = 1
-                    }
-                    , .label = seed_label_from_marker_label(marker)
-                    , .source = SeedSource::Automatic
-                });
-            }
-        }
-
-        return regions;
-    }
-
     struct MarkerProposalDiagnostics {
         std::size_t proposed_seed_count = 0;
         std::size_t rejected_low_confidence_count = 0;

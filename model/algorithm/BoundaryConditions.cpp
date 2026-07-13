@@ -5,14 +5,26 @@
 #include <cassert>
 #include <cstddef>
 #include <optional>
-#include <span>
-#include <variant>
 
 namespace random_walker::algorithm {
     namespace {
 
         using BoundaryAssignmentOutcome =
             std::optional<domain::SegmentationError>;
+
+        [[nodiscard]] double boundary_value_for(
+            domain::SeedLabel label
+        ) noexcept {
+            switch (label) {
+            case domain::SeedLabel::Background:
+                return 0.0;
+            case domain::SeedLabel::Object:
+                return 1.0;
+            }
+
+            assert(false);
+            return 0.0;
+        }
 
         [[nodiscard]] BoundaryAssignmentOutcome assign_boundary_value(
             BoundaryConditions& conditions
@@ -32,12 +44,6 @@ namespace random_walker::algorithm {
             return std::nullopt;
         }
 
-        using BoundaryBuildStepOutcome = std::variant<
-            std::monostate,
-            domain::SegmentationError,
-            domain::Cancelled
-        >;
-
         [[nodiscard]] double boundary_progress_fraction(
             std::size_t completed
             , std::size_t total
@@ -47,56 +53,34 @@ namespace random_walker::algorithm {
                 : static_cast<double>(completed) / static_cast<double>(total);
         }
 
-        [[nodiscard]] BoundaryBuildStepOutcome apply_seed_label(
+        [[nodiscard]] BoundaryAssignmentOutcome apply_seed(
             BoundaryConditions& result
-            , std::span<const domain::Seed> seeds
-            , domain::SeedLabel label
-            , double value
+            , const domain::Seed& seed
             , int image_width
             , int image_height
-            , std::size_t& completed
-            , std::size_t total
-            , const domain::CancellationToken& cancellation
-            , const domain::ProgressReporter& progress
         ) {
             assert(image_width > 0);
             assert(image_height > 0);
+            assert(seed.position.x >= 0);
+            assert(seed.position.y >= 0);
+            assert(seed.position.x < image_width);
+            assert(seed.position.y < image_height);
 
-            for (const domain::Seed& seed : seeds) {
-                if (cancellation.stop_requested()) {
-                    return domain::Cancelled {};
-                }
-
-                assert(seed.position.x >= 0);
-                assert(seed.position.y >= 0);
-                assert(seed.position.x < image_width);
-                assert(seed.position.y < image_height);
-                if (seed.label == label) {
-                    const BoundaryAssignmentOutcome assignment_outcome =
-                        assign_boundary_value(
-                        result
-                        , flatten_pixel_index(
-                            seed.position.y
-                            , seed.position.x
-                            , image_width
-                        )
-                        , value
-                    );
-                    if (assignment_outcome.has_value()) {
-                        return *assignment_outcome;
-                    }
-                }
-
-                ++completed;
-                if (should_report_progress(completed)) {
-                    progress.report(
-                        domain::SegmentationStage::BuildingBoundaryConditions
-                        , boundary_progress_fraction(completed, total)
-                    );
-                }
+            const BoundaryAssignmentOutcome assignment_outcome =
+                assign_boundary_value(
+                    result
+                    , flatten_pixel_index(
+                        seed.position.y
+                        , seed.position.x
+                        , image_width
+                    )
+                    , boundary_value_for(seed.label)
+                );
+            if (assignment_outcome.has_value()) {
+                return *assignment_outcome;
             }
 
-            return std::monostate {};
+            return std::nullopt;
         }
     }
 
@@ -112,47 +96,30 @@ namespace random_walker::algorithm {
         assert(height > 0);
 
         BoundaryConditions result;
+        result.pixels.reserve(input.seeds.size());
+        result.value_by_pixel.reserve(input.seeds.size());
 
-        std::size_t completed = 0;
-        const std::size_t total = input.seeds.size() * 2;
-        if (const BoundaryBuildStepOutcome outcome = apply_seed_label(
+        for (std::size_t index = 0; index < input.seeds.size(); ++index) {
+            if (cancellation.stop_requested()) {
+                return domain::Cancelled {};
+            }
+
+            if (const BoundaryAssignmentOutcome outcome = apply_seed(
                 result
-                , input.seeds
-                , domain::SeedLabel::Background
-                , 0.0
+                , input.seeds[index]
                 , width
                 , height
-                , completed
-                , total
-                , cancellation
-                , progress
-            ); !std::holds_alternative<std::monostate>(outcome)
-        ) {
-            if (const auto* error =
-                    std::get_if<domain::SegmentationError>(&outcome)) {
-                return *error;
+            ); outcome.has_value()
+            ) {
+                return *outcome;
             }
-            return domain::Cancelled {};
-        }
 
-        if (const BoundaryBuildStepOutcome outcome = apply_seed_label(
-                result
-                , input.seeds
-                , domain::SeedLabel::Object
-                , 1.0
-                , width
-                , height
-                , completed
-                , total
-                , cancellation
-                , progress
-            ); !std::holds_alternative<std::monostate>(outcome)
-        ) {
-            if (const auto* error =
-                    std::get_if<domain::SegmentationError>(&outcome)) {
-                return *error;
+            if (should_report_progress(index + 1)) {
+                progress.report(
+                    domain::SegmentationStage::BuildingBoundaryConditions
+                    , boundary_progress_fraction(index + 1, input.seeds.size())
+                );
             }
-            return domain::Cancelled {};
         }
 
         progress.report(

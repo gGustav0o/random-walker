@@ -24,6 +24,7 @@ endfunction()
 add_random_walker_test(model_domain_tests
     SOURCES
         model/DomainTests.cpp
+        ${PROJECT_SOURCE_DIR}/model/domain/SegmentationConstraintsValidation.cpp
     LIBRARIES
         Eigen3::Eigen
 )
@@ -71,6 +72,7 @@ add_random_walker_test(model_service_tests
         ${PROJECT_SOURCE_DIR}/model/algorithm/ProbabilityField.cpp
         ${PROJECT_SOURCE_DIR}/model/algorithm/RandomWalkerAlgorithm.cpp
         ${PROJECT_SOURCE_DIR}/model/algorithm/SeedExpansion.cpp
+        ${PROJECT_SOURCE_DIR}/model/domain/SegmentationConstraintsValidation.cpp
         ${PROJECT_SOURCE_DIR}/model/graph/GridLaplacian.cpp
         ${PROJECT_SOURCE_DIR}/model/service/SegmentationService.cpp
     LIBRARIES

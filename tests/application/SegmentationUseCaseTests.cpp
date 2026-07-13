@@ -27,10 +27,12 @@ private slots:
 void SegmentationUseCaseTests::builds_request_from_application_settings() {
     application::ApplicationSettings settings;
     settings.random_walker.connectivity = domain::PixelConnectivity::Eight;
-    std::vector<domain::SeedRegion> seed_regions {
-        {
-            .area = {.x = 0, .y = 0, .width = 1, .height = 1},
-            .label = domain::SeedLabel::Background
+    domain::SegmentationConstraints constraints {
+        .manual_seed_regions = {
+            {
+                .area = {.x = 0, .y = 0, .width = 1, .height = 1},
+                .label = domain::SeedLabel::Background
+            }
         }
     };
 
@@ -38,14 +40,14 @@ void SegmentationUseCaseTests::builds_request_from_application_settings() {
         application::make_segmentation_request(
             static_cast<domain::SegmentationRequestId>(7)
             , make_image()
-            , std::move(seed_regions)
+            , std::move(constraints)
             , settings
         );
 
     QCOMPARE(static_cast<qulonglong>(request.request_id()), qulonglong {7});
     QCOMPARE(request.image().width(), 1);
     QCOMPARE(request.image().height(), 1);
-    QCOMPARE(static_cast<int>(request.seed_regions().size()), 1);
+    QCOMPARE(static_cast<int>(request.manual_seed_regions().size()), 1);
     QCOMPARE(
         static_cast<int>(request.parameters().connectivity)
         , static_cast<int>(domain::PixelConnectivity::Eight)

@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <optional>
-#include <vector>
 
 #include <QAbstractItemModel>
 #include <QObject>
@@ -203,8 +202,8 @@ private:
     [[nodiscard]] DomainSeedLabel domain_seed_label() const noexcept;
     [[nodiscard]] int background_constraint_count() const noexcept;
     [[nodiscard]] int object_constraint_count() const noexcept;
-    [[nodiscard]] std::vector<random_walker::domain::SeedRegion>
-    segmentation_seed_regions() const;
+    [[nodiscard]] random_walker::domain::SegmentationConstraints
+    segmentation_constraints() const;
 
     void update_random_walker_parameters(
         random_walker::domain::RandomWalkerParameters parameters

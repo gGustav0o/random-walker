@@ -40,6 +40,20 @@ $$
 \mathcal L = \{\mathrm{Background},\mathrm{Object}\}.
 $$
 
+The segmentation request carries constraints, not a flat list of marker pixels:
+
+$$
+\mathcal C=(R, A),
+$$
+
+where $R$ is the set of manual rectangular seed regions and
+$A:\Omega\to\{\mathrm{None},\mathrm{Background},\mathrm{Object}\}$ is the
+automatic marker-label mask. The mask is either empty or has the same geometry
+as the input image. Manual regions take precedence over automatic markers on
+overlapping pixels.
+
+Implementation: `SegmentationConstraints`, `domain::validate`.
+
 Boundary values are encoded as
 
 $$
@@ -196,6 +210,13 @@ where $D$ is the degree matrix and $W$ is the weighted adjacency matrix.
 Implementation: `add_undirected_edge`, `add_laplacian_diagonal`, `assemble_laplacian`.
 
 ## 5. Boundary Conditions and Node Partition
+
+The constraints are expanded into concrete seed pixels before boundary
+conditions are built. Manual seed regions are expanded first. Automatic
+marker-mask pixels are then emitted in row-major order, except where a manual
+seed already covers the pixel.
+
+Implementation: `expand_seed_constraints`.
 
 Let
 
@@ -504,9 +525,14 @@ $$
 
 the component is rejected as too small.
 
-2. Otherwise, all pixels in $C$ are emitted as automatic markers.
+2. Otherwise, all pixels in $C$ are written into the automatic marker mask.
 
 Implementation: `clean_candidates`, `append_clean_component_markers`.
+
+The proposal result remains a `MarkerLabelMask`. It is not converted into a
+set of `1x1` seed regions in the segmentation request. Conversion to concrete
+seed pixels happens only inside `expand_seed_constraints`, after manual
+precedence has been applied.
 
 This is equivalent to an Euclidean-distance core extraction on each accepted candidate mask, followed by connected-component cleanup. Connected-component processing is historically related to [Rosenfeld and Pfaltz 1966](https://doi.org/10.1145/321356.321357).
 

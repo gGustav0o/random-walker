@@ -1,7 +1,6 @@
 #pragma once
 
 #include <optional>
-#include <vector>
 
 #include <QString>
 #include <QtGlobal>
@@ -21,8 +20,6 @@ public:
     [[nodiscard]] quint64 version() const noexcept;
     [[nodiscard]] const random_walker::domain::MarkerLabelMask* mask()
         const noexcept;
-    [[nodiscard]] std::vector<random_walker::domain::SeedRegion>
-    seed_regions() const;
 
     void set(random_walker::domain::MarkerLabelMask mask);
     [[nodiscard]] bool clear();

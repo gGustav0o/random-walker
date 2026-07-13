@@ -213,8 +213,10 @@ class AlgorithmTests final : public QObject {
 
 private slots:
     void parallel_policy_respects_compile_time_flag_and_threshold();
-    void expands_seed_regions_in_row_major_order();
-    void seed_expansion_honors_cancellation();
+    void expands_manual_seed_constraints_in_row_major_order();
+    void expands_seed_constraints_with_manual_precedence();
+    void expands_seed_constraints_with_automatic_markers_in_row_major_order();
+    void seed_constraint_expansion_honors_cancellation();
     void builds_boundary_conditions_with_expected_values();
     void rejects_conflicting_boundary_seed_labels();
     void deduplicates_matching_boundary_seed_labels();
@@ -256,21 +258,25 @@ void AlgorithmTests::parallel_policy_respects_compile_time_flag_and_threshold() 
     );
 }
 
-void AlgorithmTests::expands_seed_regions_in_row_major_order() {
-    const std::vector<domain::SeedRegion> regions {
-        domain::SeedRegion {
-            .area = {.x = 1, .y = 2, .width = 2, .height = 2},
-            .label = domain::SeedLabel::Object
-            , .source = domain::SeedSource::Automatic
-        },
-        domain::SeedRegion {
-            .area = {.x = 0, .y = 0, .width = 1, .height = 1},
-            .label = domain::SeedLabel::Background
+void AlgorithmTests::expands_manual_seed_constraints_in_row_major_order() {
+    const domain::SegmentationConstraints constraints {
+        .manual_seed_regions = {
+            domain::SeedRegion {
+                .area = {.x = 1, .y = 2, .width = 2, .height = 2},
+                .label = domain::SeedLabel::Object
+                , .source = domain::SeedSource::Automatic
+            },
+            domain::SeedRegion {
+                .area = {.x = 0, .y = 0, .width = 1, .height = 1},
+                .label = domain::SeedLabel::Background
+            }
         }
     };
 
-    const auto outcome = algorithm::expand_seed_regions(
-        regions
+    const auto outcome = algorithm::expand_seed_constraints(
+        constraints
+        , 3
+        , 4
         , domain::CancellationToken {}
         , domain::ProgressReporter {}
     );
@@ -293,16 +299,135 @@ void AlgorithmTests::expands_seed_regions_in_row_major_order() {
     QCOMPARE(static_cast<int>(seeds[4].source), static_cast<int>(domain::SeedSource::User));
 }
 
-void AlgorithmTests::seed_expansion_honors_cancellation() {
-    const std::vector<domain::SeedRegion> regions {
-        domain::SeedRegion {
-            .area = {.x = 0, .y = 0, .width = 1, .height = 1},
-            .label = domain::SeedLabel::Object
+void AlgorithmTests::expands_seed_constraints_with_manual_precedence() {
+    domain::SegmentationConstraints constraints {
+        .manual_seed_regions = {
+            domain::SeedRegion {
+                .area = {.x = 0, .y = 0, .width = 1, .height = 1},
+                .label = domain::SeedLabel::Background
+            }
+        },
+        .automatic_markers = domain::MarkerLabelMask(3, 1)
+    };
+    constraints.automatic_markers.set(
+        0
+        , 0
+        , domain::MarkerLabel::Object
+    );
+    constraints.automatic_markers.set(
+        0
+        , 2
+        , domain::MarkerLabel::Object
+    );
+
+    const auto outcome = algorithm::expand_seed_constraints(
+        constraints
+        , 3
+        , 1
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<std::vector<domain::Seed>>(outcome));
+    const auto& seeds = std::get<std::vector<domain::Seed>>(outcome);
+    QCOMPARE(seeds.size(), std::size_t {2});
+    QCOMPARE(seeds[0].position.x, 0);
+    QCOMPARE(seeds[0].position.y, 0);
+    QCOMPARE(
+        static_cast<int>(seeds[0].label)
+        , static_cast<int>(domain::SeedLabel::Background)
+    );
+    QCOMPARE(
+        static_cast<int>(seeds[0].source)
+        , static_cast<int>(domain::SeedSource::User)
+    );
+    QCOMPARE(seeds[1].position.x, 2);
+    QCOMPARE(seeds[1].position.y, 0);
+    QCOMPARE(
+        static_cast<int>(seeds[1].label)
+        , static_cast<int>(domain::SeedLabel::Object)
+    );
+    QCOMPARE(
+        static_cast<int>(seeds[1].source)
+        , static_cast<int>(domain::SeedSource::Automatic)
+    );
+}
+
+void AlgorithmTests::
+expands_seed_constraints_with_automatic_markers_in_row_major_order() {
+    domain::SegmentationConstraints constraints {
+        .manual_seed_regions = {
+            domain::SeedRegion {
+                .area = {.x = 0, .y = 1, .width = 1, .height = 1},
+                .label = domain::SeedLabel::Background
+            }
+        },
+        .automatic_markers = domain::MarkerLabelMask(3, 2)
+    };
+    constraints.automatic_markers.set(
+        0
+        , 2
+        , domain::MarkerLabel::Object
+    );
+    constraints.automatic_markers.set(
+        1
+        , 1
+        , domain::MarkerLabel::Background
+    );
+
+    const auto outcome = algorithm::expand_seed_constraints(
+        constraints
+        , 3
+        , 2
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<std::vector<domain::Seed>>(outcome));
+    const auto& seeds = std::get<std::vector<domain::Seed>>(outcome);
+    QCOMPARE(seeds.size(), std::size_t {3});
+    QCOMPARE(seeds[0].position.x, 0);
+    QCOMPARE(seeds[0].position.y, 1);
+    QCOMPARE(
+        static_cast<int>(seeds[0].source)
+        , static_cast<int>(domain::SeedSource::User)
+    );
+    QCOMPARE(seeds[1].position.x, 2);
+    QCOMPARE(seeds[1].position.y, 0);
+    QCOMPARE(
+        static_cast<int>(seeds[1].label)
+        , static_cast<int>(domain::SeedLabel::Object)
+    );
+    QCOMPARE(
+        static_cast<int>(seeds[1].source)
+        , static_cast<int>(domain::SeedSource::Automatic)
+    );
+    QCOMPARE(seeds[2].position.x, 1);
+    QCOMPARE(seeds[2].position.y, 1);
+    QCOMPARE(
+        static_cast<int>(seeds[2].label)
+        , static_cast<int>(domain::SeedLabel::Background)
+    );
+    QCOMPARE(
+        static_cast<int>(seeds[2].source)
+        , static_cast<int>(domain::SeedSource::Automatic)
+    );
+}
+
+void AlgorithmTests::seed_constraint_expansion_honors_cancellation() {
+    domain::SegmentationConstraints constraints {
+        .manual_seed_regions = {
+            domain::SeedRegion {
+                .area = {.x = 0, .y = 0, .width = 1, .height = 1},
+                .label = domain::SeedLabel::Object
+            }
         }
     };
 
-    const auto outcome = algorithm::expand_seed_regions(
-        regions
+    const auto outcome = algorithm::expand_seed_constraints(
+        constraints
+        , 1
+        , 1
         , cancelled_token()
         , domain::ProgressReporter {}
     );
