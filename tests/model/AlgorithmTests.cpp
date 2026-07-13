@@ -210,6 +210,8 @@ private slots:
     void expands_seed_regions_in_row_major_order();
     void seed_expansion_honors_cancellation();
     void builds_boundary_conditions_with_expected_values();
+    void rejects_conflicting_boundary_seed_labels();
+    void deduplicates_matching_boundary_seed_labels();
     void boundary_value_vector_follows_boundary_pixel_order();
     void partitions_boundary_and_unknown_pixels();
     void partitions_laplacian_into_unknown_blocks();
@@ -328,6 +330,60 @@ void AlgorithmTests::builds_boundary_conditions_with_expected_values() {
     QVERIFY(conditions.contains(algorithm::PixelIndex {.value = 2}));
     QCOMPARE(conditions.value_at(algorithm::PixelIndex {.value = 1}), 1.0);
     QCOMPARE(conditions.value_at(algorithm::PixelIndex {.value = 2}), 0.0);
+}
+
+void AlgorithmTests::rejects_conflicting_boundary_seed_labels() {
+    const domain::GrayImage image = make_image(1, 1, {10});
+    const std::vector<domain::Seed> seeds {
+        domain::Seed {
+            .position = {.x = 0, .y = 0},
+            .label = domain::SeedLabel::Background
+        },
+        domain::Seed {
+            .position = {.x = 0, .y = 0},
+            .label = domain::SeedLabel::Object
+        }
+    };
+    const domain::SegmentationInput input {.image = image, .seeds = seeds};
+
+    const auto outcome = algorithm::build_boundary_conditions(
+        input
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<domain::SegmentationError>(outcome));
+    QCOMPARE(
+        static_cast<int>(std::get<domain::SegmentationError>(outcome))
+        , static_cast<int>(domain::SegmentationError::ConflictingSeedLabels)
+    );
+}
+
+void AlgorithmTests::deduplicates_matching_boundary_seed_labels() {
+    const domain::GrayImage image = make_image(1, 1, {10});
+    const std::vector<domain::Seed> seeds {
+        domain::Seed {
+            .position = {.x = 0, .y = 0},
+            .label = domain::SeedLabel::Background
+        },
+        domain::Seed {
+            .position = {.x = 0, .y = 0},
+            .label = domain::SeedLabel::Background
+        }
+    };
+    const domain::SegmentationInput input {.image = image, .seeds = seeds};
+
+    const auto outcome = algorithm::build_boundary_conditions(
+        input
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<algorithm::BoundaryConditions>(outcome));
+    const auto& conditions = std::get<algorithm::BoundaryConditions>(outcome);
+    QCOMPARE(conditions.pixels.size(), std::size_t {1});
+    QVERIFY(conditions.contains(algorithm::PixelIndex {.value = 0}));
+    QCOMPARE(conditions.value_at(algorithm::PixelIndex {.value = 0}), 0.0);
 }
 
 void AlgorithmTests::boundary_value_vector_follows_boundary_pixel_order() {

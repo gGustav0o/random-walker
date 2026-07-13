@@ -205,6 +205,10 @@ namespace random_walker::algorithm {
                 , cancellation
                 , progress
             );
+        if (const auto* error =
+                std::get_if<domain::SegmentationError>(&boundary_outcome)) {
+            return *error;
+        }
         if (is_cancelled(boundary_outcome)) {
             return domain::Cancelled {};
         }

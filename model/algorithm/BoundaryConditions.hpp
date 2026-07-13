@@ -27,8 +27,11 @@ namespace random_walker::algorithm {
         }
     };
 
-    using BoundaryConditionsOutcome =
-        std::variant<BoundaryConditions, domain::Cancelled>;
+    using BoundaryConditionsOutcome = std::variant<
+        BoundaryConditions,
+        domain::SegmentationError,
+        domain::Cancelled
+    >;
 
     using BoundaryValuesOutcome =
         std::variant<Eigen::VectorXd, domain::Cancelled>;

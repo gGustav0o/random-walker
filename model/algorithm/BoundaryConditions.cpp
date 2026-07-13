@@ -6,23 +6,37 @@
 #include <cstddef>
 #include <optional>
 #include <span>
+#include <variant>
 
 namespace random_walker::algorithm {
     namespace {
 
-        void assign_boundary_value(
+        using BoundaryAssignmentOutcome =
+            std::optional<domain::SegmentationError>;
+
+        [[nodiscard]] BoundaryAssignmentOutcome assign_boundary_value(
             BoundaryConditions& conditions
             , PixelIndex pixel_index
             , double value)
         {
             assert(pixel_index.value >= 0);
-            if (!conditions.value_by_pixel.contains(pixel_index)) {
+            const auto [position, inserted] =
+                conditions.value_by_pixel.emplace(pixel_index, value);
+            if (inserted) {
                 conditions.pixels.push_back(pixel_index);
+                return std::nullopt;
             }
-            conditions.value_by_pixel[pixel_index] = value;
+            if (position->second != value) {
+                return domain::SegmentationError::ConflictingSeedLabels;
+            }
+            return std::nullopt;
         }
 
-        using BoundaryBuildStepOutcome = std::optional<domain::Cancelled>;
+        using BoundaryBuildStepOutcome = std::variant<
+            std::monostate,
+            domain::SegmentationError,
+            domain::Cancelled
+        >;
 
         [[nodiscard]] double boundary_progress_fraction(
             std::size_t completed
@@ -58,7 +72,8 @@ namespace random_walker::algorithm {
                 assert(seed.position.x < image_width);
                 assert(seed.position.y < image_height);
                 if (seed.label == label) {
-                    assign_boundary_value(
+                    const BoundaryAssignmentOutcome assignment_outcome =
+                        assign_boundary_value(
                         result
                         , flatten_pixel_index(
                             seed.position.y
@@ -67,6 +82,9 @@ namespace random_walker::algorithm {
                         )
                         , value
                     );
+                    if (assignment_outcome.has_value()) {
+                        return *assignment_outcome;
+                    }
                 }
 
                 ++completed;
@@ -78,7 +96,7 @@ namespace random_walker::algorithm {
                 }
             }
 
-            return std::nullopt;
+            return std::monostate {};
         }
     }
 
@@ -97,7 +115,7 @@ namespace random_walker::algorithm {
 
         std::size_t completed = 0;
         const std::size_t total = input.seeds.size() * 2;
-        if (const auto cancelled = apply_seed_label(
+        if (const BoundaryBuildStepOutcome outcome = apply_seed_label(
                 result
                 , input.seeds
                 , domain::SeedLabel::Background
@@ -108,12 +126,16 @@ namespace random_walker::algorithm {
                 , total
                 , cancellation
                 , progress
-            ); cancelled.has_value()
+            ); !std::holds_alternative<std::monostate>(outcome)
         ) {
-            return *cancelled;
+            if (const auto* error =
+                    std::get_if<domain::SegmentationError>(&outcome)) {
+                return *error;
+            }
+            return domain::Cancelled {};
         }
 
-        if (const auto cancelled = apply_seed_label(
+        if (const BoundaryBuildStepOutcome outcome = apply_seed_label(
                 result
                 , input.seeds
                 , domain::SeedLabel::Object
@@ -124,9 +146,13 @@ namespace random_walker::algorithm {
                 , total
                 , cancellation
                 , progress
-            ); cancelled.has_value()
+            ); !std::holds_alternative<std::monostate>(outcome)
         ) {
-            return *cancelled;
+            if (const auto* error =
+                    std::get_if<domain::SegmentationError>(&outcome)) {
+                return *error;
+            }
+            return domain::Cancelled {};
         }
 
         progress.report(
