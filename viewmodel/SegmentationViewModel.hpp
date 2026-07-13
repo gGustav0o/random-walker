@@ -22,6 +22,14 @@
 #include "viewmodel/SeedListModel.hpp"
 #include "viewmodel/SeedRegionState.hpp"
 
+namespace random_walker::viewmodel {
+    class ViewModelCallbackGate;
+}
+
+// QML-facing facade for segmentation workflows. Domain rules stay in the
+// domain/application layers; pure presentation mappings live outside this
+// class. This type coordinates UI state, Qt signals, and asynchronous request
+// lifetimes.
 class SegmentationViewModel final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString image_source           READ image_source           NOTIFY image_source_changed)
@@ -191,7 +199,6 @@ private:
     using DomainSeedLabel = random_walker::domain::SeedLabel;
     using DomainConnectivity = random_walker::domain::PixelConnectivity;
     using DomainForegroundPolarity = random_walker::domain::ForegroundPolarity;
-    struct CompletionDeliveryGate;
 
     [[nodiscard]] DomainSeedLabel domain_seed_label() const noexcept;
     [[nodiscard]] int background_constraint_count() const noexcept;
@@ -206,18 +213,6 @@ private:
         random_walker::domain::AutoMarkerParameters parameters
     );
 
-    static void dispatch_completion(
-        const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
-        , random_walker::executor::SegmentationCompletion completion
-    );
-    static void dispatch_progress(
-        const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
-        , random_walker::domain::SegmentationProgress progress
-    );
-    static void dispatch_auto_marker_completion(
-        const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
-        , random_walker::application::AutoMarkerCompletion completion
-    );
     void handle_completion(
         random_walker::executor::SegmentationCompletion completion
     );
@@ -256,7 +251,8 @@ private:
         active_request_id_;
     std::optional<random_walker::application::AutoMarkerRequestId>
         active_auto_marker_request_id_;
-    std::shared_ptr<CompletionDeliveryGate> completion_delivery_;
+    std::shared_ptr<random_walker::viewmodel::ViewModelCallbackGate>
+        callback_gate_;
     int selected_label_ = Background;
     random_walker::application::ApplicationSettings application_settings_;
     bool busy_ = false;

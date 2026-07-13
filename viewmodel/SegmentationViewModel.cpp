@@ -1,10 +1,8 @@
 #include "SegmentationViewModel.hpp"
 
-#include <algorithm>
 #include <cmath>
 #include <iterator>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <utility>
@@ -12,13 +10,15 @@
 #include <vector>
 
 #include <QImage>
-#include <QMetaObject>
 #include <QThread>
 #include <QtGlobal>
 
 #include "application/diagnostics/Logging.hpp"
 #include "application/segmentation/SegmentationUseCase.hpp"
 #include "presentation/image/ImageLoader.hpp"
+#include "viewmodel/ViewModelCallbackGate.hpp"
+#include "viewmodel/SeedRegionGeometry.hpp"
+#include "viewmodel/ViewModelConversions.hpp"
 
 namespace {
 
@@ -44,124 +44,7 @@ namespace {
         return "Unknown";
     }
 
-    [[nodiscard]] random_walker::application::ApplicationError
-    application_error(random_walker::executor::ExecutionError error
-    ) noexcept {
-        using Error = random_walker::executor::ExecutionError;
-
-        switch (error) {
-        case Error::UnexpectedInternalFailure:
-            return random_walker::application::ApplicationError::
-                UnexpectedInternalFailure;
-        }
-
-        Q_ASSERT_X(false, "application_error", "Unhandled executor error");
-        return random_walker::application::ApplicationError::
-            UnexpectedInternalFailure;
-    }
-
-    [[nodiscard]] int view_connectivity(
-        random_walker::domain::PixelConnectivity connectivity
-    ) noexcept {
-        switch (connectivity) {
-        case random_walker::domain::PixelConnectivity::Four:
-            return SegmentationViewModel::FourConnectivity;
-        case random_walker::domain::PixelConnectivity::Eight:
-            return SegmentationViewModel::EightConnectivity;
-        }
-
-        Q_ASSERT_X(false, "view_connectivity", "Unhandled connectivity");
-        return SegmentationViewModel::FourConnectivity;
-    }
-
-    [[nodiscard]] std::optional<random_walker::domain::PixelConnectivity>
-    domain_connectivity(int connectivity) noexcept {
-        switch (connectivity) {
-        case SegmentationViewModel::FourConnectivity:
-            return random_walker::domain::PixelConnectivity::Four;
-        case SegmentationViewModel::EightConnectivity:
-            return random_walker::domain::PixelConnectivity::Eight;
-        default:
-            return std::nullopt;
-        }
-    }
-
-    [[nodiscard]] int view_foreground_polarity(
-        random_walker::domain::ForegroundPolarity foreground_polarity
-    ) noexcept {
-        switch (foreground_polarity) {
-        case random_walker::domain::ForegroundPolarity::DarkObject:
-            return SegmentationViewModel::DarkObjectForeground;
-        case random_walker::domain::ForegroundPolarity::BrightObject:
-            return SegmentationViewModel::BrightObjectForeground;
-        }
-
-        Q_ASSERT_X(
-            false
-            , "view_foreground_polarity"
-            , "Unhandled foreground polarity"
-        );
-        return SegmentationViewModel::BrightObjectForeground;
-    }
-
-    [[nodiscard]] std::optional<random_walker::domain::ForegroundPolarity>
-    domain_foreground_polarity(int foreground_polarity) noexcept {
-        switch (foreground_polarity) {
-        case SegmentationViewModel::DarkObjectForeground:
-            return random_walker::domain::ForegroundPolarity::DarkObject;
-        case SegmentationViewModel::BrightObjectForeground:
-            return random_walker::domain::ForegroundPolarity::BrightObject;
-        default:
-            return std::nullopt;
-        }
-    }
-
-    [[nodiscard]] std::optional<random_walker::domain::PixelRectangle>
-    clipped_seed_rectangle(
-        int x
-        , int y
-        , int width
-        , int height
-        , int image_width
-        , int image_height
-    ) noexcept {
-        if (width <= 0 || height <= 0) {
-            return std::nullopt;
-        }
-
-        const int left = std::clamp(x, 0, image_width);
-        const int top = std::clamp(y, 0, image_height);
-        const auto right_edge = static_cast<long long>(x) + width;
-        const auto bottom_edge = static_cast<long long>(y) + height;
-        const int right = static_cast<int>(std::clamp(
-            right_edge
-            , 0LL
-            , static_cast<long long>(image_width))
-        );
-        const int bottom = static_cast<int>(std::clamp(
-            bottom_edge
-            , 0LL
-            , static_cast<long long>(image_height))
-        );
-
-        if (left >= right || top >= bottom) {
-            return std::nullopt;
-        }
-
-        return random_walker::domain::PixelRectangle {
-            .x = left
-            , .y = top
-            , .width = right - left
-            , .height = bottom - top
-        };
-    }
-
 }
-
-struct SegmentationViewModel::CompletionDeliveryGate {
-    std::mutex mutex;
-    SegmentationViewModel* receiver = nullptr;
-};
 
 SegmentationViewModel::SegmentationViewModel(
     random_walker::executor::SegmentationExecutor& segmentation_executor
@@ -180,7 +63,9 @@ SegmentationViewModel::SegmentationViewModel(
     , result_state_(result_image_cache)
     , automatic_marker_state_(auto_marker_image_cache)
     , seed_model_(seed_state_.mutable_regions())
-    , completion_delivery_(std::make_shared<CompletionDeliveryGate>()) {
+    , callback_gate_(
+        std::make_shared<random_walker::viewmodel::ViewModelCallbackGate>()
+    ) {
     const auto loaded_settings = settings_service_.load();
     application_settings_ = loaded_settings.settings;
     Q_ASSERT(random_walker::domain::is_valid(
@@ -198,20 +83,17 @@ SegmentationViewModel::SegmentationViewModel(
     if (loaded_settings.repair_required) {
         if (const auto error = settings_service_.save(application_settings_);
             error.has_value()) {
-            error_state_.set(*error);
+            static_cast<void>(error_state_.set(*error));
         }
     }
 
-    completion_delivery_->receiver = this;
+    callback_gate_->attach(*this);
 }
 
 SegmentationViewModel::~SegmentationViewModel() {
     assert_ui_thread();
 
-    {
-        std::lock_guard lock(completion_delivery_->mutex);
-        completion_delivery_->receiver = nullptr;
-    }
+    callback_gate_->detach();
 
     segmentation_executor_.cancel();
     auto_marker_executor_.cancel();
@@ -268,7 +150,9 @@ double SegmentationViewModel::beta() const noexcept {
 }
 
 int SegmentationViewModel::connectivity() const noexcept {
-    return view_connectivity(application_settings_.random_walker.connectivity);
+    return random_walker::viewmodel::view_connectivity(
+        application_settings_.random_walker.connectivity
+    );
 }
 
 double SegmentationViewModel::distance_power() const noexcept {
@@ -291,7 +175,7 @@ int SegmentationViewModel::auto_marker_minimum_component_area()
 }
 
 int SegmentationViewModel::auto_marker_foreground_polarity() const noexcept {
-    return view_foreground_polarity(
+    return random_walker::viewmodel::view_foreground_polarity(
         application_settings_.auto_markers.foreground_polarity
     );
 }
@@ -432,7 +316,7 @@ void SegmentationViewModel::set_connectivity(int connectivity) {
     assert_ui_thread();
 
     const std::optional<DomainConnectivity> updated_connectivity =
-        domain_connectivity(connectivity);
+        random_walker::viewmodel::domain_connectivity(connectivity);
     if (!updated_connectivity.has_value()) {
         return;
     }
@@ -484,7 +368,7 @@ void SegmentationViewModel::set_auto_marker_foreground_polarity(int polarity) {
     assert_ui_thread();
 
     const std::optional<DomainForegroundPolarity> updated_polarity =
-        domain_foreground_polarity(polarity);
+        random_walker::viewmodel::domain_foreground_polarity(polarity);
     if (!updated_polarity.has_value()) {
         return;
     }
@@ -626,7 +510,7 @@ void SegmentationViewModel::clear_automatic_markers() {
     );
     cancel_active_request();
     cancel_active_auto_marker_request();
-    automatic_marker_state_.clear();
+    static_cast<void>(automatic_marker_state_.clear());
     invalidate_result();
     clear_error();
 
@@ -670,15 +554,14 @@ void SegmentationViewModel::propose_markers() {
     set_busy(true);
     clear_error();
 
-    const std::shared_ptr<CompletionDeliveryGate> delivery_gate =
-        completion_delivery_;
+    const auto callback_gate = callback_gate_;
     auto_marker_executor_.submit(
         std::move(request)
-        , [delivery_gate](
+        , [callback_gate](
             random_walker::application::AutoMarkerCompletion completion) {
-            SegmentationViewModel::dispatch_auto_marker_completion(
-                delivery_gate
-                , std::move(completion)
+            callback_gate->post<SegmentationViewModel>(
+                std::move(completion)
+                , &SegmentationViewModel::handle_auto_marker_completion
             );
         }
     );
@@ -697,7 +580,7 @@ void SegmentationViewModel::add_seed_rectangle(
     }
 
     const std::optional<random_walker::domain::PixelRectangle> area =
-        clipped_seed_rectangle(
+        random_walker::viewmodel::clipped_seed_rectangle(
             x
             , y
             , width
@@ -805,23 +688,22 @@ void SegmentationViewModel::run_segmentation() {
     }
     notify_can_run_if_changed(previous_can_run);
 
-    const std::shared_ptr<CompletionDeliveryGate> delivery_gate =
-        completion_delivery_;
+    const auto callback_gate = callback_gate_;
 
     segmentation_executor_.submit(
         std::move(request)
-        , [delivery_gate](random_walker::domain::SegmentationProgress progress
+        , [callback_gate](random_walker::domain::SegmentationProgress progress
     ) {
-            SegmentationViewModel::dispatch_progress(
-                delivery_gate
-                , std::move(progress)
+            callback_gate->post<SegmentationViewModel>(
+                std::move(progress)
+                , &SegmentationViewModel::handle_progress
             );
         }
-        , [delivery_gate](
+        , [callback_gate](
             random_walker::executor::SegmentationCompletion completion) {
-            SegmentationViewModel::dispatch_completion(
-                delivery_gate
-                , std::move(completion)
+            callback_gate->post<SegmentationViewModel>(
+                std::move(completion)
+                , &SegmentationViewModel::handle_completion
             );
         });
 }
@@ -889,7 +771,9 @@ void SegmentationViewModel::update_random_walker_parameters(
             + std::to_string(updated_settings.random_walker.beta)
             + ", connectivity="
             + std::to_string(
-                view_connectivity(updated_settings.random_walker.connectivity)
+                random_walker::viewmodel::view_connectivity(
+                    updated_settings.random_walker.connectivity
+                )
             )
             + ", distance_power="
             + std::to_string(updated_settings.random_walker.distance_power)
@@ -957,9 +841,11 @@ void SegmentationViewModel::update_auto_marker_parameters(
                 updated_settings.auto_markers.minimum_boundary_distance
             )
             + ", foreground_polarity="
-            + std::to_string(view_foreground_polarity(
-                updated_settings.auto_markers.foreground_polarity
-            ))
+            + std::to_string(
+                random_walker::viewmodel::view_foreground_polarity(
+                    updated_settings.auto_markers.foreground_polarity
+                )
+            )
     );
 
     const bool previous_can_run = can_run();
@@ -987,83 +873,6 @@ void SegmentationViewModel::update_auto_marker_parameters(
         emit seeds_changed();
     }
     notify_can_run_if_changed(previous_can_run);
-}
-
-void SegmentationViewModel::dispatch_completion(
-    const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
-    , random_walker::executor::SegmentationCompletion completion
-) {
-    Q_ASSERT(delivery_gate);
-
-    auto payload =
-        std::make_shared<random_walker::executor::SegmentationCompletion>(
-            std::move(completion)
-        );
-
-    std::lock_guard lock(delivery_gate->mutex);
-    SegmentationViewModel* receiver = delivery_gate->receiver;
-    if (!receiver) {
-        return;
-    }
-
-    QMetaObject::invokeMethod(
-        receiver
-        , [receiver, payload] {
-            receiver->handle_completion(std::move(*payload));
-        }
-        , Qt::QueuedConnection
-    );
-}
-
-void SegmentationViewModel::dispatch_auto_marker_completion(
-    const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
-    , random_walker::application::AutoMarkerCompletion completion
-) {
-    Q_ASSERT(delivery_gate);
-
-    auto payload =
-        std::make_shared<random_walker::application::AutoMarkerCompletion>(
-            std::move(completion)
-        );
-
-    std::lock_guard lock(delivery_gate->mutex);
-    SegmentationViewModel* receiver = delivery_gate->receiver;
-    if (!receiver) {
-        return;
-    }
-
-    QMetaObject::invokeMethod(
-        receiver
-        , [receiver, payload] {
-            receiver->handle_auto_marker_completion(std::move(*payload));
-        }
-        , Qt::QueuedConnection
-    );
-}
-
-void SegmentationViewModel::dispatch_progress(
-    const std::shared_ptr<CompletionDeliveryGate>& delivery_gate
-    , random_walker::domain::SegmentationProgress progress
-) {
-    Q_ASSERT(delivery_gate);
-
-    auto payload =
-        std::make_shared<random_walker::domain::SegmentationProgress>(
-            std::move(progress));
-
-    std::lock_guard lock(delivery_gate->mutex);
-    SegmentationViewModel* receiver = delivery_gate->receiver;
-    if (!receiver) {
-        return;
-    }
-
-    QMetaObject::invokeMethod(
-        receiver
-        , [receiver, payload] {
-            receiver->handle_progress(std::move(*payload));
-        }
-        , Qt::QueuedConnection
-    );
 }
 
 void SegmentationViewModel::handle_completion(
@@ -1094,7 +903,9 @@ void SegmentationViewModel::handle_completion(
             , "Segmentation finished with executor error"
         );
         invalidate_result();
-        set_error(application_error(*execution_error));
+        set_error(random_walker::viewmodel::application_error(
+            *execution_error
+        ));
         reset_progress();
         return;
     }
@@ -1234,7 +1045,7 @@ void SegmentationViewModel::add_seed_region(
     random_walker::domain::SeedRegion region) {
     assert_ui_thread();
 
-    seed_model_.reset([this, region = std::move(region)] mutable {
+    seed_model_.reset([this, region = std::move(region)]() mutable {
         seed_state_.add(std::move(region));
     });
 }

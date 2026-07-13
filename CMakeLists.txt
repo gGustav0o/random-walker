@@ -101,8 +101,11 @@ set(HEADERS
     viewmodel/ProgressState.hpp
     viewmodel/ResultState.hpp
     viewmodel/SeedListModel.hpp
+    viewmodel/SeedRegionGeometry.hpp
     viewmodel/SeedRegionState.hpp
     viewmodel/SegmentationViewModel.hpp
+    viewmodel/ViewModelCallbackGate.hpp
+    viewmodel/ViewModelConversions.hpp
 )
 set(SOURCES
     main.cpp
@@ -138,8 +141,11 @@ set(SOURCES
     viewmodel/ProgressState.cpp
     viewmodel/ResultState.cpp
     viewmodel/SeedListModel.cpp
+    viewmodel/SeedRegionGeometry.cpp
     viewmodel/SeedRegionState.cpp
     viewmodel/SegmentationViewModel.cpp
+    viewmodel/ViewModelCallbackGate.cpp
+    viewmodel/ViewModelConversions.cpp
 )
 
 qt_add_executable(${PROJECT_NAME}
