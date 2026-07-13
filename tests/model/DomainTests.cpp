@@ -12,6 +12,7 @@
 #include "model/domain/RandomWalkerParameters.hpp"
 #include "model/domain/Seed.hpp"
 #include "model/domain/Segmentation.hpp"
+#include "model/domain/SegmentationLimits.hpp"
 
 namespace domain = random_walker::domain;
 
@@ -32,6 +33,8 @@ private slots:
     void marker_label_mask_converts_to_automatic_seed_regions();
     void image_geometry_accepts_representable_pixel_count();
     void image_geometry_rejects_unrepresentable_pixel_count();
+    void segmentation_limits_accept_supported_pixel_count();
+    void segmentation_limits_reject_oversized_pixel_count();
     void image_geometry_flattens_pixel_coordinates();
     void gray_image_reports_empty_default_state();
     void gray_image_reports_dimensions_and_pixel_values();
@@ -302,6 +305,23 @@ void DomainTests::image_geometry_rejects_unrepresentable_pixel_count() {
     QVERIFY(!domain::is_supported_non_empty_image_geometry(0, 1));
     QVERIFY(!domain::is_supported_non_empty_image_geometry(
         domain::kMaximumSupportedImagePixels
+        , 2
+    ));
+}
+
+void DomainTests::segmentation_limits_accept_supported_pixel_count() {
+    QVERIFY(domain::is_supported_segmentation_image_geometry(1024, 1024));
+    QVERIFY(domain::is_supported_segmentation_image_geometry(
+        domain::kMaximumRandomWalkerSolvablePixels
+        , 1
+    ));
+}
+
+void DomainTests::segmentation_limits_reject_oversized_pixel_count() {
+    QVERIFY(!domain::is_supported_segmentation_image_geometry(0, 1));
+    QVERIFY(!domain::is_supported_segmentation_image_geometry(1025, 1024));
+    QVERIFY(!domain::is_supported_segmentation_image_geometry(
+        domain::kMaximumRandomWalkerSolvablePixels
         , 2
     ));
 }

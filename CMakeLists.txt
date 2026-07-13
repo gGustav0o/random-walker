@@ -66,6 +66,7 @@ set(HEADERS
     model/domain/RandomWalkerParameters.hpp
     model/domain/Seed.hpp
     model/domain/Segmentation.hpp
+    model/domain/SegmentationLimits.hpp
     model/algorithm/BoundaryConditions.hpp
     model/algorithm/DistanceTransform.hpp
     model/algorithm/HarmonicSolver.hpp

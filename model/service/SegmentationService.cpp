@@ -12,6 +12,7 @@
 #include "model/algorithm/RandomWalkerAlgorithm.hpp"
 #include "model/algorithm/SeedExpansion.hpp"
 #include "model/domain/ImageGeometry.hpp"
+#include "model/domain/SegmentationLimits.hpp"
 
 namespace random_walker::service {
     namespace {
@@ -135,7 +136,7 @@ namespace random_walker::service {
             return domain::SegmentationError::EmptyImage;
         }
 
-        if (!domain::is_supported_non_empty_image_geometry(
+        if (!domain::is_supported_segmentation_image_geometry(
                 request.image().width()
                 , request.image().height()
             )

@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <stop_token>
@@ -13,6 +14,7 @@
 #include "model/domain/RandomWalkerParameters.hpp"
 #include "model/domain/Seed.hpp"
 #include "model/domain/Segmentation.hpp"
+#include "model/domain/SegmentationLimits.hpp"
 #include "model/service/SegmentationService.hpp"
 
 namespace domain = random_walker::domain;
@@ -37,6 +39,16 @@ namespace {
 
     [[nodiscard]] domain::GrayImage empty_image() {
         return domain::GrayImage {};
+    }
+
+    [[nodiscard]] domain::GrayImage make_constant_image(
+        int height
+        , int width
+        , std::uint8_t value
+    ) {
+        domain::GrayImageMatrix pixels =
+            domain::GrayImageMatrix::Constant(height, width, value);
+        return domain::GrayImage(std::move(pixels));
     }
 
     [[nodiscard]] domain::SeedRegion seed_region(
@@ -94,6 +106,7 @@ class SegmentationServiceTests final : public QObject {
 
 private slots:
     void rejects_empty_image();
+    void rejects_image_exceeding_segmentation_limit();
     void rejects_invalid_beta();
     void rejects_invalid_distance_power();
     void rejects_invalid_connectivity();
@@ -118,6 +131,28 @@ void SegmentationServiceTests::rejects_empty_image() {
     expect_validation_error(
         segmentation_request
         , domain::SegmentationError::EmptyImage
+    );
+}
+
+void SegmentationServiceTests::rejects_image_exceeding_segmentation_limit() {
+    constexpr int width = 1025;
+    constexpr int height = 1024;
+    static_assert(
+        static_cast<std::size_t>(width) * static_cast<std::size_t>(height)
+        > static_cast<std::size_t>(domain::kMaximumRandomWalkerSolvablePixels)
+    );
+
+    const auto segmentation_request = request(
+        make_constant_image(height, width, std::uint8_t {10})
+        , {
+            seed_region(0, 0, 1, 1, domain::SeedLabel::Background),
+            seed_region(width - 1, height - 1, 1, 1, domain::SeedLabel::Object)
+        }
+    );
+
+    expect_validation_error(
+        segmentation_request
+        , domain::SegmentationError::ImageTooLarge
     );
 }
 

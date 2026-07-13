@@ -16,6 +16,18 @@ $$
 
 Implementation: `domain::GrayImage`.
 
+The current exact sparse implementation accepts segmentation requests up to
+
+$$
+|\Omega| \le 1\,048\,576
+$$
+
+pixels. This is an implementation limit for the current graph assembly and
+direct sparse solve pipeline, not a representability limit of the image
+coordinate system.
+
+Implementation: `domain::is_supported_segmentation_image_geometry`.
+
 For a pixel $s=(r,c)\in\Omega$, its intensity is denoted by $I_s$. Graph-level coordinates use `(row, column)`. The flat pixel index is
 
 $$
