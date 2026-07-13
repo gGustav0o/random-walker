@@ -9,7 +9,7 @@
 
 namespace {
 
-    constexpr int kCurrentSchemaVersion = 8;
+    constexpr int kCurrentSchemaVersion = 9;
 
     constexpr auto kSettingsGroup = "applicationSettings";
     constexpr auto kSchemaVersionKey = "schemaVersion";
@@ -112,6 +112,15 @@ namespace {
         }
 
         return {.value = value};
+    }
+
+    [[nodiscard]] double stored_legacy_raw_beta(
+        const QSettings& settings
+        , const char* key
+    ) {
+        return random_walker::domain::normalized_beta_from_legacy_raw_beta(
+            stored_double(settings, key)
+        );
     }
 
     [[nodiscard]] std::optional<random_walker::domain::PixelConnectivity>
@@ -408,15 +417,15 @@ namespace random_walker::infrastructure {
         switch (schema_version) {
         case 0:
             result.random_walker.beta =
-                stored_double(settings_, kLegacyBetaKey);
+                stored_legacy_raw_beta(settings_, kLegacyBetaKey);
             return result;
         case 1:
             result.random_walker.beta =
-                stored_double(settings_, kRandomWalkerBetaKey);
+                stored_legacy_raw_beta(settings_, kRandomWalkerBetaKey);
             return result;
         case 2:
             result.random_walker.beta =
-                stored_double(settings_, kRandomWalkerBetaKey);
+                stored_legacy_raw_beta(settings_, kRandomWalkerBetaKey);
             result.random_walker.connectivity = stored_connectivity(
                 settings_
                 , kRandomWalkerConnectivityKey
@@ -424,7 +433,7 @@ namespace random_walker::infrastructure {
             return result;
         default:
             result.random_walker.beta =
-                stored_double(settings_, kRandomWalkerBetaKey);
+                stored_legacy_raw_beta(settings_, kRandomWalkerBetaKey);
             result.random_walker.connectivity = stored_connectivity(
                 settings_
                 , kRandomWalkerConnectivityKey

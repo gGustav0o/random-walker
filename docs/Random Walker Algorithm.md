@@ -101,22 +101,30 @@ global contrast parameter $\beta$ and by the geometric distance exponent $p$.
 
 ## 3.1. Global Beta Weight
 
-For an edge $(i,j)$, define
+For an edge $(i,j)$, define normalized grayscale intensities
 
 $$
-\Delta I_{ij}=I_i-I_j.
+\hat I_i=\frac{I_i}{255},
+\qquad
+\hat I_j=\frac{I_j}{255},
+$$
+
+and the normalized contrast difference
+
+$$
+\Delta \hat I_{ij}=\hat I_i-\hat I_j.
 $$
 
 The global-beta edge weight is
 
 $$
-w_{ij}=\frac{\exp\left(-\beta (\Delta I_{ij})^2\right)}{d_{ij}^{p}}.
+w_{ij}=\frac{\exp\left(-\beta (\Delta \hat I_{ij})^2\right)}{d_{ij}^{p}}.
 $$
 
 Parameters:
 
 $$
-\beta \in [10^{-6},10^{-1}],
+\beta \in [10^{-2},10^{4}],
 \qquad
 p\in[0,2].
 $$
@@ -124,7 +132,7 @@ $$
 Defaults:
 
 $$
-\beta=10^{-3},
+\beta=65.025,
 \qquad
 p=0.
 $$
@@ -137,10 +145,10 @@ For $p=0$, geometric edge length has no effect because $d_{ij}^{0}=1$. For $p>0$
 The factor
 
 $$
-\exp\left(-\beta (I_i-I_j)^2\right)
+\exp\left(-\beta (\hat I_i-\hat I_j)^2\right)
 $$
 
-is the classical Gaussian contrast weight used in Random Walker segmentation [Grady 2006](https://doi.org/10.1109/TPAMI.2006.233). The multiplier $d_{ij}^{-p}$ is a project-level geometric extension for distance-aware 8-connectivity.
+is the classical Gaussian contrast weight used in Random Walker segmentation [Grady 2006](https://doi.org/10.1109/TPAMI.2006.233), applied to normalized intensities. The multiplier $d_{ij}^{-p}$ is a project-level geometric extension for distance-aware 8-connectivity.
 
 ## 4. Graph Laplacian
 

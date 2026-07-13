@@ -86,13 +86,20 @@ namespace random_walker::graph {
         return result;
     }
 
-    [[nodiscard]] inline double squared_intensity_difference(
+    [[nodiscard]] inline double normalized_intensity(
+        std::uint8_t intensity
+    ) noexcept {
+        return static_cast<double>(intensity)
+            / domain::kRandomWalkerIntensityNormalizationScale;
+    }
+
+    [[nodiscard]] inline double squared_normalized_intensity_difference(
         std::uint8_t first_intensity
         , std::uint8_t second_intensity
     ) noexcept {
         const double difference =
-            static_cast<double>(first_intensity)
-            - static_cast<double>(second_intensity);
+            normalized_intensity(first_intensity)
+            - normalized_intensity(second_intensity);
         return difference * difference;
     }
 
@@ -122,7 +129,7 @@ namespace random_walker::graph {
 
         const double contrast_weight = std::exp(
             -parameters.beta
-            * squared_intensity_difference(
+            * squared_normalized_intensity_difference(
                 input.first_intensity
                 , input.second_intensity
             )

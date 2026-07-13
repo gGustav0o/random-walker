@@ -5,9 +5,15 @@
 
 namespace random_walker::domain {
 
-    inline constexpr double kMinimumRandomWalkerBeta = 1e-6;
-    inline constexpr double kMaximumRandomWalkerBeta = 1e-1;
-    inline constexpr double kDefaultRandomWalkerBeta = 0.001;
+    inline constexpr double kRandomWalkerIntensityNormalizationScale = 255.0;
+    inline constexpr double kRandomWalkerLegacyBetaScale =
+        kRandomWalkerIntensityNormalizationScale
+        * kRandomWalkerIntensityNormalizationScale;
+
+    inline constexpr double kMinimumRandomWalkerBeta = 0.01;
+    inline constexpr double kMaximumRandomWalkerBeta = 10000.0;
+    inline constexpr double kDefaultRandomWalkerBeta =
+        0.001 * kRandomWalkerLegacyBetaScale;
     inline constexpr double kMinimumRandomWalkerDistancePower = 0.0;
     inline constexpr double kMaximumRandomWalkerDistancePower = 2.0;
     inline constexpr double kDefaultRandomWalkerDistancePower = 0.0;
@@ -44,6 +50,12 @@ namespace random_walker::domain {
         PixelConnectivity connectivity = kDefaultPixelConnectivity;
         bool operator==(const RandomWalkerParameters&) const = default;
     };
+
+    [[nodiscard]] constexpr double normalized_beta_from_legacy_raw_beta(
+        double raw_beta
+    ) noexcept {
+        return raw_beta * kRandomWalkerLegacyBetaScale;
+    }
 
     [[nodiscard]] inline std::optional<RandomWalkerParameterError> validate(
         const RandomWalkerParameters& parameters

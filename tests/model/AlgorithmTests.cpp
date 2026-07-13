@@ -108,6 +108,12 @@ namespace {
         return static_cast<double>((index * 37) % 101) / 100.0;
     }
 
+    [[nodiscard]] double normalized_beta_from_raw_beta(
+        double raw_beta
+    ) noexcept {
+        return domain::normalized_beta_from_legacy_raw_beta(raw_beta);
+    }
+
     [[nodiscard]] algorithm::BoundaryConditions empty_boundary_conditions() {
         return algorithm::BoundaryConditions {};
     }
@@ -685,8 +691,9 @@ void AlgorithmTests::global_beta_edge_weight_parameters_validate_domain_bounds()
 
 
 void AlgorithmTests::edge_weight_zero_distance_power_matches_baseline() {
+    constexpr double legacy_raw_beta = 0.01;
     const graph::GlobalBetaEdgeWeightParameters parameters {
-        .beta = 0.01
+        .beta = normalized_beta_from_raw_beta(legacy_raw_beta)
         , .distance_power = 0.0
     };
 
@@ -695,16 +702,18 @@ void AlgorithmTests::edge_weight_zero_distance_power_matches_baseline() {
         , parameters
     );
 
-    QVERIFY(std::abs(diagonal_weight - std::exp(-0.01 * 100.0)) < 1e-12);
+    QVERIFY(std::abs(diagonal_weight - std::exp(-legacy_raw_beta * 100.0))
+        < 1e-12);
 }
 
 void AlgorithmTests::edge_weight_keeps_orthogonal_edges_independent_of_distance_power() {
+    constexpr double legacy_raw_beta = 0.01;
     const graph::GlobalBetaEdgeWeightParameters weak_distance_penalty {
-        .beta = 0.01
+        .beta = normalized_beta_from_raw_beta(legacy_raw_beta)
         , .distance_power = 0.0
     };
     const graph::GlobalBetaEdgeWeightParameters strong_distance_penalty {
-        .beta = 0.01
+        .beta = normalized_beta_from_raw_beta(legacy_raw_beta)
         , .distance_power = 2.0
     };
 
@@ -718,17 +727,27 @@ void AlgorithmTests::edge_weight_keeps_orthogonal_edges_independent_of_distance_
     );
 
     QVERIFY(std::abs(baseline - normalized) < 1e-12);
-    QVERIFY(std::abs(normalized - std::exp(-0.01 * 100.0)) < 1e-12);
+    QVERIFY(std::abs(normalized - std::exp(-legacy_raw_beta * 100.0))
+        < 1e-12);
 }
 
 void AlgorithmTests::edge_weight_uses_distance_power() {
+    constexpr double legacy_raw_beta = 0.01;
     const graph::GlobalBetaEdgeWeightParameters linear_distance_penalty =
         graph::global_beta_edge_weight_parameters_from(
-            random_walker_parameters(0.01, domain::PixelConnectivity::Eight, 1.0)
+            random_walker_parameters(
+                normalized_beta_from_raw_beta(legacy_raw_beta)
+                , domain::PixelConnectivity::Eight
+                , 1.0
+            )
         );
     const graph::GlobalBetaEdgeWeightParameters quadratic_distance_penalty =
         graph::global_beta_edge_weight_parameters_from(
-            random_walker_parameters(0.01, domain::PixelConnectivity::Eight, 2.0)
+            random_walker_parameters(
+                normalized_beta_from_raw_beta(legacy_raw_beta)
+                , domain::PixelConnectivity::Eight
+                , 2.0
+            )
         );
 
     const double linear_diagonal_weight = graph::compute_global_beta_edge_weight(
@@ -740,7 +759,7 @@ void AlgorithmTests::edge_weight_uses_distance_power() {
         , quadratic_distance_penalty
     );
 
-    const double contrast_weight = std::exp(-0.01 * 100.0);
+    const double contrast_weight = std::exp(-legacy_raw_beta * 100.0);
     QVERIFY(
         std::abs(linear_diagonal_weight - contrast_weight / std::sqrt(2.0))
         < 1e-12
@@ -751,7 +770,7 @@ void AlgorithmTests::edge_weight_uses_distance_power() {
 
 void AlgorithmTests::edge_weight_function_object_matches_pure_formula() {
     const graph::GlobalBetaEdgeWeightParameters parameters {
-        .beta = 0.01
+        .beta = domain::kDefaultRandomWalkerBeta
         , .distance_power = 1.0
     };
     const graph::GlobalBetaEdgeWeight edge_weight {
@@ -864,16 +883,24 @@ void AlgorithmTests::grid_laplacian_distance_power_normalizes_diagonal_edges() {
 
 void AlgorithmTests::grid_laplacian_beta_changes_edge_weight() {
     const domain::GrayImage image = make_image(1, 2, {0, 10});
+    constexpr double weak_legacy_raw_beta = 0.001;
+    constexpr double strong_legacy_raw_beta = 0.01;
 
     const auto weak_penalty_outcome = graph::build_grid_laplacian(
         image
-        , random_walker_parameters(0.001, domain::PixelConnectivity::Four)
+        , random_walker_parameters(
+            normalized_beta_from_raw_beta(weak_legacy_raw_beta)
+            , domain::PixelConnectivity::Four
+        )
         , domain::CancellationToken {}
         , domain::ProgressReporter {}
     );
     const auto strong_penalty_outcome = graph::build_grid_laplacian(
         image
-        , random_walker_parameters(0.01, domain::PixelConnectivity::Four)
+        , random_walker_parameters(
+            normalized_beta_from_raw_beta(strong_legacy_raw_beta)
+            , domain::PixelConnectivity::Four
+        )
         , domain::CancellationToken {}
         , domain::ProgressReporter {}
     );
@@ -888,8 +915,10 @@ void AlgorithmTests::grid_laplacian_beta_changes_edge_weight() {
     const double weak_weight = -coefficient(weak_penalty, 0, 1);
     const double strong_weight = -coefficient(strong_penalty, 0, 1);
     QVERIFY(weak_weight > strong_weight);
-    QVERIFY(std::abs(weak_weight - std::exp(-0.001 * 100.0)) < 1e-12);
-    QVERIFY(std::abs(strong_weight - std::exp(-0.01 * 100.0)) < 1e-12);
+    QVERIFY(std::abs(weak_weight - std::exp(-weak_legacy_raw_beta * 100.0))
+        < 1e-12);
+    QVERIFY(std::abs(strong_weight - std::exp(-strong_legacy_raw_beta * 100.0))
+        < 1e-12);
 }
 
 

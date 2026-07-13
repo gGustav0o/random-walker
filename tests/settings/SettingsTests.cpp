@@ -25,7 +25,7 @@ namespace {
         "randomWalker/localContrast/radius";
     constexpr auto kRemovedEdgeLocalContrastRadiusKey =
         "randomWalker/edgeLocalContrast/radius";
-    constexpr int kCurrentSchemaVersion = 8;
+    constexpr int kCurrentSchemaVersion = 9;
 
     class InMemorySettingsRepository final
         : public random_walker::application::SettingsRepository {
@@ -88,6 +88,12 @@ namespace {
         QCOMPARE(
             static_cast<int>(settings.auto_markers.foreground_polarity)
             , static_cast<int>(default_parameters.foreground_polarity)
+        );
+    }
+
+    [[nodiscard]] constexpr double migrated_beta(double legacy_raw_beta) noexcept {
+        return random_walker::domain::normalized_beta_from_legacy_raw_beta(
+            legacy_raw_beta
         );
     }
 }
@@ -226,8 +232,9 @@ void SettingsTests::loads_persisted_parameters() {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
     const QString path = settings_path(directory);
+    constexpr double stored_beta = 50.0;
     write_value(path, kSchemaVersionKey, kCurrentSchemaVersion);
-    write_value(path, kRandomWalkerBetaKey, 0.005);
+    write_value(path, kRandomWalkerBetaKey, stored_beta);
     write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
     write_value(path, kRandomWalkerDistancePowerKey, 1.5);
     write_value(path, kAutoMarkersConfidenceThresholdKey, 0.75);
@@ -243,7 +250,7 @@ void SettingsTests::loads_persisted_parameters() {
     const auto load_result = repository.load();
     const auto settings = load_result.settings;
 
-    QCOMPARE(settings.random_walker.beta, 0.005);
+    QCOMPARE(settings.random_walker.beta, stored_beta);
     QCOMPARE(
         static_cast<int>(settings.random_walker.connectivity)
         , static_cast<int>(random_walker::domain::PixelConnectivity::Eight)
@@ -264,7 +271,7 @@ void SettingsTests::ignores_unknown_newer_schema() {
     QVERIFY(directory.isValid());
     const QString path = settings_path(directory);
     write_value(path, kSchemaVersionKey, kCurrentSchemaVersion + 1);
-    write_value(path, kRandomWalkerBetaKey, 0.005);
+    write_value(path, kRandomWalkerBetaKey, 50.0);
     write_value(path, kRandomWalkerConnectivityKey, QStringLiteral("eight"));
     write_value(path, kRandomWalkerDistancePowerKey, 1.5);
     write_value(path, kAutoMarkersConfidenceThresholdKey, 0.75);
@@ -319,7 +326,7 @@ void SettingsTests::migrates_legacy_schema() {
     const auto load_result = repository.load();
     const auto settings = load_result.settings;
 
-    QCOMPARE(settings.random_walker.beta, legacy_beta);
+    QCOMPARE(settings.random_walker.beta, migrated_beta(legacy_beta));
     QCOMPARE(
         static_cast<int>(settings.random_walker.connectivity)
         , static_cast<int>(random_walker::domain::kDefaultPixelConnectivity)
@@ -336,7 +343,10 @@ void SettingsTests::migrates_legacy_schema() {
     QSettings migrated(path, QSettings::IniFormat);
     migrated.beginGroup(kSettingsGroup);
     QCOMPARE(migrated.value(kSchemaVersionKey).toInt(), kCurrentSchemaVersion);
-    QCOMPARE(migrated.value(kRandomWalkerBetaKey).toDouble(), legacy_beta);
+    QCOMPARE(
+        migrated.value(kRandomWalkerBetaKey).toDouble()
+        , migrated_beta(legacy_beta)
+    );
     QCOMPARE(
         migrated.value(kRandomWalkerConnectivityKey).toString()
         , QStringLiteral("four")
@@ -380,7 +390,7 @@ void SettingsTests::migrates_schema_one_with_default_connectivity() {
     const auto load_result = repository.load();
     const auto settings = load_result.settings;
 
-    QCOMPARE(settings.random_walker.beta, stored_beta);
+    QCOMPARE(settings.random_walker.beta, migrated_beta(stored_beta));
     QCOMPARE(
         static_cast<int>(settings.random_walker.connectivity)
         , static_cast<int>(random_walker::domain::PixelConnectivity::Four)
@@ -410,7 +420,7 @@ void SettingsTests::migrates_schema_two_with_default_distance_power() {
     const auto load_result = repository.load();
     const auto settings = load_result.settings;
 
-    QCOMPARE(settings.random_walker.beta, stored_beta);
+    QCOMPARE(settings.random_walker.beta, migrated_beta(stored_beta));
     QCOMPARE(
         static_cast<int>(settings.random_walker.connectivity)
         , static_cast<int>(random_walker::domain::PixelConnectivity::Eight)
@@ -447,7 +457,7 @@ void SettingsTests::drops_removed_weight_settings_on_save() {
     const auto load_result = repository.load();
     const auto settings = load_result.settings;
 
-    QCOMPARE(settings.random_walker.beta, 0.006);
+    QCOMPARE(settings.random_walker.beta, migrated_beta(0.006));
     QCOMPARE(
         static_cast<int>(settings.random_walker.connectivity)
         , static_cast<int>(random_walker::domain::PixelConnectivity::Eight)

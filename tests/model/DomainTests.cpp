@@ -74,7 +74,7 @@ void DomainTests::random_walker_beta_rejects_values_outside_valid_range() {
     QVERIFY(!domain::is_valid(domain::RandomWalkerParameters {
         .beta = std::nextafter(
             domain::kMaximumRandomWalkerBeta
-            , 1.0
+            , std::numeric_limits<double>::infinity()
         )
     }));
     QVERIFY(!domain::is_valid(domain::RandomWalkerParameters {
