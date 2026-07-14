@@ -156,24 +156,48 @@ target_link_libraries(random_walker_application
         random_walker_model
 )
 
-set(HEADERS
-    ${APPLICATION_HEADERS}
-    bootstrap/AppContext.hpp
-    infrastructure/execution/JThreadAutoMarkerExecutor.hpp
-    infrastructure/execution/JThreadSegmentationExecutor.hpp
-    infrastructure/settings/QtSettingsRepository.hpp
-    infrastructure/logging/Logging.hpp
-    ${MODEL_HEADERS}
+set(PRESENTATION_HEADERS
     presentation/adapter/AutoMarkerMaskRenderer.hpp
     presentation/adapter/MaskRenderer.hpp
     presentation/adapter/QImageAdapter.hpp
-    presentation/image/ImageLoader.hpp
     presentation/error/ErrorPresenter.hpp
     presentation/image/AutoMarkerImageProvider.hpp
     presentation/image/BaseImageProvider.hpp
+    presentation/image/ImageLoader.hpp
     presentation/image/PresentationImageCache.hpp
     presentation/image/ResultImageProvider.hpp
     presentation/qml/qml_names.hpp
+)
+
+set(PRESENTATION_SOURCES
+    presentation/adapter/AutoMarkerMaskRenderer.cpp
+    presentation/adapter/MaskRenderer.cpp
+    presentation/error/ErrorPresenter.cpp
+    presentation/image/AutoMarkerImageProvider.cpp
+    presentation/image/BaseImageProvider.cpp
+    presentation/image/ImageLoader.cpp
+    presentation/image/ResultImageProvider.cpp
+)
+
+add_library(random_walker_presentation STATIC
+    ${PRESENTATION_SOURCES}
+    ${PRESENTATION_HEADERS}
+)
+
+target_include_directories(random_walker_presentation
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(random_walker_presentation
+    PUBLIC
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Quick
+        random_walker_application
+)
+
+set(VIEWMODEL_HEADERS
     viewmodel/AutomaticMarkerState.hpp
     viewmodel/ErrorState.hpp
     viewmodel/ImageState.hpp
@@ -187,20 +211,8 @@ set(HEADERS
     viewmodel/ViewModelCallbackGate.hpp
     viewmodel/ViewModelConversions.hpp
 )
-set(SOURCES
-    main.cpp
-    bootstrap/AppContext.cpp
-    infrastructure/execution/JThreadAutoMarkerExecutor.cpp
-    infrastructure/execution/JThreadSegmentationExecutor.cpp
-    infrastructure/settings/QtSettingsRepository.cpp
-    infrastructure/logging/Logging.cpp
-    presentation/adapter/AutoMarkerMaskRenderer.cpp
-    presentation/adapter/MaskRenderer.cpp
-    presentation/image/ImageLoader.cpp
-    presentation/error/ErrorPresenter.cpp
-    presentation/image/AutoMarkerImageProvider.cpp
-    presentation/image/BaseImageProvider.cpp
-    presentation/image/ResultImageProvider.cpp
+
+set(VIEWMODEL_SOURCES
     viewmodel/AutomaticMarkerState.cpp
     viewmodel/ErrorState.cpp
     viewmodel/ImageState.cpp
@@ -213,6 +225,64 @@ set(SOURCES
     viewmodel/SegmentationViewModel.cpp
     viewmodel/ViewModelCallbackGate.cpp
     viewmodel/ViewModelConversions.cpp
+)
+
+add_library(random_walker_viewmodel STATIC
+    ${VIEWMODEL_SOURCES}
+    ${VIEWMODEL_HEADERS}
+)
+
+target_include_directories(random_walker_viewmodel
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(random_walker_viewmodel
+    PUBLIC
+        Qt6::Core
+        Qt6::Gui
+        random_walker_application
+        random_walker_presentation
+)
+
+set(INFRASTRUCTURE_HEADERS
+    infrastructure/execution/JThreadAutoMarkerExecutor.hpp
+    infrastructure/execution/JThreadSegmentationExecutor.hpp
+    infrastructure/logging/Logging.hpp
+    infrastructure/settings/QtSettingsRepository.hpp
+)
+
+set(INFRASTRUCTURE_SOURCES
+    infrastructure/execution/JThreadAutoMarkerExecutor.cpp
+    infrastructure/execution/JThreadSegmentationExecutor.cpp
+    infrastructure/logging/Logging.cpp
+    infrastructure/settings/QtSettingsRepository.cpp
+)
+
+add_library(random_walker_infrastructure STATIC
+    ${INFRASTRUCTURE_SOURCES}
+    ${INFRASTRUCTURE_HEADERS}
+)
+
+target_include_directories(random_walker_infrastructure
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(random_walker_infrastructure
+    PUBLIC
+        Qt6::Core
+        random_walker_application
+        spdlog::spdlog
+)
+
+set(HEADERS
+    bootstrap/AppContext.hpp
+)
+
+set(SOURCES
+    main.cpp
+    bootstrap/AppContext.cpp
 )
 
 qt_add_executable(${PROJECT_NAME}
@@ -235,7 +305,9 @@ target_link_libraries(${PROJECT_NAME}
         Qt6::Quick
         Qt6::QuickControls2
         random_walker_application
-        spdlog::spdlog
+        random_walker_infrastructure
+        random_walker_presentation
+        random_walker_viewmodel
 )
 
 if(WIN32)

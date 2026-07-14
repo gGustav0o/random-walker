@@ -87,62 +87,36 @@ add_random_walker_test(application_segmentation_use_case_tests
 add_random_walker_test(infrastructure_logging_tests
     SOURCES
         infrastructure/LoggingTests.cpp
-        ${PROJECT_SOURCE_DIR}/infrastructure/logging/Logging.cpp
     LIBRARIES
-        random_walker_application
-        spdlog::spdlog
+        random_walker_infrastructure
 )
 
 add_random_walker_test(presentation_auto_marker_mask_renderer_tests
     SOURCES
         presentation/AutoMarkerMaskRendererTests.cpp
-        ${PROJECT_SOURCE_DIR}/presentation/adapter/AutoMarkerMaskRenderer.cpp
     LIBRARIES
-        Qt6::Gui
+        random_walker_presentation
 )
 
 add_random_walker_test(viewmodel_tests
     SOURCES
         viewmodel/SegmentationViewModelTests.cpp
-        ${PROJECT_SOURCE_DIR}/presentation/adapter/AutoMarkerMaskRenderer.cpp
-        ${PROJECT_SOURCE_DIR}/presentation/adapter/MaskRenderer.cpp
-        ${PROJECT_SOURCE_DIR}/presentation/error/ErrorPresenter.cpp
-        ${PROJECT_SOURCE_DIR}/presentation/image/ImageLoader.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/AutomaticMarkerState.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/ErrorState.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/ImageState.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/ProgressState.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/ResultState.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/SeedListModel.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/SegmentationConstraintsBuilder.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/SeedRegionGeometry.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/SeedRegionState.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/SegmentationViewModel.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/ViewModelCallbackGate.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/ViewModelConversions.cpp
     LIBRARIES
-        random_walker_application
-        Qt6::Gui
+        random_walker_viewmodel
 )
 
 add_random_walker_test(viewmodel_helper_tests
     SOURCES
         viewmodel/ViewModelHelperTests.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/SegmentationConstraintsBuilder.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/SeedRegionGeometry.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/ViewModelCallbackGate.cpp
-        ${PROJECT_SOURCE_DIR}/viewmodel/ViewModelConversions.cpp
     LIBRARIES
-        Qt6::Gui
-        Eigen3::Eigen
+        random_walker_viewmodel
 )
 
 add_random_walker_test(settings_tests
     SOURCES
         settings/SettingsTests.cpp
-        ${PROJECT_SOURCE_DIR}/infrastructure/settings/QtSettingsRepository.cpp
     LIBRARIES
-        random_walker_application
+        random_walker_infrastructure
 )
 
 get_property(RANDOM_WALKER_TEST_TARGETS GLOBAL PROPERTY RANDOM_WALKER_TEST_TARGETS)
