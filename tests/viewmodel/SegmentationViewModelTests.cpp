@@ -17,14 +17,13 @@
 #include "application/markers/AutoMarkerService.hpp"
 #include "application/settings/SettingsRepository.hpp"
 #include "application/settings/SettingsService.hpp"
+#include "application/segmentation/SegmentationExecutor.hpp"
 #include "model/domain/Segmentation.hpp"
-#include "model/executor/SegmentationExecutor.hpp"
 #include "presentation/image/PresentationImageCache.hpp"
 #include "viewmodel/SegmentationViewModel.hpp"
 
 namespace application = random_walker::application;
 namespace domain = random_walker::domain;
-namespace executor = random_walker::executor;
 
 namespace {
     class InMemorySettingsRepository final : public application::SettingsRepository {
@@ -68,12 +67,13 @@ namespace {
         int clear_count = 0;
     };
 
-    class FakeSegmentationExecutor final : public executor::SegmentationExecutor {
+    class FakeSegmentationExecutor final
+        : public application::SegmentationExecutor {
     public:
         void submit(
             domain::SegmentationRequest request
-            , executor::SegmentationProgressHandler progress_handler
-            , executor::SegmentationCompletionHandler completion_handler
+            , application::SegmentationProgressHandler progress_handler
+            , application::SegmentationCompletionHandler completion_handler
         ) override {
             last_request_id = request.request_id();
             last_image_width = request.image().width();
@@ -117,7 +117,7 @@ namespace {
         }
 
         void deliver_completion(
-            executor::SegmentationCompletion completion
+            application::SegmentationCompletion completion
         ) const {
             completion_handler_(std::move(completion));
         }
@@ -139,8 +139,8 @@ namespace {
         double last_distance_power = 0.0;
 
     private:
-        executor::SegmentationProgressHandler progress_handler_;
-        executor::SegmentationCompletionHandler completion_handler_;
+        application::SegmentationProgressHandler progress_handler_;
+        application::SegmentationCompletionHandler completion_handler_;
     };
 
     class FakeAutoMarkerExecutor final : public application::AutoMarkerExecutor {

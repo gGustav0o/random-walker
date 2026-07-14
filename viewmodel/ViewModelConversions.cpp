@@ -63,14 +63,14 @@ namespace random_walker::viewmodel {
     }
 
     application::ApplicationError application_error(
-        executor::ExecutionError error
+        application::ExecutionError error
     ) noexcept {
         switch (error) {
-        case executor::ExecutionError::UnexpectedInternalFailure:
+        case application::ExecutionError::UnexpectedInternalFailure:
             return application::ApplicationError::UnexpectedInternalFailure;
         }
 
-        Q_ASSERT_X(false, "application_error", "Unhandled executor error");
+        Q_ASSERT_X(false, "application_error", "Unhandled execution error");
         return application::ApplicationError::UnexpectedInternalFailure;
     }
 }

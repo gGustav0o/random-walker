@@ -69,8 +69,6 @@ set(MODEL_HEADERS
     model/algorithm/ProbabilityField.hpp
     model/algorithm/RandomWalkerAlgorithm.hpp
     model/algorithm/SeedExpansion.hpp
-    model/executor/SegmentationExecutor.hpp
-    model/executor/JThreadSegmentationExecutor.hpp
     model/graph/EdgeWeight.hpp
     model/graph/GridGeometry.hpp
     model/graph/GridLaplacian.hpp
@@ -89,7 +87,6 @@ set(MODEL_SOURCES
     model/algorithm/RandomWalkerAlgorithm.cpp
     model/algorithm/SeedExpansion.cpp
     model/domain/SegmentationConstraintsValidation.cpp
-    model/executor/JThreadSegmentationExecutor.cpp
     model/graph/GridLaplacian.cpp
     model/service/SegmentationService.cpp
 )
@@ -121,17 +118,16 @@ set(APPLICATION_HEADERS
     application/diagnostics/Logging.hpp
     application/markers/AutoMarkerExecutor.hpp
     application/markers/AutoMarkerService.hpp
-    application/markers/JThreadAutoMarkerExecutor.hpp
     application/settings/ApplicationSettings.hpp
     application/settings/SettingsRepository.hpp
     application/settings/SettingsService.hpp
+    application/segmentation/SegmentationExecutor.hpp
     application/segmentation/SegmentationUseCase.hpp
 )
 
 set(APPLICATION_SOURCES
     application/diagnostics/Logging.cpp
     application/markers/AutoMarkerService.cpp
-    application/markers/JThreadAutoMarkerExecutor.cpp
     application/settings/SettingsService.cpp
     application/segmentation/SegmentationUseCase.cpp
 )
@@ -160,6 +156,8 @@ target_link_libraries(random_walker_application
 set(HEADERS
     ${APPLICATION_HEADERS}
     bootstrap/AppContext.hpp
+    infrastructure/execution/JThreadAutoMarkerExecutor.hpp
+    infrastructure/execution/JThreadSegmentationExecutor.hpp
     infrastructure/settings/QtSettingsRepository.hpp
     infrastructure/logging/Logging.hpp
     ${MODEL_HEADERS}
@@ -189,6 +187,8 @@ set(HEADERS
 set(SOURCES
     main.cpp
     bootstrap/AppContext.cpp
+    infrastructure/execution/JThreadAutoMarkerExecutor.cpp
+    infrastructure/execution/JThreadSegmentationExecutor.cpp
     infrastructure/settings/QtSettingsRepository.cpp
     infrastructure/logging/Logging.cpp
     presentation/adapter/AutoMarkerMaskRenderer.cpp

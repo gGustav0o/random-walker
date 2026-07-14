@@ -46,7 +46,7 @@ namespace {
 }
 
 SegmentationViewModel::SegmentationViewModel(
-    random_walker::executor::SegmentationExecutor& segmentation_executor
+    random_walker::application::SegmentationExecutor& segmentation_executor
     , random_walker::application::SettingsService& settings_service
     , random_walker::application::AutoMarkerExecutor& auto_marker_executor
     , PresentationImageCache& base_image_cache
@@ -700,7 +700,7 @@ void SegmentationViewModel::run_segmentation() {
             );
         }
         , [callback_gate](
-            random_walker::executor::SegmentationCompletion completion) {
+            random_walker::application::SegmentationCompletion completion) {
             callback_gate->post<SegmentationViewModel>(
                 std::move(completion)
                 , &SegmentationViewModel::handle_completion
@@ -870,7 +870,7 @@ void SegmentationViewModel::update_auto_marker_parameters(
 }
 
 void SegmentationViewModel::handle_completion(
-    random_walker::executor::SegmentationCompletion completion) {
+    random_walker::application::SegmentationCompletion completion) {
     assert_ui_thread();
 
     if (!active_request_id_.has_value()
@@ -888,13 +888,13 @@ void SegmentationViewModel::handle_completion(
 
     if (
         auto* execution_error =
-            std::get_if<random_walker::executor::ExecutionError>(
+            std::get_if<random_walker::application::ExecutionError>(
                 &completion.outcome
             )
     ) {
         random_walker::application::log_error(
             random_walker::application::log_category::viewmodel
-            , "Segmentation finished with executor error"
+            , "Segmentation finished with execution error"
         );
         invalidate_result();
         set_error(random_walker::viewmodel::application_error(

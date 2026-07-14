@@ -10,9 +10,9 @@
 
 #include "application/markers/AutoMarkerExecutor.hpp"
 #include "application/settings/SettingsService.hpp"
+#include "application/segmentation/SegmentationExecutor.hpp"
 #include "presentation/image/PresentationImageCache.hpp"
 #include "model/domain/Segmentation.hpp"
-#include "model/executor/SegmentationExecutor.hpp"
 #include "viewmodel/AutomaticMarkerState.hpp"
 #include "viewmodel/ErrorState.hpp"
 #include "viewmodel/ImageState.hpp"
@@ -108,7 +108,7 @@ public:
     Q_ENUM(ProgressStage)
 
     explicit SegmentationViewModel(
-        random_walker::executor::SegmentationExecutor& segmentation_executor
+        random_walker::application::SegmentationExecutor& segmentation_executor
         , random_walker::application::SettingsService& settings_service
         , random_walker::application::AutoMarkerExecutor& auto_marker_executor
         , PresentationImageCache& base_image_cache
@@ -209,7 +209,7 @@ private:
     );
 
     void handle_completion(
-        random_walker::executor::SegmentationCompletion completion
+        random_walker::application::SegmentationCompletion completion
     );
     void handle_auto_marker_completion(
         random_walker::application::AutoMarkerCompletion completion
@@ -229,7 +229,7 @@ private:
     void clear_error();
     void notify_can_run_if_changed(bool previous_value);
 
-    random_walker::executor::SegmentationExecutor& segmentation_executor_;
+    random_walker::application::SegmentationExecutor& segmentation_executor_;
     random_walker::application::SettingsService& settings_service_;
     random_walker::application::AutoMarkerExecutor& auto_marker_executor_;
     ImageState image_state_;

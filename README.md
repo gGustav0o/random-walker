@@ -190,9 +190,11 @@ Segmentation input передается как `SegmentationConstraints`: руч
 | `model/algorithm`                     | Функционально ориентированные этапы Random Walker: expansion constraints в seed-пиксели, граничные условия, разбиение узлов, решение гармонической задачи, сборка вероятностей |
 | `model/graph`                         | Построение взвешенного лапласиана grid-графа |
 | `model/service`                       | Use case сегментации: валидация запроса, expansion constraints, запуск алгоритма |
-| `model/executor`                      | Асинхронный порт и реализация запуска сегментации в worker thread |
+| `application/segmentation`            | Application-level порт асинхронного запуска сегментации и сборка segmentation request |
+| `application/markers`                 | Application-level порт и сервис автоматической постановки маркеров |
 | `application/settings`                | Настройки приложения и абстракция репозитория настроек |
 | `application/diagnostics`             | Application-level фасад логирования без зависимости от конкретного backend-а |
+| `infrastructure/execution`            | Реализации application-портов через `std::jthread`; очереди задач, latest-request policy и callback delivery остаются вне математического ядра |
 | `infrastructure/settings`             | Реализация persistence через `QSettings` |
 | `infrastructure/logging`              | Backend логирования через `spdlog` с файловой ротацией |
 | `presentation`                        | Qt-адаптеры: загрузка изображения, `QImage` <-> domain, providers, rendering, error text |

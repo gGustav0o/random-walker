@@ -3,9 +3,9 @@
 #include <optional>
 
 #include "application/error/UserError.hpp"
+#include "application/segmentation/SegmentationExecutor.hpp"
 #include "model/domain/AutoMarkers.hpp"
 #include "model/domain/RandomWalkerParameters.hpp"
-#include "model/executor/SegmentationExecutor.hpp"
 
 namespace random_walker::viewmodel {
 
@@ -24,6 +24,6 @@ namespace random_walker::viewmodel {
     domain_foreground_polarity(int foreground_polarity) noexcept;
 
     [[nodiscard]] application::ApplicationError application_error(
-        executor::ExecutionError error
+        application::ExecutionError error
     ) noexcept;
 }

@@ -5,7 +5,7 @@
 #include <optional>
 #include <utility>
 
-namespace random_walker::executor {
+namespace random_walker::infrastructure {
     namespace {
         class ProgressThrottle final {
         public:
@@ -75,8 +75,8 @@ namespace random_walker::executor {
 
     void JThreadSegmentationExecutor::submit(
         domain::SegmentationRequest request
-        , SegmentationProgressHandler progress_handler
-        , SegmentationCompletionHandler completion_handler
+        , application::SegmentationProgressHandler progress_handler
+        , application::SegmentationCompletionHandler completion_handler
     ) {
         const domain::SegmentationRequestId request_id =
             request.request_id();
@@ -153,7 +153,7 @@ namespace random_walker::executor {
                         return;
                     }
 
-                    SegmentationProgressHandler current_handler;
+                    application::SegmentationProgressHandler current_handler;
                     {
                         std::lock_guard lock(mutex_);
                         const bool is_latest =
@@ -170,7 +170,7 @@ namespace random_walker::executor {
                     }
                 });
 
-            SegmentationCompletionOutcome outcome;
+            application::SegmentationCompletionOutcome outcome;
             try {
                 outcome = segmentation_service_.segment(
                     task->request
@@ -184,11 +184,12 @@ namespace random_walker::executor {
                     "Unexpected exception during segmentation execution.\n"
                     , stderr
                 );
-                outcome = ExecutionError::UnexpectedInternalFailure;
+                outcome =
+                    application::ExecutionError::UnexpectedInternalFailure;
             }
 
-            SegmentationCompletionHandler completion_handler;
-            SegmentationCompletion completion {
+            application::SegmentationCompletionHandler completion_handler;
+            application::SegmentationCompletion completion {
                 .request_id = task->request.request_id()
                 , .outcome = std::move(outcome)
             };

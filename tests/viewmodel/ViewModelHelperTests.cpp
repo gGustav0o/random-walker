@@ -6,9 +6,9 @@
 #include <QEventLoop>
 #include <QtTest>
 
+#include "application/segmentation/SegmentationExecutor.hpp"
 #include "model/domain/AutoMarkers.hpp"
 #include "model/domain/RandomWalkerParameters.hpp"
-#include "model/executor/SegmentationExecutor.hpp"
 #include "viewmodel/SeedRegionGeometry.hpp"
 #include "viewmodel/SegmentationConstraintsBuilder.hpp"
 #include "viewmodel/SegmentationViewModel.hpp"
@@ -16,7 +16,7 @@
 #include "viewmodel/ViewModelConversions.hpp"
 
 namespace domain = random_walker::domain;
-namespace executor = random_walker::executor;
+namespace application = random_walker::application;
 namespace viewmodel = random_walker::viewmodel;
 
 namespace {
@@ -64,7 +64,7 @@ private slots:
     void rejects_unknown_view_connectivity();
     void maps_foreground_polarity_between_domain_and_view();
     void rejects_unknown_view_foreground_polarity();
-    void maps_executor_error_to_application_error();
+    void maps_execution_error_to_application_error();
     void clips_seed_rectangle_to_image_bounds();
     void rejects_empty_or_outside_seed_rectangle();
     void clips_seed_rectangle_without_int_overflow();
@@ -149,10 +149,10 @@ void ViewModelHelperTests::rejects_unknown_view_foreground_polarity() {
     QVERIFY(!viewmodel::domain_foreground_polarity(42).has_value());
 }
 
-void ViewModelHelperTests::maps_executor_error_to_application_error() {
+void ViewModelHelperTests::maps_execution_error_to_application_error() {
     QCOMPARE(
         static_cast<int>(viewmodel::application_error(
-            executor::ExecutionError::UnexpectedInternalFailure
+            application::ExecutionError::UnexpectedInternalFailure
         ))
         , static_cast<int>(
             random_walker::application::ApplicationError::

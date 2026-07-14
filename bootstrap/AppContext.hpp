@@ -4,10 +4,10 @@
 
 #include <QQmlApplicationEngine>
 
-#include "application/markers/JThreadAutoMarkerExecutor.hpp"
 #include "application/settings/SettingsService.hpp"
+#include "infrastructure/execution/JThreadAutoMarkerExecutor.hpp"
+#include "infrastructure/execution/JThreadSegmentationExecutor.hpp"
 #include "infrastructure/settings/QtSettingsRepository.hpp"
-#include "model/executor/JThreadSegmentationExecutor.hpp"
 #include "viewmodel/SegmentationViewModel.hpp"
 
 class AppContext final {
@@ -20,7 +20,7 @@ private:
     // therefore guarantees that ViewModel releases executor callbacks and
     // services before their backing dependencies are destroyed.
 
-    random_walker::executor::JThreadSegmentationExecutor
+    random_walker::infrastructure::JThreadSegmentationExecutor
         segmentation_executor_;
 
     random_walker::infrastructure::QtSettingsRepository
@@ -28,7 +28,7 @@ private:
 
     random_walker::application::SettingsService settings_service_;
 
-    random_walker::application::JThreadAutoMarkerExecutor
+    random_walker::infrastructure::JThreadAutoMarkerExecutor
         auto_marker_executor_;
 
     std::unique_ptr<SegmentationViewModel> segmentation_view_model_;

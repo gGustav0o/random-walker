@@ -5,7 +5,7 @@
 
 #include "model/domain/Segmentation.hpp"
 
-namespace random_walker::executor {
+namespace random_walker::application {
     enum class ExecutionError {
         UnexpectedInternalFailure
     };

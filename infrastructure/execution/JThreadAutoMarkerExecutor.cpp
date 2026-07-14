@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <utility>
 
-namespace random_walker::application {
+namespace random_walker::infrastructure {
     JThreadAutoMarkerExecutor::JThreadAutoMarkerExecutor()
         : worker_([this](std::stop_token thread_stop) {
             run(thread_stop);
@@ -17,10 +17,11 @@ namespace random_walker::application {
     }
 
     void JThreadAutoMarkerExecutor::submit(
-        AutoMarkerRequest request
-        , AutoMarkerCompletionHandler completion_handler
+        application::AutoMarkerRequest request
+        , application::AutoMarkerCompletionHandler completion_handler
     ) {
-        const AutoMarkerRequestId request_id = request.request_id();
+        const application::AutoMarkerRequestId request_id =
+            request.request_id();
         auto task = std::make_unique<Task>(Task {
             .request = std::move(request)
             , .completion_handler = std::move(completion_handler)
@@ -61,7 +62,7 @@ namespace random_walker::application {
                 task = std::move(pending_task_);
             }
 
-            AutoMarkerProposalOutcome outcome;
+            application::AutoMarkerProposalOutcome outcome;
             try {
                 outcome = service_.propose(
                     task->request.image()
@@ -73,14 +74,14 @@ namespace random_walker::application {
                     "Unexpected exception during auto-marker execution.\n"
                     , stderr
                 );
-                outcome = AutoMarkerError::ProposalFailed;
+                outcome = application::AutoMarkerError::ProposalFailed;
             }
 
-            AutoMarkerCompletion completion {
+            application::AutoMarkerCompletion completion {
                 .request_id = task->request.request_id()
                 , .outcome = std::move(outcome)
             };
-            AutoMarkerCompletionHandler completion_handler;
+            application::AutoMarkerCompletionHandler completion_handler;
 
             {
                 std::lock_guard lock(mutex_);
