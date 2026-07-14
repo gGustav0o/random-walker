@@ -16,6 +16,7 @@
 namespace random_walker::markers {
 
     inline constexpr double kPi = 3.141592653589793238462643383279502884;
+    inline constexpr std::size_t kGrayscaleIntensityBinCount = 256;
 
     enum class GmmError {
         EmptySamples
@@ -37,6 +38,18 @@ namespace random_walker::markers {
         double log_likelihood = -std::numeric_limits<double>::infinity();
         int iterations = 0;
         bool converged = false;
+    };
+
+    struct WeightedIntensitySample {
+        double value = 0.0;
+        std::size_t count = 0;
+        bool operator==(const WeightedIntensitySample&) const = default;
+    };
+
+    struct IntensityHistogram {
+        std::array<std::size_t, kGrayscaleIntensityBinCount> counts {};
+        std::size_t sample_count = 0;
+        bool operator==(const IntensityHistogram&) const = default;
     };
 
     using GmmFitOutcome = std::variant<GmmModel1d, GmmError>;
@@ -79,6 +92,13 @@ namespace random_walker::markers {
             && std::isfinite(model.log_likelihood)
             && model.iterations >= 0
             && std::abs(weight_sum - 1.0) < 1e-9;
+    }
+
+    [[nodiscard]] inline bool is_valid(
+        const WeightedIntensitySample& sample
+    ) noexcept {
+        return std::isfinite(sample.value)
+            && sample.count > std::size_t {0};
     }
 
     [[nodiscard]] inline double gaussian_density(
@@ -162,16 +182,45 @@ namespace random_walker::markers {
         return posterior[foreground_component_index(model, polarity)];
     }
 
-    [[nodiscard]] inline double sample_mean(
-        std::span<const double> samples
+    [[nodiscard]] inline double sample_count(
+        std::span<const WeightedIntensitySample> samples
     ) noexcept {
         assert(!samples.empty());
-        const double sum = std::accumulate(samples.begin(), samples.end(), 0.0);
-        return sum / static_cast<double>(samples.size());
+
+        return std::accumulate(
+            samples.begin()
+            , samples.end()
+            , 0.0
+            , [](double result, const WeightedIntensitySample& sample) {
+                assert(is_valid(sample));
+                return result + static_cast<double>(sample.count);
+            }
+        );
+    }
+
+    [[nodiscard]] inline double sample_mean(
+        std::span<const WeightedIntensitySample> samples
+    ) noexcept {
+        assert(!samples.empty());
+
+        const double total_count = sample_count(samples);
+        assert(total_count > 0.0);
+
+        const double weighted_sum = std::accumulate(
+            samples.begin()
+            , samples.end()
+            , 0.0
+            , [](double result, const WeightedIntensitySample& sample) {
+                assert(is_valid(sample));
+                return result
+                    + static_cast<double>(sample.count) * sample.value;
+            }
+        );
+        return weighted_sum / total_count;
     }
 
     [[nodiscard]] inline double sample_variance(
-        std::span<const double> samples
+        std::span<const WeightedIntensitySample> samples
         , double mean
         , double minimum_variance
     ) noexcept {
@@ -180,23 +229,67 @@ namespace random_walker::markers {
         assert(std::isfinite(minimum_variance));
         assert(minimum_variance >= domain::kMinimumGmmVariance);
 
-        const double squared_sum = std::accumulate(
+        const double total_count = sample_count(samples);
+        assert(total_count > 0.0);
+
+        const double weighted_squared_sum = std::accumulate(
             samples.begin()
             , samples.end()
             , 0.0
-            , [mean](double sum, double value) {
-                const double difference = value - mean;
-                return sum + difference * difference;
+            , [mean](double result, const WeightedIntensitySample& sample) {
+                assert(is_valid(sample));
+                const double difference = sample.value - mean;
+                return result
+                    + static_cast<double>(sample.count)
+                        * difference
+                        * difference;
             }
         );
-        return std::max(
-            minimum_variance
-            , squared_sum / static_cast<double>(samples.size())
-        );
+        return std::max(minimum_variance, weighted_squared_sum / total_count);
+    }
+
+    [[nodiscard]] inline std::vector<WeightedIntensitySample>
+    weighted_samples_from_histogram(
+        const IntensityHistogram& histogram
+    ) {
+        std::vector<WeightedIntensitySample> result;
+        result.reserve(histogram.counts.size());
+
+        for (std::size_t intensity = 0;
+             intensity < histogram.counts.size();
+             ++intensity
+        ) {
+            const std::size_t count = histogram.counts[intensity];
+            if (count == std::size_t {0}) {
+                continue;
+            }
+
+            result.push_back({
+                .value = static_cast<double>(intensity)
+                , .count = count
+            });
+        }
+
+        return result;
+    }
+
+    [[nodiscard]] inline std::vector<WeightedIntensitySample>
+    unit_weighted_samples(
+        std::span<const double> samples
+    ) {
+        std::vector<WeightedIntensitySample> result;
+        result.reserve(samples.size());
+        for (const double sample : samples) {
+            result.push_back({
+                .value = sample
+                , .count = std::size_t {1}
+            });
+        }
+        return result;
     }
 
     [[nodiscard]] inline GmmModel1d initialize_gmm(
-        std::span<const double> samples
+        std::span<const WeightedIntensitySample> samples
         , const domain::GmmParameters& parameters
     ) {
         assert(!samples.empty());
@@ -205,6 +298,10 @@ namespace random_walker::markers {
         const auto [minimum, maximum] = std::minmax_element(
             samples.begin()
             , samples.end()
+            , [](const WeightedIntensitySample& first,
+                 const WeightedIntensitySample& second) {
+                return first.value < second.value;
+            }
         );
         const double mean = sample_mean(samples);
         const double variance = sample_variance(
@@ -216,12 +313,12 @@ namespace random_walker::markers {
         return {
             .components = {
                 GaussianComponent1d {
-                    .mean = *minimum
+                    .mean = minimum->value
                     , .variance = variance
                     , .weight = 0.5
                 }
                 , GaussianComponent1d {
-                    .mean = *maximum
+                    .mean = maximum->value
                     , .variance = variance
                     , .weight = 0.5
                 }
@@ -230,28 +327,30 @@ namespace random_walker::markers {
     }
 
     [[nodiscard]] inline double log_likelihood(
-        std::span<const double> samples
+        std::span<const WeightedIntensitySample> samples
         , const GmmModel1d& model
     ) noexcept {
         assert(!samples.empty());
         assert(has_valid_components(model));
 
         double result = 0.0;
-        for (const double sample : samples) {
+        for (const WeightedIntensitySample& sample : samples) {
+            assert(is_valid(sample));
             double density = 0.0;
             for (const GaussianComponent1d& component : model.components) {
-                density += component.weight * gaussian_density(sample, component);
+                density += component.weight
+                    * gaussian_density(sample.value, component);
             }
             if (!(density > 0.0) || !std::isfinite(density)) {
                 return -std::numeric_limits<double>::infinity();
             }
-            result += std::log(density);
+            result += static_cast<double>(sample.count) * std::log(density);
         }
         return result;
     }
 
     [[nodiscard]] inline GmmFitOutcome fit_gmm(
-        std::span<const double> samples
+        std::span<const WeightedIntensitySample> samples
         , const domain::GmmParameters& parameters
     ) {
         if (!domain::is_valid(parameters)) {
@@ -260,8 +359,8 @@ namespace random_walker::markers {
         if (samples.empty()) {
             return GmmError::EmptySamples;
         }
-        if (!std::all_of(samples.begin(), samples.end(), [](double value) {
-                return std::isfinite(value);
+        if (!std::all_of(samples.begin(), samples.end(), [](const auto& sample) {
+                return is_valid(sample);
             })
         ) {
             return GmmError::DegenerateSamples;
@@ -269,27 +368,37 @@ namespace random_walker::markers {
 
         GmmModel1d model = initialize_gmm(samples, parameters);
         double previous_likelihood = -std::numeric_limits<double>::infinity();
+        const double total_sample_count = sample_count(samples);
 
-        for (int iteration = 1; iteration <= parameters.max_iterations; ++iteration) {
+        for (int iteration = 1;
+             iteration <= parameters.max_iterations;
+             ++iteration
+        ) {
             std::array<double, domain::kGmmIntensityComponentCount>
                 responsibility_sum {};
             std::array<double, domain::kGmmIntensityComponentCount>
                 weighted_sum {};
             std::array<double, domain::kGmmIntensityComponentCount>
-                weighted_squared_deviation_sum {};
-            std::vector<std::array<double, domain::kGmmIntensityComponentCount>>
-                responsibilities;
-            responsibilities.reserve(samples.size());
+                weighted_square_sum {};
 
-            for (const double sample : samples) {
-                const auto posterior = posterior_probabilities(model, sample);
-                responsibilities.push_back(posterior);
+            for (const WeightedIntensitySample& sample : samples) {
+                const auto posterior = posterior_probabilities(
+                    model
+                    , sample.value
+                );
+                const double count = static_cast<double>(sample.count);
                 for (std::size_t component_index = 0;
                      component_index < posterior.size();
                      ++component_index
                 ) {
-                    responsibility_sum[component_index] += posterior[component_index];
-                    weighted_sum[component_index] += posterior[component_index] * sample;
+                    const double weighted_responsibility =
+                        count * posterior[component_index];
+                    responsibility_sum[component_index] +=
+                        weighted_responsibility;
+                    weighted_sum[component_index] +=
+                        weighted_responsibility * sample.value;
+                    weighted_square_sum[component_index] +=
+                        weighted_responsibility * sample.value * sample.value;
                 }
             }
 
@@ -305,36 +414,17 @@ namespace random_walker::markers {
                 model.components[component_index].mean =
                     weighted_sum[component_index] / effective_count;
                 model.components[component_index].weight =
-                    effective_count / static_cast<double>(samples.size());
-            }
-
-            for (std::size_t sample_index = 0;
-                 sample_index < samples.size();
-                 ++sample_index
-            ) {
-                const double sample = samples[sample_index];
-                for (std::size_t component_index = 0;
-                     component_index < model.components.size();
-                     ++component_index
-                ) {
-                    const double difference =
-                        sample - model.components[component_index].mean;
-                    weighted_squared_deviation_sum[component_index] +=
-                        responsibilities[sample_index][component_index]
-                        * difference
-                        * difference;
+                    effective_count / total_sample_count;
+                const double raw_variance =
+                    weighted_square_sum[component_index] / effective_count
+                    - model.components[component_index].mean
+                        * model.components[component_index].mean;
+                if (!std::isfinite(raw_variance)) {
+                    return GmmError::DegenerateSamples;
                 }
-            }
-
-            for (std::size_t component_index = 0;
-                 component_index < model.components.size();
-                 ++component_index
-            ) {
-                const double variance = weighted_squared_deviation_sum[component_index]
-                    / responsibility_sum[component_index];
                 model.components[component_index].variance = std::max(
                     parameters.minimum_variance
-                    , variance
+                    , std::max(0.0, raw_variance)
                 );
             }
 
@@ -364,5 +454,43 @@ namespace random_walker::markers {
         );
         assert(is_valid(model));
         return model;
+    }
+
+    [[nodiscard]] inline GmmFitOutcome fit_gmm(
+        const IntensityHistogram& histogram
+        , const domain::GmmParameters& parameters
+    ) {
+        if (!domain::is_valid(parameters)) {
+            return GmmError::InvalidParameters;
+        }
+        if (histogram.sample_count == std::size_t {0}) {
+            return GmmError::EmptySamples;
+        }
+
+        const std::vector<WeightedIntensitySample> samples =
+            weighted_samples_from_histogram(histogram);
+        return fit_gmm(samples, parameters);
+    }
+
+    [[nodiscard]] inline GmmFitOutcome fit_gmm(
+        std::span<const double> samples
+        , const domain::GmmParameters& parameters
+    ) {
+        if (!domain::is_valid(parameters)) {
+            return GmmError::InvalidParameters;
+        }
+        if (samples.empty()) {
+            return GmmError::EmptySamples;
+        }
+        if (!std::all_of(samples.begin(), samples.end(), [](double value) {
+                return std::isfinite(value);
+            })
+        ) {
+            return GmmError::DegenerateSamples;
+        }
+
+        const std::vector<WeightedIntensitySample> weighted_samples =
+            unit_weighted_samples(samples);
+        return fit_gmm(weighted_samples, parameters);
     }
 }

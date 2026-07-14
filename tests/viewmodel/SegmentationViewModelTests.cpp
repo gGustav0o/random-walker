@@ -1,3 +1,5 @@
+#include <cmath>
+#include <limits>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -262,6 +264,7 @@ private slots:
     void set_connectivity_saves_settings_and_emits_change();
     void set_distance_power_saves_settings_and_emits_change();
     void set_auto_marker_parameters_saves_settings_and_emits_changes();
+    void rejects_invalid_numeric_parameters_before_saving_settings();
     void open_image_updates_image_state_and_cache();
     void add_seed_rectangles_updates_counts_and_can_run();
     void propose_markers_without_image_sets_error();
@@ -408,6 +411,81 @@ set_auto_marker_parameters_saves_settings_and_emits_changes() {
     QCOMPARE(boundary_distance_changed.count(), 1);
     QCOMPARE(component_area_changed.count(), 1);
     QCOMPARE(foreground_polarity_changed.count(), 1);
+}
+
+void SegmentationViewModelTests::
+rejects_invalid_numeric_parameters_before_saving_settings() {
+    ViewModelFixture fixture;
+    QSignalSpy beta_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::beta_changed
+    );
+    QSignalSpy distance_power_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::distance_power_changed
+    );
+    QSignalSpy confidence_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::auto_marker_confidence_threshold_changed
+    );
+    QSignalSpy boundary_distance_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::auto_marker_minimum_boundary_distance_changed
+    );
+    QSignalSpy component_area_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::auto_marker_minimum_component_area_changed
+    );
+    QSignalSpy error_changed(
+        &fixture.view_model
+        , &SegmentationViewModel::error_message_changed
+    );
+
+    fixture.view_model.set_beta(std::nextafter(
+        domain::kMinimumRandomWalkerBeta
+        , 0.0
+    ));
+    fixture.view_model.set_distance_power(
+        std::numeric_limits<double>::quiet_NaN()
+    );
+    fixture.view_model.set_auto_marker_confidence_threshold(
+        std::nextafter(
+            domain::kMaximumAutoMarkerConfidenceThreshold
+            , 2.0
+        )
+    );
+    fixture.view_model.set_auto_marker_minimum_boundary_distance(
+        domain::kMaximumAutoMarkerBoundaryDistance + 1
+    );
+    fixture.view_model.set_auto_marker_minimum_component_area(
+        domain::kMinimumAutoMarkerComponentArea - 1
+    );
+
+    QCOMPARE(fixture.repository.save_count, 0);
+    QCOMPARE(fixture.view_model.beta(), domain::kDefaultRandomWalkerBeta);
+    QCOMPARE(
+        fixture.view_model.distance_power()
+        , domain::kDefaultRandomWalkerDistancePower
+    );
+    QCOMPARE(
+        fixture.view_model.auto_marker_confidence_threshold()
+        , domain::kDefaultAutoMarkerConfidenceThreshold
+    );
+    QCOMPARE(
+        fixture.view_model.auto_marker_minimum_boundary_distance()
+        , domain::kDefaultAutoMarkerBoundaryDistance
+    );
+    QCOMPARE(
+        fixture.view_model.auto_marker_minimum_component_area()
+        , domain::kDefaultAutoMarkerComponentArea
+    );
+    QVERIFY(fixture.view_model.error_message().isEmpty());
+    QCOMPARE(beta_changed.count(), 0);
+    QCOMPARE(distance_power_changed.count(), 0);
+    QCOMPARE(confidence_changed.count(), 0);
+    QCOMPARE(boundary_distance_changed.count(), 0);
+    QCOMPARE(component_area_changed.count(), 0);
+    QCOMPARE(error_changed.count(), 0);
 }
 
 

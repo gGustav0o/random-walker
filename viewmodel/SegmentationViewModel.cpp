@@ -745,6 +745,14 @@ void SegmentationViewModel::update_random_walker_parameters(
     random_walker::domain::RandomWalkerParameters parameters) {
     assert_ui_thread();
 
+    if (!random_walker::domain::is_valid(parameters)) {
+        random_walker::application::log_warning(
+            random_walker::application::log_category::viewmodel
+            , "Rejected invalid Random Walker parameters"
+        );
+        return;
+    }
+
     if (parameters == application_settings_.random_walker) {
         return;
     }
@@ -802,6 +810,14 @@ void SegmentationViewModel::update_random_walker_parameters(
 void SegmentationViewModel::update_auto_marker_parameters(
     random_walker::domain::AutoMarkerParameters parameters) {
     assert_ui_thread();
+
+    if (!random_walker::domain::is_valid(parameters)) {
+        random_walker::application::log_warning(
+            random_walker::application::log_category::viewmodel
+            , "Rejected invalid automatic marker parameters"
+        );
+        return;
+    }
 
     if (parameters == application_settings_.auto_markers) {
         return;

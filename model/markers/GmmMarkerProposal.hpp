@@ -65,19 +65,23 @@ namespace random_walker::markers {
         };
     }
 
-    [[nodiscard]] inline std::vector<double> image_intensity_samples(
+    [[nodiscard]] inline IntensityHistogram image_intensity_histogram(
         const domain::GrayImage& image
-    ) {
+    ) noexcept {
         assert(!image.empty());
 
-        std::vector<double> samples;
-        samples.reserve(static_cast<std::size_t>(image_pixel_count(image)));
+        IntensityHistogram histogram;
         for (int row = 0; row < image.height(); ++row) {
             for (int column = 0; column < image.width(); ++column) {
-                samples.push_back(static_cast<double>(image.at(row, column)));
+                const std::size_t intensity =
+                    static_cast<std::size_t>(image.at(row, column));
+                ++histogram.counts[intensity];
+                ++histogram.sample_count;
             }
         }
-        return samples;
+        assert(histogram.sample_count
+            == static_cast<std::size_t>(image_pixel_count(image)));
+        return histogram;
     }
 
     [[nodiscard]] inline std::vector<CandidatePixel> high_confidence_candidates(
@@ -400,8 +404,8 @@ namespace random_walker::markers {
             return MarkerProposalError::InvalidParameters;
         }
 
-        const std::vector<double> samples = image_intensity_samples(image);
-        const GmmFitOutcome fit_outcome = fit_gmm(samples, parameters.gmm);
+        const IntensityHistogram histogram = image_intensity_histogram(image);
+        const GmmFitOutcome fit_outcome = fit_gmm(histogram, parameters.gmm);
         if (!std::holds_alternative<GmmModel1d>(fit_outcome)) {
             return MarkerProposalError::GmmFitFailed;
         }

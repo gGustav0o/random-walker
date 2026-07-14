@@ -18,6 +18,7 @@ private slots:
     void rejects_empty_samples();
     void rejects_invalid_parameters();
     void separates_two_intensity_modes_deterministically();
+    void histogram_fit_matches_repeated_samples_fit();
     void posterior_is_high_near_component_centers();
     void foreground_probability_respects_polarity();
     void clamps_component_variance_to_minimum();
@@ -77,6 +78,59 @@ void GmmIntensityTests::separates_two_intensity_modes_deterministically() {
     QVERIFY(std::abs(model.components[1].mean - 200.5) < 1e-6);
     QVERIFY(std::abs(model.components[0].weight - 0.5) < 1e-6);
     QVERIFY(std::abs(model.components[1].weight - 0.5) < 1e-6);
+}
+
+void GmmIntensityTests::histogram_fit_matches_repeated_samples_fit() {
+    const std::vector<double> samples {
+        0.0, 1.0, 0.0, 1.0,
+        200.0, 201.0, 200.0, 201.0
+    };
+    markers::IntensityHistogram histogram;
+    histogram.counts[0] = 2;
+    histogram.counts[1] = 2;
+    histogram.counts[200] = 2;
+    histogram.counts[201] = 2;
+    histogram.sample_count = samples.size();
+    const domain::GmmParameters parameters {
+        .max_iterations = 100
+        , .convergence_tolerance = 1e-10
+        , .minimum_variance = 1.0
+    };
+
+    const markers::GmmFitOutcome sample_outcome =
+        markers::fit_gmm(samples, parameters);
+    const markers::GmmFitOutcome histogram_outcome =
+        markers::fit_gmm(histogram, parameters);
+
+    QVERIFY(std::holds_alternative<markers::GmmModel1d>(sample_outcome));
+    QVERIFY(std::holds_alternative<markers::GmmModel1d>(histogram_outcome));
+    const markers::GmmModel1d& sample_model =
+        std::get<markers::GmmModel1d>(sample_outcome);
+    const markers::GmmModel1d& histogram_model =
+        std::get<markers::GmmModel1d>(histogram_outcome);
+
+    QCOMPARE(histogram_model.iterations, sample_model.iterations);
+    QCOMPARE(histogram_model.converged, sample_model.converged);
+    QVERIFY(std::abs(
+        histogram_model.log_likelihood - sample_model.log_likelihood
+    ) < 1e-9);
+    for (std::size_t index = 0;
+         index < histogram_model.components.size();
+         ++index
+    ) {
+        QVERIFY(std::abs(
+            histogram_model.components[index].mean
+                - sample_model.components[index].mean
+        ) < 1e-9);
+        QVERIFY(std::abs(
+            histogram_model.components[index].variance
+                - sample_model.components[index].variance
+        ) < 1e-9);
+        QVERIFY(std::abs(
+            histogram_model.components[index].weight
+                - sample_model.components[index].weight
+        ) < 1e-9);
+    }
 }
 
 void GmmIntensityTests::posterior_is_high_near_component_centers() {
