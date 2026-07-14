@@ -109,7 +109,7 @@ The edge length is
 
 $$
 d_{ij}=\begin{cases}
-1, & \text{orthogonal edge},\
+1, & \text{orthogonal edge},\\
 \sqrt 2, & \text{diagonal edge}.
 \end{cases}
 $$
@@ -188,7 +188,7 @@ For $i\ne j$:
 
 $$
 L_{ij}=\begin{cases}
--w_{ij}, & (i,j)\in E,\
+-w_{ij}, & (i,j)\in E,\\
 0, & (i,j)\notin E.
 \end{cases}
 $$
@@ -234,7 +234,7 @@ For $m\in M$:
 
 $$
 x_m=\begin{cases}
-0, & m\text{ is marked as Background},\
+0, & m\text{ is marked as Background},\\
 1, & m\text{ is marked as Object}.
 \end{cases}
 $$
@@ -246,7 +246,7 @@ Let $x_M$ be the vector of known boundary values and $x_U$ the vector of unknown
 $$
 L=
 \begin{pmatrix}
-L_{UU} & L_{UM}\
+L_{UU} & L_{UM}\\
 L_{MU} & L_{MM}
 \end{pmatrix}.
 $$
@@ -273,10 +273,11 @@ Theoretically, $L_{UU}$ is positive definite if every unknown connected componen
 
 **Important:** topological grid connectivity alone is insufficient. In exact mathematics, exponential weights are strictly positive. In floating-point arithmetic, very small weights may underflow to numerical zero. Therefore, in practice, every unknown component must be connected to the seed set by a path whose edge weights do not vanish numerically. Otherwise Cholesky factorization may fail.
 
-For ordinary images and reasonable parameters, this condition usually holds on a rectangular 4- or 8-connected grid with at least one seed pixel. It is not guaranteed for all parameters and all contrast configurations.
+For ordinary images and reasonable parameters, this condition usually holds when every positive-conductance unknown component touches at least one seed pixel. The application-level validation additionally requires at least one background seed and one object seed for a meaningful binary segmentation request. The anchoring condition is not guaranteed for all parameters and all contrast configurations.
 
-If factorization or solving fails, the algorithm reports one of the following errors:
+If factorization fails, the implementation first validates positive-conductance anchoring. Depending on the failure mode, the solver can report one of the following errors:
 
+- `UnanchoredUnknownRegion`;
 - `LaplacianDecompositionFailed`;
 - `LinearSystemSolveFailed`;
 - `NonFiniteSolution`.
@@ -323,7 +324,7 @@ The binary mask is obtained by thresholding:
 
 $$
 B_s=\begin{cases}
-1, & P_s\ge 0.5,\
+1, & P_s\ge 0.5,\\
 0, & P_s<0.5.
 \end{cases}
 $$
@@ -347,6 +348,8 @@ x_n\in\{0,\dots,255\},
 \qquad
 N=WH.
 $$
+
+The implementation builds a 256-bin histogram first and then fits the same model through weighted intensity samples. This is equivalent to repeating each intensity value according to its pixel count, but avoids storing one floating-point sample per pixel.
 
 The model is a one-dimensional two-component Gaussian mixture:
 
@@ -446,7 +449,7 @@ The foreground component is selected from the fitted means:
 
 $$
 k_F=\begin{cases}
-\arg\min_k\mu_k, & \mathrm{DarkObject},\
+\arg\min_k\mu_k, & \mathrm{DarkObject},\\
 \arg\max_k\mu_k, & \mathrm{BrightObject}.
 \end{cases}
 $$

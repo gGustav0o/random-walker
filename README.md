@@ -1,332 +1,87 @@
 # random-walker
 
-**random-walker** — интерактивное приложение для сегментации изображений методом **Random Walker**. Проект ориентирован на применение в задачах **неразрушающего контроля**, где объекты имеют сложную пористую или ветвящуюся структуру и необходимо эффективно распространять семантические метки от меток-маркеров.
-
----
-
-## Особенности
-
--  Алгоритм Random Walker на графе
--  Поддержка пользовательской разметки (маркеров)
--  Выбираемые модели веса: глобальная beta и локальная нормализация по дисперсии
--  Подходит для высококонтрастных изображений
-
----
-
-## Теоретическая основа
-
-**Random Walker** (Grady, 2006) — метод сегментации, основанный на вероятностной диффузии. Изображение представляется в виде графа, где:
-
-- каждая вершина — пиксель
-- рёбра соединяют соседние пиксели
-- веса рёбер определяют схожесть (чем ближе значения, тем выше вес)
-
-Алгоритм решает уравнение Лапласа на этом графе:
-
-> "Какова вероятность, что блуждающий по графу маркер, начавший путь в пикселе i, впервые достигнет метки класса k в пикселе j?"
-
-Эта вероятность и определяет принадлежность пикселя к классу (фон/объект).
-
-### Основные шаги алгоритма:
-
-1. **Пользователь задает constraints**: ручные seed-регионы и/или автоматические marker-mask пиксели фона и объекта
-2. **Построение графа:** пиксели → вершины, соседи → рёбра
-3. **Назначение весов:**
-    - Стандартный вес: $exp(-beta * (\hat I_i - \hat I_j)^2)$, где $\hat I = I / 255$
-4. **Составление и решение системы уравнений:**
-    - Решается линейная система: $L_u \, \mathbf{x}_u = -B^T \, \mathbf{x}_m$
-    - Где $L_u$ — подматрица Лапласиана для немеченных пикселей
-5. **Назначение меток:** по наибольшей вероятности
-6. **Результат отображается поверх исходного изображения**
-
----
-
-## Ограничения Random Walker
--  **Не работает без constraints**: Random Walker требует хотя бы один фоновый и один объектный marker; автоматические маркеры только предлагают constraints, но не заменяют математическую постановку задачи
-- **Неустойчив к слабому контрасту**: вес между пикселями не падает, граница становится проходимой
-- **Не учитывает форму/геометрию** объекта напрямую
--  **Плохо работает при сильной неоднородности объекта** (если он сам по себе шумный)    
-
-**Важно:** алгоритм не "ищет объекты" — он распространяет заданные метки по графу.
-
----
-
-## Как использовать программу
-
-### Загрузка изображения
-1. Запустите программу
-2. Нажмите **"Open"** и выберите изображение. Даже цветные изображения будут автоматически переведены в градации серого, поскольку алгоритм ориентирован на работу с рентгеновскими и томографическими данными.
-
-###  Разметка маркеров
-
-1. Выберите метку: `Background` (синий) или `Object` (красный)
-2. Нарисуйте **один или несколько прямоугольников** по соответствующим областям
-    - Например: один внутри объекта, другой — вне его, на фоне
-3. При необходимости нажмите `Auto markers`, чтобы автоматически предложить marker mask и визуально проверить ее перед запуском сегментации
-
-###  Запуск сегментации
-
-- Нажмите **"Run segmentation"**
-- Через некоторое время появится результат поверх изображения
-
-###  Очистка
-- Кнопка **"Clear image"** удаляет изображение, разметку и результат
-- Кнопка **"Clear seeds"** удаляет ручные и автоматические маркеры
-
----
-
-##  Формат входных изображений
-
-- Только **одноканальные** изображения
-- Поддержка: `.png`, `.jpg`, `.bmp`
-- Текущая реализация поддерживает до `1 048 576` пикселей, практически это соответствует `1024x1024`
-- Контрастные изображения дают лучший результат
-
----
-##  Настройка параметров Random Walker
-
-Алгоритм `Random Walker` строит взвешенный граф изображения. В проекте реализованы две модели контрастного веса ребра.
-
-### Global beta
-
-Базовая модель использует один глобальный параметр чувствительности к перепаду интенсивности:
-
-$
-w_{ij} = \frac{\exp(-\beta \cdot (\hat I_i - \hat I_j)^2)}{d_{ij}^p}
-$
-
-где:
-- $\hat I_i$, $\hat I_j$ — нормализованные интенсивности соседних пикселей: $I / 255$;
-- $\beta$ — глобальная чувствительность к контрасту на нормализованной шкале интенсивности;
-- $d_{ij}$ — геометрическая длина ребра: 1 для ортогональных соседей и $\sqrt{2}$ для диагональных;
-- $p$ — степень нормировки по расстоянию.
-
-### Где задаются параметры
-
-Параметры задаются в панели настроек алгоритма:
-
-- `Connectivity` — 4- или 8-связность пиксельного графа;
-- `Beta` — глобальный параметр $\beta$;
-- `Distance p` — степень геометрической нормировки $p$.
-
-Параметры хранятся в настройках приложения и передаются в математическое ядро через следующие слои:
-
-- `viewmodel/SegmentationViewModel.hpp/cpp` — MVVM-состояние и команды UI;
-- `application/settings/ApplicationSettings.hpp` — настройки приложения;
-- `model/domain/RandomWalkerParameters.hpp` — доменная модель параметров Random Walker;
-- `model/graph/EdgeWeight.hpp` — чистые функции и function objects веса ребра;
-- `model/graph/GridLaplacian.hpp/cpp` — построение взвешенного графа.
-
-Диапазоны допустимых значений задаются в `RandomWalkerParameters.hpp`:
-
-- для $\beta$: `kMinimumRandomWalkerBeta` ... `kMaximumRandomWalkerBeta`, значение по умолчанию `kDefaultRandomWalkerBeta`;
-- для $p$: `kMinimumRandomWalkerDistancePower` ... `kMaximumRandomWalkerDistancePower`, значение по умолчанию `kDefaultRandomWalkerDistancePower`.
-
-Связность задается enum-значением `PixelConnectivity`:
-
-- `Four` — ортогональные соседи пикселя;
-- `Eight` — ортогональные и диагональные соседи пикселя;
-- значение по умолчанию: `kDefaultPixelConnectivity` (`Four`).
-
-При `p = 0` поведение совпадает с формулой без геометрической нормировки. При `p > 0` диагональные ребра в 8-связности ослабляются пропорционально $\sqrt{2}^p$, тогда как ортогональные ребра не меняются.
-
----
-
-### Рекомендации по выбору значения β
-
-| Тип изображения           | Контраст | Шум     | Рекомендуемый β |
-| ------------------------- | -------- | ------- | --------------- |
-| Бинарное (ч/б)            | Высокий  | Низкий  | `65 – 650`      |
-| Полутоновое, однородное   | Средний  | Низкий  | `10 – 100`      |
-| Слабоконтрастное, с шумом | Низкий   | Высокий | `1 – 25`        |
-
-- **Меньший β** → метки распространяются свободно (мягкие границы);
-- **Больший β** → сегментация более строго следует границам (риск изоляции при шуме).
-
----
-
-###  Предупреждение
-
-- **Слишком малый β**:
-  - снижает чувствительность к границам;
-  - вызывает утечки меток через фон;
-- **Слишком большой β**:
-  - разрушает связность;
-  - метки не распространяются и "залипают".
-
----
-
-## Потенциальные улучшения
-
-###  Предобработка изображения
-
-- Gaussian/Bilateral фильтрация перед построением графа для снижения высокочастотного шума;
-- нормализация гистограммы или контраста для изображений из разных источников.
-
-###  Дополнительные признаки веса
-
-- Отдельный градиентный множитель:
-$
-w_{ij} = \frac{\exp(-\beta \Delta \hat I_{ij}^2 - \gamma G_{ij}^2)}{d_{ij}^p}
-$
-- Текстурные признаки или локальная энтропия как дополнительные карты признаков.
-
-###  Автоматическая инициализация
-
-- Выбор параметров по гистограмме, контрасту или оценке уровня шума;
-- автоматическая генерация marker-mask constraints для типовых NDT-сценариев.
-
----
-
-##  Внутренняя структура
-
-Проект разделен по слоям. Основное правило зависимостей: внешние слои могут зависеть от домена и application-абстракций, но математическое ядро не зависит от Qt, QML, infrastructure или presentation.
-
-Segmentation input передается как `SegmentationConstraints`: ручные прямоугольные `SeedRegion` и автоматическая `MarkerLabelMask` остаются разными доменными формами до алгоритмического expansion. Это не позволяет автоматическим маркерам деградировать в набор одноточечных `1x1` seed-регионов и сохраняет явный приоритет ручной разметки над automatic mask.
-
-| Слой / модуль                         | Назначение |
-| ------------------------------------- | ---------- |
-| `model/domain`                        | Чистые доменные типы: изображение, segmentation constraints, seed-регионы, marker-mask, параметры, результат, ошибки, cancellation/progress-контракты |
-| `model/algorithm`                     | Функционально ориентированные этапы Random Walker: expansion constraints в seed-пиксели, граничные условия, разбиение узлов, решение гармонической задачи, сборка вероятностей |
-| `model/graph`                         | Построение взвешенного лапласиана grid-графа |
-| `model/service`                       | Use case сегментации: валидация запроса, expansion constraints, запуск алгоритма |
-| `application/segmentation`            | Application-level порт асинхронного запуска сегментации и сборка segmentation request |
-| `application/markers`                 | Application-level порт и сервис автоматической постановки маркеров |
-| `application/settings`                | Настройки приложения и абстракция репозитория настроек |
-| `application/diagnostics`             | Application-level фасад логирования без зависимости от конкретного backend-а |
-| `infrastructure/execution`            | Реализации application-портов через `std::jthread`; очереди задач, latest-request policy и callback delivery остаются вне математического ядра |
-| `infrastructure/settings`             | Реализация persistence через `QSettings` |
-| `infrastructure/logging`              | Backend логирования через `spdlog` с файловой ротацией |
-| `presentation`                        | Qt-адаптеры: загрузка изображения, `QImage` <-> domain, providers, rendering, error text |
-| `viewmodel`                           | MVVM-состояние, команды UI и доставка async-результатов в UI thread |
-| `view`                                | QML-представления и панели; алгоритмические параметры привязаны к ViewModel |
-| `bootstrap`                           | Composition root и связывание зависимостей |
-
----
-
-# Расширение алгоритма Random Walker: модификации и будущие направления
-
-Алгоритм Random Walker обеспечивает высокое качество сегментации при наличии четких маркеров и контрастных границ, однако в условиях шума, неоднородности и отсутствия полной разметки его эффективность снижается. Ниже представлены  направления его модификации и автоматизации.
-
----
-
-## 1. Автоматическое размещение маркеров
-
-Вместо ручной разметки можно использовать автоматические стратегии генерации маркеров
-
-###  Подход 1: Connected Components + морфология
-
-- Бинаризация (например, методом Otsu):  $B(x, y) = I(x, y) > T$
-- Выделение связных компонент:  $\text{label}(B) \rightarrow \{C_i\}$
-- Автоматическое размещение маркера в центре масс $C_i$:
-$$ m_i = \frac{1}{|C_i|} \sum_{(x, y) \in C_i} (x, y) $$
-###  Подход 2: Кластеризация интенсивности
-- K-means или Gaussian Mixture Model на значениях интенсивности
-- Маркеры размещаются в наиболее плотных кластерах, порогованно
-
----
-
-##  2. Устойчивость к шуму и слабому контрасту
-
-### Модификация весовой функции
-
-В текущей реализации используется ручной global-beta вес. Дальнейшее расширение должно добавлять новые модели как отдельные чистые function objects в `model/graph`, сохраняя положительность, конечность и симметрию весов.
-
-###  Альтернатива: использование градиентного поля
-
-- Вместо интенсивности используем норму градиента:
-    $$\nabla I = \left( \frac{\partial I}{\partial x}, \frac{\partial I}{\partial y} \right) \quad \Rightarrow \quad w_{ij} = \exp(-\gamma \cdot \| \nabla I_{ij} \|^2)$$
-
-###  Сглаживание изображения до построения графа
-
-- Применение фильтров (Gaussian, Bilateral) перед построением весов:
-    $$I' = G_\sigma * I \quad \text{или} \quad I' = \text{bilateral}(I, \sigma_s, \sigma_r)$$
-- Снижение влияния высокочастотного шума на веса
-    
-
-
----
-
-##  3. Расширение топологии графа
-###  Использование не только 4-/8-соседства, но и геодезической близости
-- Расширенные связи: $w_{ij} \neq 0$ даже при $\|i - j\| > 1$
-- Геодезическое расстояние по изображению:
-    $$d_G(i, j) = \min_{\pi \in \text{paths}(i \to j)} \sum_{(u,v) \in \pi} \frac{1}{w_{uv}}$$
-- Помогает при разрывах в объекте
-    
-
----
-
-##  4. Поддержка мультиклассовой сегментации
-
-Random Walker естественным образом поддерживает многоклассовую сегментацию:
-
-- Каждому классу назначается своя метка
-- Решается система для каждого класса отдельно:
-$$L_u x_u^{(k)} = -B^T x_m^{(k)} \quad \forall k = 1 \dots K$$
-- Итоговая метка — по максимальной вероятности:
-$$\text{label}(i) = \arg\max_k x_u^{(k)}(i)$$
-
----
-## 5. Интеграции
-
-Возможны модификации интеграцией с другими методами: graph-cut, snake-algorithm, градиентные методы.
-
----
-
-# Применение Random Walker в промышленной дефектоскопии
-
-Алгоритм Random Walker может применяться в задачах **неразрушающего контроля** (NDT) и **промышленной томографии**, где необходимо выявление дефектов в материалах по рентгеновским, КТ- и МРТ-изображениям. Он особенно эффективен в случаях, когда объекты имеют **разветвлённую или пористую структуру**, а границы между фоном и дефектом выражены в яркостном или текстурном контрасте.
-
----
-
-## Типовые применения в дефектоскопии
-
-- Поиск **трещин, пустот, пор и инородных включений** в композитах, металлах, керамике
-- Анализ **сварных швов** и внутренних напряжений
-- Сегментация **деталей в сборе** (механических или электронных)
-- Автоматическая разметка в потоке **высокоскоростного контроля** (inline inspection)
-
-
----
-
-## Автоматизация поиска дефектов
-
-Даже несмотря на необходимость разметки, RW можно адаптировать под **автоматическое обнаружение**:
-###  Генерация маркеров через локальную аномалию
-- Вычисление локальной дисперсии $\sigma^2_{\text{local}}(x, y)$ или энтропии окна
-- Детектирование пиков и впадин, как потенциальных маркеров дефекта
-- Фоновые маркеры: в однородных областях с низкой вариативностью
-
-### Использование морфологических фильтров
-- Применение `top-hat`, `black-hat`, `closing-open` для выделения структурной разницы
-- Порогование и выбор стабильных компонент как маркеров
-
-### Кластеризация признаков
-- Использование PCA, t-SNE или autoencoder-признаков + DBSCAN/KMeans для предварительной сегментации
-- Преобразование кластеров в карту вероятностей для инициализации RW
-
----
-##  Ограничения в условиях промышленного шума
-
-- **Низкий контраст** между фоном и дефектом → веса становятся слабо дискриминативны
-- **Металлографический шум** и артефакты мешают определению стабильных маркеров
-- **Тонкие и вытянутые структуры** (например, микротрещины) требуют высокой плотности графа или уточнённой топологии
-
-> Возможное решение: комбинированный подход RW + фильтрация + постобработка на графе (удаление малых компонент, skeletonization)
-
-
-При этом его математическая строгость (решение уравнения Лапласа) делает результат стабильным и воспроизводимым, что критично для задач инженерного контроля.
-##  Полезные ссылки
-
-- [Original Random Walker paper (Grady, 2006)](https://ieeexplore.ieee.org/document/1704833)
-- [Fast Approximate RW (Grady & Sinop, 2008)](https://ieeexplore.ieee.org/document/4541126)
-- [Modified RW segmentation (Bai & Wang, 2009)](https://ieeexplore.ieee.org/document/4761502)
-- Eigen documentation
-- Qt documentation
-
----
-
-## Лицензия
-
-BSD 3-Clause License
+**random-walker** is a desktop image segmentation application built with C++,
+Qt 6, Eigen, spdlog, and CMake.
+
+The application implements an interactive Random Walker segmentation workflow:
+the user marks a few background and object regions, the image is represented as
+a weighted pixel graph, and labels are propagated from the marked pixels to the
+unknown pixels. The result is shown as an overlay on the source image.
+
+## Usage
+
+1. Start the application.
+2. Click **Open** and select an image.
+3. Choose a label: **Background** or **Object**.
+4. Draw one or more seed rectangles for both labels.
+5. Optionally click **Auto markers** to generate and inspect proposed markers.
+6. Click **Run segmentation**.
+7. Use **Clear seeds** or **Clear image** to reset the current work.
+
+Random Walker requires at least one background marker and one object marker.
+Automatic markers are only proposed constraints; they do not remove the need for
+a well-posed segmentation setup.
+
+## Input Images
+
+- Supported formats depend on Qt image loading support; common formats such as
+  PNG, JPEG, and BMP are supported.
+- Loaded images are converted to grayscale before segmentation.
+- The current segmentation limit is `1,048,576` pixels.
+- Clear contrast between the marked regions usually produces better results.
+
+## Parameters
+
+### Graph
+
+These parameters control how labels propagate through the image.
+
+- `Connectivity`: chooses which neighboring pixels are connected in the graph.
+  Use `4-connectivity` for stricter propagation through horizontal and vertical
+  neighbors. Use `8-connectivity` when diagonal continuity matters or when the
+  result looks too blocky.
+- `Distance p`: controls how strongly diagonal edges are weakened in
+  `8-connectivity`. `0` treats diagonal and orthogonal edges equally. Larger
+  values make diagonal propagation more conservative. This parameter has no
+  visible effect for purely orthogonal `4-connectivity`.
+- `Beta`: controls sensitivity to intensity changes. Lower values let labels
+  cross weak intensity changes more easily, producing smoother but leakier
+  results. Higher values make the segmentation follow contrast more tightly,
+  but very high values can prevent labels from crossing noisy or low-contrast
+  areas.
+
+Practical tuning:
+
+| Symptom | Try |
+| ------- | --- |
+| Object label leaks into the background | Increase `Beta`; add more background seeds near the leak |
+| Object region is fragmented or does not grow enough | Decrease `Beta`; add object seeds inside missing areas |
+| Diagonal structures look broken | Use `8-connectivity`; reduce `Distance p` |
+| Diagonal propagation is too permissive | Increase `Distance p` |
+
+### Auto Markers
+
+
+- `Object polarity`: tells the marker proposal whether the object is expected
+  to be darker or brighter than the background. Choose the option that matches
+  the target region in the loaded grayscale image.
+- `Confidence`: minimum certainty required for an automatic marker candidate.
+  Higher values create fewer and safer markers. Lower values create more
+  markers, but can include unreliable pixels when object and background
+  intensities overlap.
+- `Safe margin, px`: removes candidate pixels too close to the boundary of a
+  proposed region. Increase it when automatic markers touch uncertain edges.
+  Set it to `0` to disable this cleanup.
+- `Min area, px`: removes connected marker components smaller than the chosen
+  area. Increase it to suppress isolated noise. Decrease it when valid target
+  regions are small.
+
+## Documentation
+
+- [Build instructions](BUILD.md)
+- [Coding style](CODESTYLE.md)
+- [Random Walker algorithm notes](docs/random-walker-algorithm.md)
+
+## License
+
+BSD 3-Clause License. See [LICENSE](LICENSE).
