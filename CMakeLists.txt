@@ -45,19 +45,7 @@ endif()
 
 qt_add_resources(qml_resources qml.qrc)
 
-set(HEADERS
-    application/error/UserError.hpp
-    application/diagnostics/Logging.hpp
-    application/markers/AutoMarkerExecutor.hpp
-    application/markers/AutoMarkerService.hpp
-    application/markers/JThreadAutoMarkerExecutor.hpp
-    application/settings/ApplicationSettings.hpp
-    application/settings/SettingsRepository.hpp
-    application/settings/SettingsService.hpp
-    application/segmentation/SegmentationUseCase.hpp
-    bootstrap/AppContext.hpp
-    infrastructure/settings/QtSettingsRepository.hpp
-    infrastructure/logging/Logging.hpp
+set(MODEL_HEADERS
     model/domain/AutoMarkers.hpp
     model/domain/Cancellation.hpp
     model/domain/GrayImage.hpp
@@ -89,6 +77,92 @@ set(HEADERS
     model/markers/GmmIntensity.hpp
     model/markers/GmmMarkerProposal.hpp
     model/service/SegmentationService.hpp
+)
+
+set(MODEL_SOURCES
+    model/algorithm/BoundaryConditions.cpp
+    model/algorithm/DirichletProblemValidation.cpp
+    model/algorithm/HarmonicSolver.cpp
+    model/algorithm/NodePartition.cpp
+    model/algorithm/PartitionedLaplacian.cpp
+    model/algorithm/ProbabilityField.cpp
+    model/algorithm/RandomWalkerAlgorithm.cpp
+    model/algorithm/SeedExpansion.cpp
+    model/domain/SegmentationConstraintsValidation.cpp
+    model/executor/JThreadSegmentationExecutor.cpp
+    model/graph/GridLaplacian.cpp
+    model/service/SegmentationService.cpp
+)
+
+add_library(random_walker_model STATIC
+    ${MODEL_SOURCES}
+    ${MODEL_HEADERS}
+)
+
+set_target_properties(random_walker_model PROPERTIES
+    AUTOMOC OFF
+    AUTORCC OFF
+    AUTOUIC OFF
+)
+
+target_include_directories(random_walker_model
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(random_walker_model
+    PUBLIC
+        Eigen3::Eigen
+        random_walker_algorithm_options
+)
+
+set(APPLICATION_HEADERS
+    application/error/UserError.hpp
+    application/diagnostics/Logging.hpp
+    application/markers/AutoMarkerExecutor.hpp
+    application/markers/AutoMarkerService.hpp
+    application/markers/JThreadAutoMarkerExecutor.hpp
+    application/settings/ApplicationSettings.hpp
+    application/settings/SettingsRepository.hpp
+    application/settings/SettingsService.hpp
+    application/segmentation/SegmentationUseCase.hpp
+)
+
+set(APPLICATION_SOURCES
+    application/diagnostics/Logging.cpp
+    application/markers/AutoMarkerService.cpp
+    application/markers/JThreadAutoMarkerExecutor.cpp
+    application/settings/SettingsService.cpp
+    application/segmentation/SegmentationUseCase.cpp
+)
+
+add_library(random_walker_application STATIC
+    ${APPLICATION_SOURCES}
+    ${APPLICATION_HEADERS}
+)
+
+set_target_properties(random_walker_application PROPERTIES
+    AUTOMOC OFF
+    AUTORCC OFF
+    AUTOUIC OFF
+)
+
+target_include_directories(random_walker_application
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(random_walker_application
+    PUBLIC
+        random_walker_model
+)
+
+set(HEADERS
+    ${APPLICATION_HEADERS}
+    bootstrap/AppContext.hpp
+    infrastructure/settings/QtSettingsRepository.hpp
+    infrastructure/logging/Logging.hpp
+    ${MODEL_HEADERS}
     presentation/adapter/AutoMarkerMaskRenderer.hpp
     presentation/adapter/MaskRenderer.hpp
     presentation/adapter/QImageAdapter.hpp
@@ -115,26 +189,8 @@ set(HEADERS
 set(SOURCES
     main.cpp
     bootstrap/AppContext.cpp
-    application/diagnostics/Logging.cpp
-    application/markers/AutoMarkerService.cpp
-    application/markers/JThreadAutoMarkerExecutor.cpp
-    application/settings/SettingsService.cpp
-    application/segmentation/SegmentationUseCase.cpp
     infrastructure/settings/QtSettingsRepository.cpp
     infrastructure/logging/Logging.cpp
-    # model
-    model/algorithm/BoundaryConditions.cpp
-    model/algorithm/DirichletProblemValidation.cpp
-    model/algorithm/HarmonicSolver.cpp
-    model/algorithm/NodePartition.cpp
-    model/algorithm/PartitionedLaplacian.cpp
-    model/algorithm/ProbabilityField.cpp
-    model/algorithm/RandomWalkerAlgorithm.cpp
-    model/algorithm/SeedExpansion.cpp
-    model/domain/SegmentationConstraintsValidation.cpp
-    model/executor/JThreadSegmentationExecutor.cpp
-    model/graph/GridLaplacian.cpp
-    model/service/SegmentationService.cpp
     presentation/adapter/AutoMarkerMaskRenderer.cpp
     presentation/adapter/MaskRenderer.cpp
     presentation/image/ImageLoader.cpp
@@ -175,9 +231,8 @@ target_link_libraries(${PROJECT_NAME}
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2
-        Eigen3::Eigen
+        random_walker_application
         spdlog::spdlog
-        random_walker_algorithm_options
 )
 
 if(WIN32)
