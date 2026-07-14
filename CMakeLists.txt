@@ -80,6 +80,7 @@ set(MODEL_HEADERS
 set(MODEL_SOURCES
     model/algorithm/BoundaryConditions.cpp
     model/algorithm/DirichletProblemValidation.cpp
+    model/algorithm/DistanceTransform.cpp
     model/algorithm/HarmonicSolver.cpp
     model/algorithm/NodePartition.cpp
     model/algorithm/PartitionedLaplacian.cpp
@@ -88,6 +89,8 @@ set(MODEL_SOURCES
     model/algorithm/SeedExpansion.cpp
     model/domain/SegmentationConstraintsValidation.cpp
     model/graph/GridLaplacian.cpp
+    model/markers/GmmIntensity.cpp
+    model/markers/GmmMarkerProposal.cpp
     model/service/SegmentationService.cpp
 )
 
