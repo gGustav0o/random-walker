@@ -1,14 +1,20 @@
 #include "Logging.hpp"
 
+#include <cstdio>
 #include <mutex>
 #include <utility>
-
-#include <QDebug>
 
 namespace random_walker::application {
     namespace {
         std::mutex log_sink_mutex;
         LogSink current_log_sink;
+
+        void write_fallback_diagnostic(
+            const char* message
+        ) noexcept {
+            std::fputs(message, stderr);
+            std::fputc('\n', stderr);
+        }
 
         void log_message(
             LogLevel level
@@ -26,8 +32,9 @@ namespace random_walker::application {
                     sink(level, category, message);
                 }
             } catch (...) {
-                qWarning().noquote()
-                    << "Application log sink threw; message was dropped";
+                write_fallback_diagnostic(
+                    "Application log sink threw; message was dropped"
+                );
             }
         }
     }
@@ -42,8 +49,9 @@ namespace random_walker::application {
             std::lock_guard lock(log_sink_mutex);
             current_log_sink = {};
         } catch (...) {
-            qWarning().noquote()
-                << "Application log sink cleanup failed";
+            write_fallback_diagnostic(
+                "Application log sink cleanup failed"
+            );
         }
     }
 
