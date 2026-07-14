@@ -139,6 +139,7 @@ add_random_walker_test(viewmodel_tests
         ${PROJECT_SOURCE_DIR}/viewmodel/ProgressState.cpp
         ${PROJECT_SOURCE_DIR}/viewmodel/ResultState.cpp
         ${PROJECT_SOURCE_DIR}/viewmodel/SeedListModel.cpp
+        ${PROJECT_SOURCE_DIR}/viewmodel/SegmentationConstraintsBuilder.cpp
         ${PROJECT_SOURCE_DIR}/viewmodel/SeedRegionGeometry.cpp
         ${PROJECT_SOURCE_DIR}/viewmodel/SeedRegionState.cpp
         ${PROJECT_SOURCE_DIR}/viewmodel/SegmentationViewModel.cpp
@@ -152,6 +153,7 @@ add_random_walker_test(viewmodel_tests
 add_random_walker_test(viewmodel_helper_tests
     SOURCES
         viewmodel/ViewModelHelperTests.cpp
+        ${PROJECT_SOURCE_DIR}/viewmodel/SegmentationConstraintsBuilder.cpp
         ${PROJECT_SOURCE_DIR}/viewmodel/SeedRegionGeometry.cpp
         ${PROJECT_SOURCE_DIR}/viewmodel/ViewModelCallbackGate.cpp
         ${PROJECT_SOURCE_DIR}/viewmodel/ViewModelConversions.cpp

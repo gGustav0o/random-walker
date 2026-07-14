@@ -105,6 +105,7 @@ set(HEADERS
     viewmodel/ProgressState.hpp
     viewmodel/ResultState.hpp
     viewmodel/SeedListModel.hpp
+    viewmodel/SegmentationConstraintsBuilder.hpp
     viewmodel/SeedRegionGeometry.hpp
     viewmodel/SeedRegionState.hpp
     viewmodel/SegmentationViewModel.hpp
@@ -147,6 +148,7 @@ set(SOURCES
     viewmodel/ProgressState.cpp
     viewmodel/ResultState.cpp
     viewmodel/SeedListModel.cpp
+    viewmodel/SegmentationConstraintsBuilder.cpp
     viewmodel/SeedRegionGeometry.cpp
     viewmodel/SeedRegionState.cpp
     viewmodel/SegmentationViewModel.cpp

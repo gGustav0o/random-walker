@@ -14,6 +14,7 @@
 #include "application/diagnostics/Logging.hpp"
 #include "application/segmentation/SegmentationUseCase.hpp"
 #include "presentation/image/ImageLoader.hpp"
+#include "viewmodel/SegmentationConstraintsBuilder.hpp"
 #include "viewmodel/ViewModelCallbackGate.hpp"
 #include "viewmodel/SeedRegionGeometry.hpp"
 #include "viewmodel/ViewModelConversions.hpp"
@@ -118,9 +119,13 @@ quint64 SegmentationViewModel::image_version() const noexcept {
 }
 
 bool SegmentationViewModel::can_run() const noexcept {
+    const random_walker::viewmodel::ConstraintCounts counts =
+        random_walker::viewmodel::count_constraints(
+            seed_state_.regions()
+            , automatic_marker_state_.mask()
+        );
     return image_loaded()
-        && background_constraint_count() > 0
-        && object_constraint_count() > 0;
+        && random_walker::viewmodel::has_required_constraints(counts);
 }
 
 bool SegmentationViewModel::busy() const noexcept {
@@ -624,8 +629,6 @@ void SegmentationViewModel::run_segmentation() {
         return;
     }
     Q_ASSERT(image_loaded());
-    Q_ASSERT(background_constraint_count() > 0);
-    Q_ASSERT(object_constraint_count() > 0);
     Q_ASSERT(random_walker::domain::is_valid(
         application_settings_.random_walker
     ));
@@ -633,28 +636,19 @@ void SegmentationViewModel::run_segmentation() {
     const bool previous_can_run = can_run();
     const random_walker::domain::SegmentationRequestId request_id =
         next_request_id_++;
+    const random_walker::viewmodel::ConstraintCounts constraint_counts =
+        random_walker::viewmodel::count_constraints(
+            seed_state_.regions()
+            , automatic_marker_state_.mask()
+        );
+    Q_ASSERT(random_walker::viewmodel::has_required_constraints(
+        constraint_counts
+    ));
     random_walker::domain::SegmentationConstraints constraints =
-        segmentation_constraints();
-    const int background_constraints =
-        random_walker::domain::seed_pixel_count(
-            constraints.manual_seed_regions
-            , DomainSeedLabel::Background
-        )
-        + random_walker::domain::marker_pixel_count(
-            constraints.automatic_markers
-            , DomainSeedLabel::Background
+        random_walker::viewmodel::make_segmentation_constraints(
+            seed_state_.regions()
+            , automatic_marker_state_.mask()
         );
-    const int object_constraints =
-        random_walker::domain::seed_pixel_count(
-            constraints.manual_seed_regions
-            , DomainSeedLabel::Object
-        )
-        + random_walker::domain::marker_pixel_count(
-            constraints.automatic_markers
-            , DomainSeedLabel::Object
-        );
-    Q_ASSERT(background_constraints > 0);
-    Q_ASSERT(object_constraints > 0);
     random_walker::domain::SegmentationRequest request =
         random_walker::application::make_segmentation_request(
             request_id
@@ -673,9 +667,9 @@ void SegmentationViewModel::run_segmentation() {
             + "x"
             + std::to_string(image_state_.height())
             + ", background_seed_pixels="
-            + std::to_string(background_constraints)
+            + std::to_string(constraint_counts.background)
             + ", object_seed_pixels="
-            + std::to_string(object_constraints)
+            + std::to_string(constraint_counts.object)
             + ", beta="
             + std::to_string(application_settings_.random_walker.beta)
             + ", connectivity="
@@ -719,26 +713,6 @@ SegmentationViewModel::domain_seed_label() const noexcept {
     return selected_label_ == Object
         ? DomainSeedLabel::Object
         : DomainSeedLabel::Background;
-}
-
-int SegmentationViewModel::background_constraint_count() const noexcept {
-    return background_seed_count() + automatic_marker_state_.background_count();
-}
-
-int SegmentationViewModel::object_constraint_count() const noexcept {
-    return object_seed_count() + automatic_marker_state_.object_count();
-}
-
-random_walker::domain::SegmentationConstraints
-SegmentationViewModel::segmentation_constraints() const {
-    random_walker::domain::SegmentationConstraints constraints {
-        .manual_seed_regions = seed_state_.regions()
-    };
-    if (const auto* mask = automatic_marker_state_.mask()) {
-        constraints.automatic_markers = *mask;
-    }
-
-    return constraints;
 }
 
 void SegmentationViewModel::update_random_walker_parameters(

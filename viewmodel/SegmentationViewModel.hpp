@@ -200,10 +200,6 @@ private:
     using DomainForegroundPolarity = random_walker::domain::ForegroundPolarity;
 
     [[nodiscard]] DomainSeedLabel domain_seed_label() const noexcept;
-    [[nodiscard]] int background_constraint_count() const noexcept;
-    [[nodiscard]] int object_constraint_count() const noexcept;
-    [[nodiscard]] random_walker::domain::SegmentationConstraints
-    segmentation_constraints() const;
 
     void update_random_walker_parameters(
         random_walker::domain::RandomWalkerParameters parameters

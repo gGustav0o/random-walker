@@ -1,5 +1,6 @@
 #include <limits>
 #include <optional>
+#include <vector>
 
 #include <QCoreApplication>
 #include <QEventLoop>
@@ -9,6 +10,7 @@
 #include "model/domain/RandomWalkerParameters.hpp"
 #include "model/executor/SegmentationExecutor.hpp"
 #include "viewmodel/SeedRegionGeometry.hpp"
+#include "viewmodel/SegmentationConstraintsBuilder.hpp"
 #include "viewmodel/SegmentationViewModel.hpp"
 #include "viewmodel/ViewModelCallbackGate.hpp"
 #include "viewmodel/ViewModelConversions.hpp"
@@ -34,6 +36,24 @@ namespace {
     void process_queued_callbacks() {
         QCoreApplication::processEvents(QEventLoop::AllEvents);
     }
+
+    [[nodiscard]] domain::SeedRegion seed_region(
+        int x
+        , int y
+        , int width
+        , int height
+        , domain::SeedLabel label
+    ) {
+        return {
+            .area = {
+                .x = x
+                , .y = y
+                , .width = width
+                , .height = height
+            }
+            , .label = label
+        };
+    }
 }
 
 class ViewModelHelperTests final : public QObject {
@@ -48,6 +68,9 @@ private slots:
     void clips_seed_rectangle_to_image_bounds();
     void rejects_empty_or_outside_seed_rectangle();
     void clips_seed_rectangle_without_int_overflow();
+    void builds_segmentation_constraints_from_seed_regions_and_marker_mask();
+    void counts_manual_and_automatic_constraints();
+    void checks_required_constraint_presence();
     void callback_gate_posts_payload_to_attached_receiver();
     void callback_gate_drops_payload_after_detach();
 };
@@ -190,6 +213,62 @@ void ViewModelHelperTests::clips_seed_rectangle_without_int_overflow() {
 
     QVERIFY(rectangle.has_value());
     QVERIFY(*rectangle == expected);
+}
+
+void ViewModelHelperTests::
+builds_segmentation_constraints_from_seed_regions_and_marker_mask() {
+    const std::vector<domain::SeedRegion> manual_regions {
+        seed_region(0, 0, 2, 1, domain::SeedLabel::Background)
+    };
+    domain::MarkerLabelMask automatic_markers(2, 1);
+    automatic_markers.set(0, 1, domain::MarkerLabel::Object);
+
+    const domain::SegmentationConstraints constraints =
+        viewmodel::make_segmentation_constraints(
+            manual_regions
+            , &automatic_markers
+        );
+
+    QCOMPARE(constraints.manual_seed_regions.size(), std::size_t {1});
+    QVERIFY(constraints.manual_seed_regions.front() == manual_regions.front());
+    QCOMPARE(
+        static_cast<int>(constraints.automatic_markers.at(0, 1))
+        , static_cast<int>(domain::MarkerLabel::Object)
+    );
+}
+
+void ViewModelHelperTests::counts_manual_and_automatic_constraints() {
+    const std::vector<domain::SeedRegion> manual_regions {
+        seed_region(0, 0, 2, 2, domain::SeedLabel::Background),
+        seed_region(3, 0, 1, 2, domain::SeedLabel::Object)
+    };
+    domain::MarkerLabelMask automatic_markers(4, 1);
+    automatic_markers.set(0, 0, domain::MarkerLabel::Background);
+    automatic_markers.set(0, 1, domain::MarkerLabel::Object);
+    automatic_markers.set(0, 2, domain::MarkerLabel::Object);
+
+    const viewmodel::ConstraintCounts counts = viewmodel::count_constraints(
+        manual_regions
+        , &automatic_markers
+    );
+
+    QCOMPARE(counts.background, 5);
+    QCOMPARE(counts.object, 4);
+}
+
+void ViewModelHelperTests::checks_required_constraint_presence() {
+    QVERIFY(!viewmodel::has_required_constraints({
+        .background = 1
+        , .object = 0
+    }));
+    QVERIFY(!viewmodel::has_required_constraints({
+        .background = 0
+        , .object = 1
+    }));
+    QVERIFY(viewmodel::has_required_constraints({
+        .background = 1
+        , .object = 1
+    }));
 }
 
 void ViewModelHelperTests::callback_gate_posts_payload_to_attached_receiver() {
