@@ -91,6 +91,7 @@ namespace random_walker::domain {
         , MissingObjectSeeds
         , SeedOutOfBounds
         , ConflictingSeedLabels
+        , UnanchoredUnknownRegion
         , LaplacianDecompositionFailed
         , LinearSystemSolveFailed
         , NonFiniteSolution

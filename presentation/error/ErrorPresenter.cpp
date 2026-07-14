@@ -113,6 +113,9 @@ namespace random_walker::presentation {
             case Error::ConflictingSeedLabels:
                 return QStringLiteral(
                     "Background and object seeds must not overlap.");
+            case Error::UnanchoredUnknownRegion:
+                return QStringLiteral(
+                    "The selected parameters disconnect part of the image from the seeds.");
             case Error::LaplacianDecompositionFailed:
                 return QStringLiteral("Failed to decompose the graph Laplacian.");
             case Error::LinearSystemSolveFailed:

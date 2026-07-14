@@ -70,6 +70,7 @@ set(HEADERS
     model/domain/SegmentationConstraintsValidation.hpp
     model/domain/SegmentationLimits.hpp
     model/algorithm/BoundaryConditions.hpp
+    model/algorithm/DirichletProblemValidation.hpp
     model/algorithm/DistanceTransform.hpp
     model/algorithm/HarmonicSolver.hpp
     model/algorithm/IndexTypes.hpp
@@ -122,6 +123,7 @@ set(SOURCES
     infrastructure/logging/Logging.cpp
     # model
     model/algorithm/BoundaryConditions.cpp
+    model/algorithm/DirichletProblemValidation.cpp
     model/algorithm/HarmonicSolver.cpp
     model/algorithm/NodePartition.cpp
     model/algorithm/PartitionedLaplacian.cpp

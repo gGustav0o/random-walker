@@ -136,6 +136,7 @@ private slots:
     void segments_mixed_constraints_with_manual_precedence();
     void segments_fully_constrained_image_without_unknown_pixels();
     void segments_three_pixel_line_with_expected_interpolation();
+    void reports_unanchored_unknown_region_after_decomposition_failure();
 };
 
 void SegmentationServiceTests::rejects_empty_image() {
@@ -511,6 +512,33 @@ void SegmentationServiceTests::segments_three_pixel_line_with_expected_interpola
     QCOMPARE(result.probabilities(0, 2), 1.0);
     QCOMPARE(static_cast<int>(result.mask(0, 0)), 0);
     QCOMPARE(static_cast<int>(result.mask(0, 2)), 1);
+}
+
+void SegmentationServiceTests::
+reports_unanchored_unknown_region_after_decomposition_failure() {
+    const auto segmentation_request = request(
+        make_image(1, 3, {0, 255, 0})
+        , {
+            seed_region(0, 0, 1, 1, domain::SeedLabel::Background),
+            seed_region(2, 0, 1, 1, domain::SeedLabel::Object)
+        }
+        , domain::RandomWalkerParameters {
+            .beta = domain::kMaximumRandomWalkerBeta
+        }
+    );
+
+    const service::SegmentationService segmentation_service;
+    const domain::SegmentationOutcome outcome = segmentation_service.segment(
+        segmentation_request
+        , domain::CancellationToken {}
+        , domain::ProgressReporter {}
+    );
+
+    QVERIFY(std::holds_alternative<domain::SegmentationError>(outcome));
+    QCOMPARE(
+        static_cast<int>(std::get<domain::SegmentationError>(outcome))
+        , static_cast<int>(domain::SegmentationError::UnanchoredUnknownRegion)
+    );
 }
 
 QTEST_GUILESS_MAIN(SegmentationServiceTests)

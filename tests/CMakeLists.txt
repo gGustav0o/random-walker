@@ -33,6 +33,7 @@ add_random_walker_test(model_algorithm_tests
     SOURCES
         model/AlgorithmTests.cpp
         ${PROJECT_SOURCE_DIR}/model/algorithm/BoundaryConditions.cpp
+        ${PROJECT_SOURCE_DIR}/model/algorithm/DirichletProblemValidation.cpp
         ${PROJECT_SOURCE_DIR}/model/algorithm/NodePartition.cpp
         ${PROJECT_SOURCE_DIR}/model/algorithm/PartitionedLaplacian.cpp
         ${PROJECT_SOURCE_DIR}/model/algorithm/ProbabilityField.cpp
@@ -66,6 +67,7 @@ add_random_walker_test(model_service_tests
     SOURCES
         model/SegmentationServiceTests.cpp
         ${PROJECT_SOURCE_DIR}/model/algorithm/BoundaryConditions.cpp
+        ${PROJECT_SOURCE_DIR}/model/algorithm/DirichletProblemValidation.cpp
         ${PROJECT_SOURCE_DIR}/model/algorithm/HarmonicSolver.cpp
         ${PROJECT_SOURCE_DIR}/model/algorithm/NodePartition.cpp
         ${PROJECT_SOURCE_DIR}/model/algorithm/PartitionedLaplacian.cpp

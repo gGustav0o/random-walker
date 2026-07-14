@@ -11,6 +11,7 @@
 #include <QtTest>
 
 #include "model/algorithm/BoundaryConditions.hpp"
+#include "model/algorithm/DirichletProblemValidation.hpp"
 #include "model/algorithm/NodePartition.hpp"
 #include "model/algorithm/PartitionedLaplacian.hpp"
 #include "model/algorithm/ParallelPolicy.hpp"
@@ -223,6 +224,8 @@ private slots:
     void boundary_value_vector_follows_boundary_pixel_order();
     void partitions_boundary_and_unknown_pixels();
     void partitions_laplacian_into_unknown_blocks();
+    void validates_dirichlet_anchoring_for_boundary_reachable_unknowns();
+    void rejects_unanchored_dirichlet_unknown_component();
     void assembles_probability_map_from_boundary_and_unknown_values();
     void assembles_large_probability_map_deterministically();
     void large_probability_assembly_honors_cancellation();
@@ -605,6 +608,70 @@ void AlgorithmTests::partitions_laplacian_into_unknown_blocks() {
     QCOMPARE(coefficient(blocks.unknown_boundary_block, 0, 1), -1.0);
     QCOMPARE(coefficient(blocks.unknown_boundary_block, 1, 0), -1.0);
     QCOMPARE(coefficient(blocks.unknown_boundary_block, 1, 1), -1.0);
+}
+
+void AlgorithmTests::
+validates_dirichlet_anchoring_for_boundary_reachable_unknowns() {
+    algorithm::PartitionedLaplacian laplacian;
+    laplacian.unknown_unknown_block = Eigen::SparseMatrix<double>(2, 2);
+    laplacian.unknown_boundary_block = Eigen::SparseMatrix<double>(2, 1);
+
+    const std::vector<Eigen::Triplet<double>> unknown_unknown_triplets {
+        {0, 0, 2.0}, {0, 1, -1.0},
+        {1, 0, -1.0}, {1, 1, 1.0}
+    };
+    const std::vector<Eigen::Triplet<double>> unknown_boundary_triplets {
+        {0, 0, -1.0}
+    };
+    laplacian.unknown_unknown_block.setFromTriplets(
+        unknown_unknown_triplets.begin()
+        , unknown_unknown_triplets.end()
+    );
+    laplacian.unknown_boundary_block.setFromTriplets(
+        unknown_boundary_triplets.begin()
+        , unknown_boundary_triplets.end()
+    );
+
+    const auto outcome = algorithm::validate_dirichlet_anchoring(
+        laplacian
+        , domain::CancellationToken {}
+    );
+
+    QVERIFY(std::holds_alternative<algorithm::DirichletAnchoringValidated>(
+        outcome
+    ));
+}
+
+void AlgorithmTests::rejects_unanchored_dirichlet_unknown_component() {
+    algorithm::PartitionedLaplacian laplacian;
+    laplacian.unknown_unknown_block = Eigen::SparseMatrix<double>(2, 2);
+    laplacian.unknown_boundary_block = Eigen::SparseMatrix<double>(2, 1);
+
+    const std::vector<Eigen::Triplet<double>> unknown_unknown_triplets {
+        {0, 0, 1.0}, {1, 1, 0.0}
+    };
+    const std::vector<Eigen::Triplet<double>> unknown_boundary_triplets {
+        {0, 0, -1.0}
+    };
+    laplacian.unknown_unknown_block.setFromTriplets(
+        unknown_unknown_triplets.begin()
+        , unknown_unknown_triplets.end()
+    );
+    laplacian.unknown_boundary_block.setFromTriplets(
+        unknown_boundary_triplets.begin()
+        , unknown_boundary_triplets.end()
+    );
+
+    const auto outcome = algorithm::validate_dirichlet_anchoring(
+        laplacian
+        , domain::CancellationToken {}
+    );
+
+    QVERIFY(std::holds_alternative<domain::SegmentationError>(outcome));
+    QCOMPARE(
+        static_cast<int>(std::get<domain::SegmentationError>(outcome))
+        , static_cast<int>(domain::SegmentationError::UnanchoredUnknownRegion)
+    );
 }
 
 void AlgorithmTests::assembles_probability_map_from_boundary_and_unknown_values() {

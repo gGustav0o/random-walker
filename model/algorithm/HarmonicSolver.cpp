@@ -1,8 +1,11 @@
 #include "HarmonicSolver.hpp"
 
 #include <cassert>
+#include <variant>
 
 #include <Eigen/SparseCholesky>
+
+#include "DirichletProblemValidation.hpp"
 
 namespace random_walker::algorithm {
     HarmonicSolveOutcome solve_harmonic_dirichlet_problem(
@@ -36,6 +39,17 @@ namespace random_walker::algorithm {
             return domain::Cancelled {};
         }
         if (solver.info() != Eigen::Success) {
+            const DirichletAnchoringOutcome anchoring_outcome =
+                validate_dirichlet_anchoring(laplacian, cancellation);
+            if (const auto* error =
+                    std::get_if<domain::SegmentationError>(&anchoring_outcome)
+            ) {
+                return *error;
+            }
+            if (std::holds_alternative<domain::Cancelled>(anchoring_outcome)) {
+                return domain::Cancelled {};
+            }
+
             return domain::SegmentationError::LaplacianDecompositionFailed;
         }
 
